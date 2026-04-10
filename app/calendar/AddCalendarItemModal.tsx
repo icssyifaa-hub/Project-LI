@@ -458,24 +458,26 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
             if (Array.isArray(selectedItem.eventSupportStaff)) {
               eventSupportArray = selectedItem.eventSupportStaff
             } else if (typeof selectedItem.eventSupportStaff === 'string') {
-              eventSupportArray = selectedItem.eventSupportStaff.split(',').map(s => s.trim()).filter(s => s && s !== 'none')
+              eventSupportArray = selectedItem.eventSupportStaff.split(',').map((s: string) => s.trim()).filter((s: string) => s && s !== 'none')
             }
           } else if (selectedItem.staff2) {
             if (Array.isArray(selectedItem.staff2)) {
               eventSupportArray = selectedItem.staff2
             } else if (typeof selectedItem.staff2 === 'string') {
-              eventSupportArray = selectedItem.staff2.split(',').map(s => s.trim()).filter(s => s && s !== 'none')
+              eventSupportArray = selectedItem.staff2.split(',').map((s: string) => s.trim()).filter((s: string) => s && s !== 'none')
             }
           }
 
           if (selectedItem.event_support_names) {
             eventSupportNamesArray = typeof selectedItem.event_support_names === 'string' 
-              ? selectedItem.event_support_names.split(',').filter(s => s) 
+              ? selectedItem.event_support_names.split(',').filter((s: string) => s) 
               : selectedItem.event_support_names
           }
+
+          // Fix for event_support_colors (around line 475-480)
           if (selectedItem.event_support_colors) {
             eventSupportColorsArray = typeof selectedItem.event_support_colors === 'string' 
-              ? selectedItem.event_support_colors.split(',').filter(s => s) 
+              ? selectedItem.event_support_colors.split(',').filter((s: string) => s) 
               : selectedItem.event_support_colors
           }
           
@@ -504,28 +506,30 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
           let taskSupportNamesArray: string[] = []
           let taskSupportColorsArray: string[] = []
           
-          if (selectedItem.taskSupportStaff) {
-            if (Array.isArray(selectedItem.taskSupportStaff)) {
-              taskSupportArray = selectedItem.taskSupportStaff
-            } else if (typeof selectedItem.taskSupportStaff === 'string') {
-              taskSupportArray = selectedItem.taskSupportStaff.split(',').map(s => s.trim()).filter(s => s && s !== 'none')
-            }
-          } else if (selectedItem.staff2) {
-            if (Array.isArray(selectedItem.staff2)) {
-              taskSupportArray = selectedItem.staff2
-            } else if (typeof selectedItem.staff2 === 'string') {
-              taskSupportArray = selectedItem.staff2.split(',').map(s => s.trim()).filter(s => s && s !== 'none')
-            }
+        if (selectedItem.taskSupportStaff) {
+          if (Array.isArray(selectedItem.taskSupportStaff)) {
+            taskSupportArray = selectedItem.taskSupportStaff
+          } else if (typeof selectedItem.taskSupportStaff === 'string') {
+            taskSupportArray = selectedItem.taskSupportStaff.split(',').map((s: string) => s.trim()).filter((s: string) => s && s !== 'none')
           }
+        } else if (selectedItem.staff2) {
+          if (Array.isArray(selectedItem.staff2)) {
+            taskSupportArray = selectedItem.staff2
+          } else if (typeof selectedItem.staff2 === 'string') {
+            taskSupportArray = selectedItem.staff2.split(',').map((s: string) => s.trim()).filter((s: string) => s && s !== 'none')
+          }
+        }
 
           if (selectedItem.task_support_names) {
             taskSupportNamesArray = typeof selectedItem.task_support_names === 'string' 
-              ? selectedItem.task_support_names.split(',').filter(s => s) 
+              ? selectedItem.task_support_names.split(',').filter((s: string) => s) 
               : selectedItem.task_support_names
           }
+
+          // Fix for task_support_colors (around line 540-545)
           if (selectedItem.task_support_colors) {
             taskSupportColorsArray = typeof selectedItem.task_support_colors === 'string' 
-              ? selectedItem.task_support_colors.split(',').filter(s => s) 
+              ? selectedItem.task_support_colors.split(',').filter((s: string) => s) 
               : selectedItem.task_support_colors
           }
           

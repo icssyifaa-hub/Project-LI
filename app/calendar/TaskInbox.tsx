@@ -509,10 +509,10 @@ function AddTaskModal({
               value={formData.jobTaskId}
               onValueChange={(value) => setFormData({...formData, jobTaskId: value})}
             >
-              <SelectTrigger className="border-gray-300">
+              <SelectTrigger className="bg-white border-gray-300">
                 <SelectValue placeholder="Select job task" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className= "bg-white border border-gray-200 shadow-lg max-h-80" >
                 {jobTasks.map((jt) => (
                   <SelectItem key={jt.id} value={jt.id}>
                     <div className="flex items-center gap-2">
@@ -541,10 +541,10 @@ function AddTaskModal({
               value={formData.taskPicStaff}
               onValueChange={(value) => setFormData({...formData, taskPicStaff: value})}
             >
-              <SelectTrigger className="border-gray-300">
+              <SelectTrigger className="bg-white border-gray-300">
                 <SelectValue placeholder="Select PIC" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className= "bg-white border border-gray-200 shadow-lg max-h-80">
                 {staffList.map((staff) => (
                   <SelectItem key={staff.id} value={staff.user_id}>
                     <div className="flex items-center gap-2">
@@ -623,7 +623,6 @@ function EditTaskModal({
       fetchJobTasks()
       fetchStaff()
       
-      // Find job task ID from name
       const jobTaskObj = jobTasks.find(jt => jt.name === task.jobTask)
       
       setFormData({
@@ -760,10 +759,10 @@ function EditTaskModal({
               value={formData.jobTaskId}
               onValueChange={(value) => setFormData({...formData, jobTaskId: value})}
             >
-              <SelectTrigger className="border-gray-300">
+              <SelectTrigger className="bg-white border-gray-300">
                 <SelectValue placeholder="Select job task" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className= "bg-white border border-gray-200 shadow-lg max-h-80">
                 {jobTasks.map((jt) => (
                   <SelectItem key={jt.id} value={jt.id}>
                     <div className="flex items-center gap-2">
@@ -787,10 +786,10 @@ function EditTaskModal({
               value={formData.taskPicStaff}
               onValueChange={(value) => setFormData({...formData, taskPicStaff: value})}
             >
-              <SelectTrigger className="border-gray-300">
+              <SelectTrigger className="bg-white border-gray-300">
                 <SelectValue placeholder="Select PIC" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
                 {staffList.map((staff) => (
                   <SelectItem key={staff.id} value={staff.user_id}>
                     <div className="flex items-center gap-2">

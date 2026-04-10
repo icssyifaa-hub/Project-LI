@@ -1,4 +1,5 @@
 'use client'
+
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 
@@ -6,7 +7,13 @@ export default function DashboardPage() {
   const router = useRouter()
   
   useEffect(() => {
-    router.push('/calendar')
+    const userRole = 'admin'
+    
+    if (userRole === 'admin') {
+      router.push('/calendar')
+    } else {
+      router.push('/calendar')
+    }
   }, [router])
   
   return (

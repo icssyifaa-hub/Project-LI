@@ -1,73 +1,67 @@
-// lib/pdf-service.ts
 import { createClient } from '@/lib/supabase/client'
 
 const supabase = createClient()
 
-export interface PDFUploadResult {
-  fileName: string
-  filePath: string
-  publicUrl: string
-}
-
-export async function uploadPDF(
-  file: File,
-  taskId: string,
-  type: 'job_order' | 'final_report'
-): Promise<PDFUploadResult> {
-  if (!file) throw new Error('No file provided')
-  
-  if (file.type !== 'application/pdf') {
-    throw new Error('Only PDF files are allowed')
-  }
-  
-  if (file.size > 10 * 1024 * 1024) {
-    throw new Error('File size cannot exceed 10MB')
-  }
-
-  const timestamp = Date.now()
-  const safeFileName = `${taskId}_${type}_${timestamp}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-  const filePath = `tasks/${taskId}/${type}/${safeFileName}`
-
-  // Upload to Supabase Storage
-  const { error: uploadError } = await supabase.storage
-    .from('task-pdfs')
-    .upload(filePath, file, {
-      cacheControl: '3600',
-      upsert: true
-    })
-
-  if (uploadError) throw uploadError
-
-  // Get public URL
-  const { data: { publicUrl } } = supabase.storage
-    .from('task-pdfs')
-    .getPublicUrl(filePath)
-
-  return {
-    fileName: file.name,
-    filePath: filePath,
-    publicUrl: publicUrl
+export async function uploadPDF(file: File, bucket: string, fileName: string) {
+  try {
+    const fileExt = file.name.split('.').pop()
+    const timestamp = Date.now()
+    const safeFileName = fileName.replace(/[^a-zA-Z0-9]/g, '_')
+    const fullFileName = `${safeFileName}_${timestamp}.${fileExt}`
+    const filePath = `${fullFileName}`
+    
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true
+      })
+    
+    if (error) throw error
+    
+    const { data: { publicUrl } } = supabase.storage
+      .from(bucket)
+      .getPublicUrl(filePath)
+    
+    return {
+      path: filePath,
+      publicUrl: publicUrl
+    }
+  } catch (error) {
+    console.error('Error uploading PDF:', error)
+    return null
   }
 }
 
-export async function deletePDF(filePath: string): Promise<void> {
-  if (!filePath) return
-  
-  const { error } = await supabase.storage
-    .from('task-pdfs')
-    .remove([filePath])
-  
-  if (error) {
+export async function deletePDF(filePath: string) {
+  try {
+    // Determine which bucket the file is in based on path or use default
+    let bucket = 'task-job-orders'
+    if (filePath.includes('final') || filePath.includes('Final')) {
+      bucket = 'task-final-reports'
+    }
+    
+    const { error } = await supabase.storage
+      .from(bucket)
+      .remove([filePath])
+    
+    if (error) throw error
+    return true
+  } catch (error) {
     console.error('Error deleting PDF:', error)
+    return false
   }
 }
 
-export async function getPDFUrl(filePath: string): Promise<string | null> {
-  if (!filePath) return null
-  
-  const { data: { publicUrl } } = supabase.storage
-    .from('task-pdfs')
-    .getPublicUrl(filePath)
-  
-  return publicUrl
+export async function getPDFUrl(filePath: string, bucket: string) {
+  try {
+    const { data: { publicUrl } } = supabase.storage
+      .from(bucket)
+      .getPublicUrl(filePath)
+    
+    return publicUrl
+  } catch (error) {
+    console.error('Error getting PDF URL:', error)
+    return null
+  }
 }

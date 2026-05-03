@@ -21,7 +21,7 @@ import type { User, Holiday } from '@/app/calendar/types/calendar'
 import { staffColorMap } from '@/lib/colors'
 
 interface StaffFilters {
-  [staffCode: string]: {
+  [staffId: string]: {
     tasks: boolean
     events: boolean
   }
@@ -34,8 +34,8 @@ interface CalendarFilterProps {
   onHolidaysToggle: () => void
   
   staffTaskEventFilters?: StaffFilters
-  onStaffTaskToggle?: (staffCode: string, value: boolean) => void
-  onStaffEventToggle?: (staffCode: string, value: boolean) => void
+  onStaffTaskToggle?: (staffId: string, value: boolean) => void
+  onStaffEventToggle?: (staffId: string, value: boolean) => void
 }
 
 export default function CalendarFilter({
@@ -49,22 +49,17 @@ export default function CalendarFilter({
 }: CalendarFilterProps) {
   const [myCalendarsOpen, setMyCalendarsOpen] = useState(true)
   const [staffSearch, setStaffSearch] = useState('')
-  
-  // Internal state for filters (used when parent doesn't provide handlers)
   const [internalFilters, setInternalFilters] = useState<StaffFilters>({})
   
   // Determine which filters to use
   const hasExternalHandlers = !!externalTaskToggle && !!externalEventToggle
   const hasExternalFilters = Object.keys(externalFilters).length > 0
-  
-  // Use external filters if provided, otherwise use internal
   const staffFilters = hasExternalFilters ? externalFilters : internalFilters
-
+  
+  // Filter only staff users (role === 'staff')
   const staffList = users.filter(user => user.role === 'staff')
-
   const filteredStaff = staffList.filter(staff => 
-    staff.name.toLowerCase().includes(staffSearch.toLowerCase()) ||
-    (staff.user_id && staff.user_id.toLowerCase().includes(staffSearch.toLowerCase()))
+    staff.name.toLowerCase().includes(staffSearch.toLowerCase())
   )
 
   const getUserColorClasses = (user: User) => {
@@ -72,28 +67,25 @@ export default function CalendarFilter({
     return staffColorMap[colorKey] || staffColorMap['blue']
   }
 
-  const totalStaff = staffList.length
-  const selectedStaffCount = Object.keys(staffFilters).length
-
-  // Helper to get staff filter state
-  const getStaffTasksChecked = (staffCode: string): boolean => {
-    return staffFilters[staffCode]?.tasks || false
+  // Helper to get staff filter state - using staff.id as key
+  const getStaffTasksChecked = (staffId: string): boolean => {
+    return staffFilters[staffId]?.tasks || false
   }
 
-  const getStaffEventsChecked = (staffCode: string): boolean => {
-    return staffFilters[staffCode]?.events || false
+  const getStaffEventsChecked = (staffId: string): boolean => {
+    return staffFilters[staffId]?.events || false
   }
 
-  // Handler for task toggle (works with both external and internal)
-  const handleStaffTaskToggle = (staffCode: string, value: boolean) => {
+  // Handler for task toggle
+  const handleStaffTaskToggle = (staffId: string, value: boolean) => {
     if (hasExternalHandlers && externalTaskToggle) {
-      externalTaskToggle(staffCode, value)
+      externalTaskToggle(staffId, value)
     } else {
       setInternalFilters(prev => {
-        const current = prev[staffCode] || { tasks: false, events: false }
+        const current = prev[staffId] || { tasks: false, events: false }
         return {
           ...prev,
-          [staffCode]: {
+          [staffId]: {
             tasks: value,
             events: current.events
           }
@@ -102,16 +94,16 @@ export default function CalendarFilter({
     }
   }
 
-  // Handler for event toggle (works with both external and internal)
-  const handleStaffEventToggle = (staffCode: string, value: boolean) => {
+  // Handler for event toggle
+  const handleStaffEventToggle = (staffId: string, value: boolean) => {
     if (hasExternalHandlers && externalEventToggle) {
-      externalEventToggle(staffCode, value)
+      externalEventToggle(staffId, value)
     } else {
       setInternalFilters(prev => {
-        const current = prev[staffCode] || { tasks: false, events: false }
+        const current = prev[staffId] || { tasks: false, events: false }
         return {
           ...prev,
-          [staffCode]: {
+          [staffId]: {
             tasks: current.tasks,
             events: value
           }
@@ -119,44 +111,41 @@ export default function CalendarFilter({
       })
     }
   }
-
+  
   const handleToggleAllTasks = () => {
-    const allTasksChecked = filteredStaff.every(staff => {
-      const code = staff.user_id || staff.id
-      return getStaffTasksChecked(code)
-    })
+    if (filteredStaff.length === 0) return
     
-    // Jika semua sudah tick, untick semua. Jika tidak, tick semua
+    const allTasksChecked = filteredStaff.every(staff => 
+      getStaffTasksChecked(staff.id)
+    )
+    
     filteredStaff.forEach(staff => {
-      const code = staff.user_id || staff.id
-      handleStaffTaskToggle(code, !allTasksChecked)
+      handleStaffTaskToggle(staff.id, !allTasksChecked)
     })
   }
 
-  // Toggle ALL Events: jika semua sudah tick, dia akan untick semua. Jika ada yang belum tick, dia tick semua
+  // Toggle ALL Events for filtered staff
   const handleToggleAllEvents = () => {
-    const allEventsChecked = filteredStaff.every(staff => {
-      const code = staff.user_id || staff.id
-      return getStaffEventsChecked(code)
-    })
+    if (filteredStaff.length === 0) return
+    
+    const allEventsChecked = filteredStaff.every(staff => 
+      getStaffEventsChecked(staff.id)
+    )
     
     filteredStaff.forEach(staff => {
-      const code = staff.user_id || staff.id
-      handleStaffEventToggle(code, !allEventsChecked)
+      handleStaffEventToggle(staff.id, !allEventsChecked)
     })
   }
 
-  const totalTasksSelected = filteredStaff.filter(staff => {
-    const code = staff.user_id || staff.id
-    return getStaffTasksChecked(code)
-  }).length
+  const totalTasksSelected = filteredStaff.filter(staff => 
+    getStaffTasksChecked(staff.id)
+  ).length
 
-  const totalEventsSelected = filteredStaff.filter(staff => {
-    const code = staff.user_id || staff.id
-    return getStaffEventsChecked(code)
-  }).length
+  const totalEventsSelected = filteredStaff.filter(staff => 
+    getStaffEventsChecked(staff.id)
+  ).length
 
-  // Check if all tasks are selected
+  // Check if all tasks/events are selected for filtered staff
   const allTasksSelected = filteredStaff.length > 0 && totalTasksSelected === filteredStaff.length
   const allEventsSelected = filteredStaff.length > 0 && totalEventsSelected === filteredStaff.length
 
@@ -217,7 +206,7 @@ export default function CalendarFilter({
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-muted-foreground" />
                     <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Staff
+                      Staff ({staffList.length})
                     </span>
                   </div>
                   <Badge variant="secondary" className="text-xs">
@@ -250,7 +239,7 @@ export default function CalendarFilter({
                     >
                       <CheckSquare className="h-3 w-3" />
                       Task
-                      {allTasksSelected && (
+                      {allTasksSelected && filteredStaff.length > 0 && (
                         <span className="text-blue-600 ml-1">✓</span>
                       )}
                     </Button>
@@ -264,7 +253,7 @@ export default function CalendarFilter({
                     >
                       <CalendarDays className="h-3 w-3" />
                       Events
-                      {allEventsSelected && (
+                      {allEventsSelected && filteredStaff.length > 0 && (
                         <span className="text-purple-600 ml-1">✓</span>
                       )}
                     </Button>
@@ -272,26 +261,25 @@ export default function CalendarFilter({
                   <div className="col-span-1"></div>
                 </div>
 
-                {/* Staff List - REMOVED background grey when selected */}
-                <div className="space-y-1">
+                {/* Staff List */}
+                <div className="space-y-1 max-h-[400px] overflow-y-auto">
                   {filteredStaff.map((staff) => {
                     const colors = getUserColorClasses(staff)
-                    const staffCode = staff.user_id || staff.id
-                    const showStaffTasks = getStaffTasksChecked(staffCode)
-                    const showStaffEvents = getStaffEventsChecked(staffCode)
+                    const staffId = staff.id
+                    const showStaffTasks = getStaffTasksChecked(staffId)
+                    const showStaffEvents = getStaffEventsChecked(staffId)
                     
                     return (
                       <div 
                         key={staff.id} 
                         className={cn(
                           "grid grid-cols-12 gap-2 items-center px-2 py-2 rounded-md transition-all",
-                          // REMOVED: (showStaffTasks || showStaffEvents) && "bg-blue-50/50 dark:bg-blue-950/20",
                           "hover:bg-muted/50"
                         )}
                       >
                         {/* Staff Name */}
                         <div className="col-span-5 flex items-center gap-2 min-w-0">
-                          <div className={cn("w-2 h-2 rounded-full", colors.bg)} />
+                          <div className={cn("w-2 h-2 rounded-full flex-shrink-0", colors.bg)} />
                           <UserRound className={cn("h-3 w-3 flex-shrink-0", colors.text)} />
                           <span className={cn("text-sm font-medium truncate", colors.text)}>
                             {staff.name}
@@ -304,7 +292,7 @@ export default function CalendarFilter({
                             id={`staff-${staff.id}-task`}
                             checked={showStaffTasks}
                             onCheckedChange={(checked) => {
-                              handleStaffTaskToggle(staffCode, checked === true)
+                              handleStaffTaskToggle(staffId, checked === true)
                             }}
                             className="border-blue-400 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
                           />
@@ -316,7 +304,7 @@ export default function CalendarFilter({
                             id={`staff-${staff.id}-event`}
                             checked={showStaffEvents}
                             onCheckedChange={(checked) => {
-                              handleStaffEventToggle(staffCode, checked === true)
+                              handleStaffEventToggle(staffId, checked === true)
                             }}
                             className="border-purple-400 data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500"
                           />
@@ -353,7 +341,9 @@ export default function CalendarFilter({
                 {filteredStaff.length === 0 && (
                   <div className="text-center py-8">
                     <Users className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
-                    <p className="text-sm text-muted-foreground">No staff found</p>
+                    <p className="text-sm text-muted-foreground">
+                      {staffSearch ? 'No staff matching search' : 'No staff found'}
+                    </p>
                     {staffSearch && (
                       <Button
                         variant="link"

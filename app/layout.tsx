@@ -1,4 +1,3 @@
-// app/layout.tsx
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
@@ -72,7 +71,6 @@ export default function RootLayout({
     }
   }
 
-  // Listen for storage changes (when profile updates)
   useEffect(() => {
     const handleStorageChange = () => {
       const userData = localStorage.getItem('user')
@@ -103,7 +101,7 @@ export default function RootLayout({
   // Get current color style from staffColorMap
   const currentColor = staffColorMap[userColor] || staffColorMap['blue']
 
-  // Don't show drawer on login page
+
   if (pathname === '/login') {
     return (
       <html lang="en">
@@ -395,7 +393,7 @@ export default function RootLayout({
                     <Button 
                       variant="ghost"
                       className="w-full justify-start text-gray-700 hover:bg-gray-100"
-                      onClick={() => handleNavigation('/events')}
+                      onClick={() => handleNavigation('/event-lists')}
                     >
                       <CalendarCheck className="mr-3 h-5 w-5" />
                       Event List

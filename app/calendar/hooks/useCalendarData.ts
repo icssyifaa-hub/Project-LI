@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { 
   getTasks, createTask, updateTask, deleteTask as deleteTaskApi,
   getEvents, createEvent, updateEvent, deleteEvent as deleteEventApi,
@@ -8,7 +8,9 @@ import {
 } from '@/lib/supabase/calendar'
 import { useToast } from '@/components/ui/use-toast'
 import { createClient } from '@/lib/supabase/client'
-import type { Task, Event, Holiday, ViewType, StaffColor } from '@/types/calendar'
+import { uploadPDF, deletePDF } from '@/lib/pdf-service'
+import { notifyStaffForTask, notifyStaffForEvent } from '@/lib/supabase/notifications'
+import type { Task, Event, Holiday, ViewType, StaffInfo } from '@/app/calendar/types/calendar'
 
 export function useCalendarData(currentDate: Date, view: ViewType) {
   const [tasks, setTasks] = useState<Task[]>([])
@@ -16,65 +18,89 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
   const [holidays, setHolidays] = useState<Holiday[]>([])
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
-  const [staffColors, setStaffColors] = useState<{[key: string]: StaffColor}>({})
+  const [staffMap, setStaffMap] = useState<{[key: string]: StaffInfo}>({})
   const [loadingStaff, setLoadingStaff] = useState(true)
   const { toast } = useToast()
   const supabase = createClient()
+  const lastFetchRef = useRef<number>(0)
+  const lastStaffFetchRef = useRef<number>(0)
+  const isFetchingRef = useRef<boolean>(false)
+  const staffMapRef = useRef<{[key: string]: StaffInfo}>({})
 
-  // Load user from localStorage
   useEffect(() => {
     try {
       const userData = localStorage.getItem('user')
       if (userData) {
         setUser(JSON.parse(userData))
-        console.log('👤 User loaded:', JSON.parse(userData))
       }
     } catch (e) {
       console.error('Error parsing user data:', e)
     }
   }, [])
 
-  // ==================== FETCH STAFF COLORS ====================
-  const fetchStaffColors = useCallback(async () => {
+  const getDefaultColor = useCallback((role: string) => {
+    switch(role) {
+      case 'admin':
+        return 'purple'
+      case 'staff':
+        return 'blue'
+      default:
+        return 'gray'
+    }
+  }, [])
+
+  const fetchAllStaff = useCallback(async (force: boolean = false) => {
+    const now = Date.now()
+    if (!force && (now - lastStaffFetchRef.current < 300000) && Object.keys(staffMapRef.current).length > 0) {
+      console.log('👥 Using cached staff data')
+      return staffMapRef.current
+    }
+    
     setLoadingStaff(true)
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, name, user_id, color')
-        .eq('role', 'staff')
-        .not('color', 'is', null)
+        .select('id, name, color, role, email')
+        .order('name')
       
       if (error) throw error
       
-      const colorMap: {[key: string]: StaffColor} = {}
-      data?.forEach(user => {
-        if (user.user_id && user.color) {
-          colorMap[user.user_id] = {
-            code: user.user_id,
-            name: user.name,
-            color: user.color,
-            id: user.id
-          }
-        }
-      })
+      const staffMapping: {[key: string]: StaffInfo} = {}
       
-      console.log('🎨 Staff colors loaded:', colorMap)
-      setStaffColors(colorMap)
-      return colorMap
+    data?.forEach((user: { id: string; name: string; color?: string; role?: string; email?: string }) => {
+      if (user.id && user.name) {
+        const validRole = user.role === 'admin' ? 'admin' : 'staff' 
+
+        const staffInfo: StaffInfo = {
+          id: user.id,
+          name: user.name,
+          color: user.color || getDefaultColor(user.role || 'staff'),
+          role: user.role,
+          email: user.email
+        }
+        staffMapping[user.id] = staffInfo
+        staffMapping[user.name] = staffInfo
+      }
+    })
+      
+      console.log('👥 Staff loaded:', Object.keys(staffMapping).length, 'entries')
+      setStaffMap(staffMapping)
+      staffMapRef.current = staffMapping
+      lastStaffFetchRef.current = now
+      return staffMapping
     } catch (error) {
-      console.error('Error fetching staff colors:', error)
-      return {}
+      console.error('Error fetching staff:', error)
+      return staffMapRef.current
     } finally {
       setLoadingStaff(false)
     }
-  }, [supabase])
+  }, [supabase, getDefaultColor])
 
-  // ==================== GET DATE RANGE ====================
+  const formatDate = useCallback((date: Date) => {
+    return date.toISOString().split('T')[0]
+  }, [])
+
   const getDateRange = useCallback(() => {
-    const formatDate = (date: Date) => {
-      return date.toISOString().split('T')[0]
-    }
-    
     const year = currentDate.getFullYear()
     const month = currentDate.getMonth()
     
@@ -83,69 +109,61 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
         const dateStr = formatDate(currentDate)
         return { start: dateStr, end: dateStr }
       }
-      
       case 'week': {
         const start = new Date(currentDate)
         start.setDate(currentDate.getDate() - currentDate.getDay())
-        
         const end = new Date(start)
         end.setDate(start.getDate() + 6)
-        
-        return {
-          start: formatDate(start),
-          end: formatDate(end)
-        }
+        return { start: formatDate(start), end: formatDate(end) }
       }
-      
       case 'month': {
         const firstDay = new Date(year, month, 1)
         const lastDay = new Date(year, month + 1, 0)
-        
-        return {
-          start: formatDate(firstDay),
-          end: formatDate(lastDay)
-        }
+        const extendedStart = new Date(firstDay)
+        extendedStart.setDate(firstDay.getDate() - 7)
+        const extendedEnd = new Date(lastDay)
+        extendedEnd.setDate(lastDay.getDate() + 7)
+        return { start: formatDate(extendedStart), end: formatDate(extendedEnd) }
       }
-      
-      case 'year':
-        return {
-          start: `${year}-01-01`,
-          end: `${year}-12-31`
-        }
-        
+      case 'year': {
+        const start = `${year}-01-01`
+        const end = `${year}-12-31`
+        return { start, end }
+      }
       case 'schedule': {
         const today = new Date()
         today.setHours(0, 0, 0, 0)
-        
         const end = new Date(today)
         end.setMonth(today.getMonth() + 3)
-        
-        return {
-          start: formatDate(today),
-          end: formatDate(end)
-        }
+        return { start: formatDate(today), end: formatDate(end) }
       }
-      
       default:
         return { start: '', end: '' }
     }
-  }, [currentDate, view])
+  }, [currentDate, view, formatDate])
 
-  // ==================== FETCH ALL DATA ====================
   const fetchData = useCallback(async () => {
-    setLoading(true)
+    const now = Date.now()
+    if (now - lastFetchRef.current < 500) {
+      console.log('⏳ Fetch throttled, skipping...')
+      return
+    }
+    
+    if (isFetchingRef.current) {
+      console.log('🔄 Fetch already in progress, skipping...')
+      return
+    }
+    
+    isFetchingRef.current = true
+    
     try {
       const { start, end } = getDateRange()
-      
-      if (!start || !end) {
-        setLoading(false)
-        return
-      }
+      if (!start || !end) return
       
       console.log('🔄 Fetching data for range:', start, 'to', end)
+      lastFetchRef.current = now
       
-      const colors = await fetchStaffColors()
-      
+      const staffData = await fetchAllStaff()
       const [tasksData, eventsData, holidaysData] = await Promise.all([
         getTasks(start, end),
         getEvents(start, end),
@@ -158,13 +176,23 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
         holidays: holidaysData.length
       })
 
-      // ===== FORMAT TASKS WITH COLORS =====
-      const formattedTasks = tasksData.map((task: any) => {
-        const staffCode = task.task_pic_staff || ''
-        const staff2Code = task.task_support_staff || ''
+      const formattedTasks: Task[] = tasksData.map((task: any) => {
+        const supportIds = task.task_support_ids 
+          ? (typeof task.task_support_ids === 'string' ? task.task_support_ids.split(',') : task.task_support_ids)
+          : []
+        const supportNames = task.task_support_names 
+          ? (typeof task.task_support_names === 'string' ? task.task_support_names.split(',') : task.task_support_names)
+          : []
+        const supportColors = task.task_support_colors 
+          ? (typeof task.task_support_colors === 'string' ? task.task_support_colors.split(',') : task.task_support_colors)
+          : []
         
-        const staffInfo = colors[staffCode]
-        const staff2Info = staff2Code ? colors[staff2Code] : null
+        let picInfo = null
+        if (task.task_pic_id) {
+          picInfo = staffData[task.task_pic_id]
+        } else if (task.task_pic_name) {
+          picInfo = staffData[task.task_pic_name]
+        }
         
         return {
           id: task.id,
@@ -176,26 +204,41 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
           timeStart: task.time_start,
           timeStop: task.time_stop,
           additionalRemark: task.additional_remark,
-          pdfJobOrder: task.pdf_job_order,
-          taskPicStaff: staffCode,
-          taskSupportStaff: staff2Code,
-          pdfFinalReport: task.pdf_final_report,
-          finalReportStaff: task.final_report_staff,
-          jobStatus: task.job_status,
+          pdfJobOrderPath: task.pdf_job_order_path || '',
+          pdfJobOrderUrl: task.pdf_job_order_url || '',
+          task_pic_id: task.task_pic_id || '',
+          task_pic_name: picInfo?.name || task.task_pic_name || '',
+          task_pic_color: picInfo?.color || task.task_pic_color || 'blue',
+          task_support_ids: supportIds,
+          task_support_names: supportNames,
+          task_support_colors: supportColors,
+          pdfFinalReportPath: task.pdf_final_report_path || '',
+          pdfFinalReportUrl: task.pdf_final_report_url || '',
+          jobStatus: task.job_status || 'in-progress',
           createdby: task.created_by,
-          task_pic_color: staffInfo?.color || 'blue',
-          task_pic_name: staffInfo?.name || staffCode,
-          task_support_color: staff2Info?.color || null,
-          task_support_name: staff2Info?.name || staff2Code
+          createdAt: task.created_at,
+          updatedAt: task.updated_at
         }
       })
 
-      // ===== FORMAT EVENTS WITH STAFF COLORS =====
-      const formattedEvents = eventsData.map((event: any) => {
-        const eventPicStaffCode = event.event_pic_staff || ''
-        const eventSupportStaffCode = event.event_support_staff || ''
-        const eventPicInfo = colors[eventPicStaffCode]
-        const eventSupportInfo = eventSupportStaffCode ? colors[eventSupportStaffCode] : null
+      const formattedEvents: Event[] = eventsData.map((event: any) => {
+        const supportIds = event.event_support_ids 
+          ? (typeof event.event_support_ids === 'string' ? event.event_support_ids.split(',') : event.event_support_ids)
+          : []
+        const supportNames = event.event_support_names 
+          ? (typeof event.event_support_names === 'string' ? event.event_support_names.split(',') : event.event_support_names)
+          : []
+        const supportColors = event.event_support_colors 
+          ? (typeof event.event_support_colors === 'string' ? event.event_support_colors.split(',') : event.event_support_colors)
+          : []
+        
+        let picInfo = null
+        if (event.event_pic_id) {
+          picInfo = staffData[event.event_pic_id]
+        } else if (event.event_pic_name) {
+          picInfo = staffData[event.event_pic_name]
+        }
+        
         return {
           id: event.id,
           title: event.title,
@@ -205,15 +248,15 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
           timeStart: event.time_start,
           timeStop: event.time_stop,
           location: event.location,
+          event_pic_id: event.event_pic_id || '',
+          event_pic_name: picInfo?.name || event.event_pic_name || '',
+          event_pic_color: picInfo?.color || event.event_pic_color || 'purple',
+          event_support_ids: supportIds,
+          event_support_names: supportNames,
+          event_support_colors: supportColors,
           createdby: event.created_by,
-          eventPicStaff: eventPicStaffCode,
-          eventSupportStaff: eventSupportStaffCode,
-          creator_color: eventPicInfo?.color || 'purple',
-          creator_name: eventPicInfo?.name || 'Unknown Creator',
-          event_pic_color: eventPicInfo?.color || 'purple',
-          event_pic_name: eventPicInfo?.name || eventPicStaffCode,
-          event_support_color: eventSupportInfo?.color || null,
-          event_support_name: eventSupportInfo?.name || eventSupportStaffCode
+          createdAt: event.created_at,
+          updatedAt: event.updated_at
         }
       })
 
@@ -230,15 +273,15 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
       })
     } finally {
       setLoading(false)
+      isFetchingRef.current = false
     }
-  }, [getDateRange, toast, fetchStaffColors])
+  }, [getDateRange, toast, fetchAllStaff])
 
   useEffect(() => {
     fetchData()
   }, [fetchData])
 
-  // ==================== GENERATE RUNNING NUMBER ====================
-  const generateRunningNumber = async (date: Date) => {
+  const generateRunningNumber = useCallback(async (date: Date) => {
     const year = date.getFullYear().toString().slice(-2)
     const month = (date.getMonth() + 1).toString().padStart(2, '0')
     const prefix = `ICS${year}${month}`
@@ -269,188 +312,51 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
       console.error('Error getting next running number:', error)
       return `${prefix}001`
     }
-  }
+  }, [supabase])
 
-  // ==================== SEND TASK NOTIFICATIONS ====================
-const sendTaskNotifications = async (taskData: any, taskId: string) => {
-  try {
-    console.log('🔔 Sending notifications for task ID:', taskId);
-    console.log('Task Data received:', taskData);
-    
-    // Check if we have any staff to notify
-    const hasPIC = taskData.taskPicStaff && taskData.taskPicStaff !== '';
-    const hasSupport = taskData.taskSupportStaff && taskData.taskSupportStaff.length > 0;
-    
-    if (!hasPIC && !hasSupport) {
-      console.log('⚠️ No staff assigned to this task');
-      return;
-    }
-    
-    // Collect staff codes to notify
-    const staffToNotify = [];
-    
-    if (hasPIC) {
-      staffToNotify.push({ code: taskData.taskPicStaff, role: 'PIC' });
-      console.log('📌 PIC Staff Code:', taskData.taskPicStaff);
-    }
-    
-    if (hasSupport) {
-      taskData.taskSupportStaff.forEach((code: string) => {
-        if (code && code !== '') {
-          staffToNotify.push({ code, role: 'Support' });
-          console.log('👥 Support Staff Code:', code);
-        }
-      });
-    }
-    
-    console.log('Total staff to notify:', staffToNotify.length);
-    
-    // Get user IDs from database
-    const staffCodes = staffToNotify.map(s => s.code);
-    console.log('Looking up user IDs for codes:', staffCodes);
-    
-    const { data: users, error: usersError } = await supabase
-      .from('users')
-      .select('id, name, user_id')
-      .in('user_id', staffCodes);
-    
-    if (usersError) {
-      console.error('❌ Error fetching users:', usersError);
-      toast({
-        title: "Notification Error",
-        description: "Failed to find staff members",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (!users || users.length === 0) {
-      console.error('❌ No users found for codes:', staffCodes);
-      toast({
-        title: "Notification Error",
-        description: `Staff not found in system: ${staffCodes.join(', ')}`,
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    console.log('✅ Found users:', users);
-    
-    // Create notifications array
-    const notifications = [];
-    
-    for (const user of users) {
-      const staffInfo = staffToNotify.find(s => s.code === user.user_id);
-      notifications.push({
-        user_id: user.id,
-        title: '📋 New Task Assignment',
-        message: `You are ${staffInfo?.role || 'assigned'} for: ${taskData.clientName || 'New Task'}`,
-        type: 'task_assignment',
-        task_id: taskId,
-        read: false,
-        created_at: new Date().toISOString()
-      });
-    }
-    
-    console.log('📝 Preparing to insert notifications:', notifications);
-    
-    // Insert notifications
-    const { data: inserted, error: insertError } = await supabase
-      .from('notifications')
-      .insert(notifications)
-      .select();
-    
-    if (insertError) {
-      console.error('❌ Failed to insert notifications:', insertError);
-      toast({
-        title: "Notification Error",
-        description: insertError.message,
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    console.log(`✅ Successfully sent ${notifications.length} notification(s)!`);
-    console.log('Inserted notifications:', inserted);
-    
-    toast({
-      title: "✅ Notifications Sent",
-      description: `Task assigned to ${users.length} staff member(s)`,
-    });
-    
-  } catch (error) {
-    console.error('❌ Unexpected error in sendTaskNotifications:', error);
-    toast({
-      title: "Error",
-      description: "Failed to send notifications",
-      variant: "destructive",
-    });
-  }
-};
-
-  // ==================== SEND EVENT NOTIFICATIONS ====================
-  const sendEventNotifications = async (eventData: any, eventId: string) => {
-    try {
-      console.log('📨 Sending notifications for event:', eventId)
-      
-      const staffToNotify = []
-      
-      if (eventData.eventPicStaff) {
-        staffToNotify.push(eventData.eventPicStaff)
-      }
-      
-      if (eventData.eventSupportStaff?.length) {
-        staffToNotify.push(...eventData.eventSupportStaff)
-      }
-
-      if (staffToNotify.length === 0) return
-
-      const { data: staffUsers, error: staffError } = await supabase
-        .from('users')
-        .select('id, user_id')
-        .in('user_id', staffToNotify)
-
-      if (staffError) throw staffError
-
-      if (!staffUsers || staffUsers.length === 0) return
-
-      const notifications = staffUsers.map(staff => ({
-        user_id: staff.id,
-        title: 'New Event Assignment',
-        message: `You have been assigned to event: ${eventData.title}`,
-        type: 'event_assignment',
-        event_id: eventId,
-        read: false,
-        created_at: new Date().toISOString()
-      }))
-
-      const { error: notifError } = await supabase
-        .from('notifications')
-        .insert(notifications)
-
-      if (notifError) throw notifError
-
-      console.log('✅ Event notifications sent successfully')
-      
-    } catch (error) {
-      console.error('Error sending event notifications:', error)
-    }
-  }
-
-  // ==================== TASK FUNCTIONS ====================
-  const saveTask = async (taskData: any, selectedTask: Task | null) => {
+  const saveTask = useCallback(async (taskData: any, selectedTask: Task | null, pdfFile?: File | null) => {
     try {
       console.log('💾 Saving task:', taskData)
       
       const startDate = taskData.date_start || taskData.dateStart
-      if (!startDate) {
-        throw new Error('Start date is required')
-      }
+      if (!startDate) throw new Error('Start date is required')
 
       let runningNumber = taskData.running_number || taskData.runningNumber
-      if (!runningNumber) {
-        runningNumber = await generateRunningNumber(new Date(startDate))
+      if (!runningNumber) runningNumber = await generateRunningNumber(new Date(startDate))
+
+      let pdfJobOrderPath = taskData.pdf_job_order_path || taskData.pdfJobOrderPath || null
+      let pdfJobOrderUrl = taskData.pdf_job_order_url || taskData.pdfJobOrderUrl || null
+
+      if (pdfFile) {
+        if (selectedTask && selectedTask.pdfJobOrderPath) {
+          try {
+            await deletePDF(selectedTask.pdfJobOrderPath)
+          } catch (error) {
+            console.error('Failed to delete old PDF:', error)
+          }
+        }
+        
+        const uploadResult = await uploadPDF(
+          pdfFile,
+          `task_${selectedTask?.id || 'new'}_${Date.now()}`,
+          'job_order'
+        )
+        
+        if (uploadResult) {
+          pdfJobOrderPath = uploadResult.path
+          pdfJobOrderUrl = uploadResult.publicUrl
+        }
       }
+
+      const supportIds = taskData.task_support_ids 
+        ? (Array.isArray(taskData.task_support_ids) ? taskData.task_support_ids.join(',') : taskData.task_support_ids)
+        : null
+      const supportNames = taskData.task_support_names 
+        ? (Array.isArray(taskData.task_support_names) ? taskData.task_support_names.join(',') : taskData.task_support_names)
+        : null
+      const supportColors = taskData.task_support_colors 
+        ? (Array.isArray(taskData.task_support_colors) ? taskData.task_support_colors.join(',') : taskData.task_support_colors)
+        : null
 
       const data = {
         client_name: taskData.client_name || taskData.clientName,
@@ -461,18 +367,24 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
         time_start: taskData.time_start || taskData.timeStart || null,
         time_stop: taskData.time_stop || taskData.timeStop || null,
         additional_remark: taskData.additional_remark || taskData.additionalRemark || null,
-        pdf_job_order: taskData.pdf_job_order || taskData.pdfJobOrderName || null,
-        task_pic_staff: taskData.task_pic_staff || taskData.taskPicStaff,
-        task_support_staff: taskData.task_support_staff || (taskData.taskSupportStaff?.join(',')),
-        pdf_final_report: taskData.pdf_final_report || taskData.pdfFinalReportName || null,
-        final_report_staff: null,
+        pdf_job_order_path: pdfJobOrderPath,
+        pdf_job_order_url: pdfJobOrderUrl,
+        task_pic_id: taskData.task_pic_id || null,
+        task_pic_name: taskData.task_pic_name || null,
+        task_pic_color: taskData.task_pic_color || 'blue',
+        task_support_ids: supportIds,
+        task_support_names: supportNames,
+        task_support_colors: supportColors,
+        pdf_final_report_path: taskData.pdf_final_report_path || taskData.pdfFinalReportPath || null,
+        pdf_final_report_url: taskData.pdf_final_report_url || taskData.pdfFinalReportUrl || null,
         job_status: taskData.job_status || taskData.jobStatus || 'in-progress',
         created_by: user?.id,
-        created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }
 
-      console.log('📦 Task data for DB:', data)
+      if (!selectedTask) {
+        Object.assign(data, { created_at: new Date().toISOString() })
+      }
 
       let result
       if (selectedTask) {
@@ -481,75 +393,88 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
         result = await createTask(data)
       }
 
-      console.log('✅ Task saved:', result)
+      console.log('✅ TASK SAVED RESULT:', result)
       
-      if (!selectedTask) {
-        await sendTaskNotifications(taskData, result.id)
+      // 🔔 SEND NOTIFICATIONS
+      if (result && result.id) {
+        const assignedByName = user?.name || user?.email || 'Someone'
+        
+        const taskForNotification = {
+          id: result.id,
+          jobTask: result.job_task,
+          clientName: result.client_name,
+          taskPicStaff: result.task_pic_name,
+          taskSupportStaff: result.task_support_names || '',
+          date_start: result.date_start
+        }
+        
+        console.log('📤 Task for notification:', taskForNotification)
+        
+        const action = selectedTask ? 'updated' : 'created'
+        await notifyStaffForTask(taskForNotification, action, assignedByName)
+        console.log('📨 Notifications sent for task')
       }
-      
+
       await fetchData()
       
-      toast({
-        title: "Success",
-        description: `Task ${selectedTask ? 'updated' : 'created'} successfully`,
+      toast({ 
+        title: "Success", 
+        description: `Task ${selectedTask ? 'updated' : 'created'} successfully` 
       })
       
       return result
+      
     } catch (error: any) {
       console.error('Error saving task:', error)
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to save task",
-        variant: "destructive",
+      toast({ 
+        title: "Error", 
+        description: error?.message || "Failed to save task", 
+        variant: "destructive" 
       })
       throw error
     }
-  }
+  }, [user, generateRunningNumber, fetchData, toast])
 
-  const deleteTask = async (id: string) => {
-    console.log('🗑️ Deleting task with ID:', id);
+  const deleteTask = useCallback(async (id: string, pdfPath?: string) => {
     try {
-      const { error } = await supabase
-        .from('tasks')
-        .delete()
-        .eq('id', id);
+      if (pdfPath) {
+        try {
+          await deletePDF(pdfPath)
+        } catch (error) {
+          console.error('Failed to delete PDF:', error)
+        }
+      }
       
-      if (error) throw error;
+      const { error } = await supabase.from('tasks').delete().eq('id', id)
+      if (error) throw error
       
-      console.log('✅ Task deleted successfully');
+      await fetchData()
+      toast({ title: "Success", description: "Task deleted successfully" })
       
-      await fetchData();
-      
-      toast({
-        title: "Success",
-        description: "Task deleted successfully",
-      });
     } catch (error) {
-      console.error('❌ Error in deleteTask:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to delete task",
-        variant: "destructive",
-      });
-      throw error;
+      console.error('Error deleting task:', error)
+      toast({ title: "Error", description: "Failed to delete task", variant: "destructive" })
+      throw error
     }
-  }
+  }, [supabase, fetchData, toast])
 
-  // ==================== EVENT FUNCTIONS ====================
-  const saveEvent = async (eventData: any, selectedEvent: Event | null) => {
+  const saveEvent = useCallback(async (eventData: any, selectedEvent: Event | null) => {
     try {
       console.log('💾 Saving event:', eventData)
-      
-      if (!user?.id) {
-        throw new Error('User not logged in')
-      }
+      if (!user?.id) throw new Error('User not logged in')
 
-      // Check for date_start (snake_case) or dateStart (camelCase)
       const startDate = eventData.date_start || eventData.dateStart
-      if (!startDate) {
-        console.error('No start date found in eventData:', eventData)
-        throw new Error('Start date is required')
-      }
+      if (!startDate) throw new Error('Start date is required')
+
+      const supportIds = eventData.event_support_ids 
+        ? (Array.isArray(eventData.event_support_ids) ? eventData.event_support_ids.join(',') : eventData.event_support_ids)
+        : null
+      const supportNames = eventData.event_support_names 
+        ? (Array.isArray(eventData.event_support_names) ? eventData.event_support_names.join(',') : eventData.event_support_names)
+        : null
+      const supportColors = eventData.event_support_colors 
+        ? (Array.isArray(eventData.event_support_colors) ? eventData.event_support_colors.join(',') : eventData.event_support_colors)
+        : null
 
       const data = {
         title: eventData.title,
@@ -559,14 +484,19 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
         time_start: eventData.time_start || eventData.timeStart || null,
         time_stop: eventData.time_stop || eventData.timeStop || null,
         location: eventData.location || null,
-        event_pic_staff: eventData.event_pic_staff || eventData.eventPicStaff || null,
-        event_support_staff: eventData.event_support_staff || eventData.eventSupportStaff || null,
+        event_pic_id: eventData.event_pic_id || null,
+        event_pic_name: eventData.event_pic_name || null,
+        event_pic_color: eventData.event_pic_color || 'purple',
+        event_support_ids: supportIds,
+        event_support_names: supportNames,
+        event_support_colors: supportColors,
         created_by: user.id,
-        created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }
 
-      console.log('📦 Event data for DB:', data)
+      if (!selectedEvent) {
+        Object.assign(data, { created_at: new Date().toISOString() })
+      }
 
       let result
       if (selectedEvent) {
@@ -575,69 +505,81 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
         result = await createEvent(data)
       }
 
-      console.log('✅ Event saved:', result)
-      
-      if (!selectedEvent && (eventData.event_pic_staff || eventData.eventPicStaff || (eventData.event_support_staff || eventData.eventSupportStaff))) {
-        await sendEventNotifications(eventData, result.id)
+      console.log('✅ EVENT SAVED RESULT:', result)
+
+      // 🔔 SEND NOTIFICATIONS
+      if (result && result.id) {
+        const assignedByName = user?.name || user?.email || 'Someone'
+        
+        const eventForNotification = {
+          id: result.id,
+          title: result.title,
+          eventPicStaff: result.event_pic_name,
+          eventSupportStaff: result.event_support_names || '',
+          date_start: result.date_start
+        }
+        
+        console.log('📤 Event for notification:', eventForNotification)
+        
+        const action = selectedEvent ? 'updated' : 'created'
+        await notifyStaffForEvent(eventForNotification, action, assignedByName)
+        console.log('📨 Notifications sent for event')
       }
-      
+
       await fetchData()
       
-      toast({
-        title: "Success",
-        description: `Event ${selectedEvent ? 'updated' : 'created'} successfully`,
+      toast({ 
+        title: "Success", 
+        description: `Event ${selectedEvent ? 'updated' : 'created'} successfully` 
       })
       
       return result
+      
     } catch (error: any) {
       console.error('Error saving event:', error)
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to save event",
-        variant: "destructive",
+      toast({ 
+        title: "Error", 
+        description: error?.message || "Failed to save event", 
+        variant: "destructive" 
       })
       throw error
     }
-  }
+  }, [user, fetchData, toast])
 
-  const deleteEvent = async (id: string) => {
+  const deleteEvent = useCallback(async (id: string) => {
     try {
-      console.log('🗑️ Deleting event:', id)
-      
-      if (!id) {
-        throw new Error('Event ID is required')
-      }
-      
-      const { error } = await supabase
-        .from('events')
-        .delete()
-        .eq('id', id);
-      
-      if (error) throw error;
-      
-      console.log('✅ Event deleted successfully');
+      const { error } = await supabase.from('events').delete().eq('id', id)
+      if (error) throw error
       
       await fetchData()
+      toast({ title: "Success", description: "Event deleted successfully" })
       
-      toast({
-        title: "Success",
-        description: "Event deleted successfully",
-      })
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error deleting event:', error)
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to delete event",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "Failed to delete event", variant: "destructive" })
       throw error
     }
-  }
+  }, [supabase, fetchData, toast])
 
-  // ==================== GET ALL STAFF WITH COLORS ====================
-  const getAllStaffWithColors = useCallback(() => {
-    return Object.values(staffColors)
-  }, [staffColors])
+  const getAllStaff = useCallback((): StaffInfo[] => {
+    const uniqueStaff = new Map<string, StaffInfo>()
+    Object.values(staffMap).forEach(staff => {
+      if (staff.id && !uniqueStaff.has(staff.id)) {
+        uniqueStaff.set(staff.id, staff)
+      }
+    })
+    return Array.from(uniqueStaff.values())
+  }, [staffMap])
+
+  const getStaffById = useCallback((id: string): StaffInfo | null => {
+    return staffMap[id] || null
+  }, [staffMap])
+
+  const getStaffDisplay = useCallback((staffId: string): { name: string, color: string } => {
+    const staff = staffMap[staffId]
+    if (!staff) return { name: 'Unknown', color: 'gray' }
+    return { name: staff.name, color: staff.color }
+  }, [staffMap])
 
   return {
     tasks,
@@ -646,8 +588,10 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
     loading,
     loadingStaff,
     user,
-    staffColors,
-    getAllStaffWithColors,
+    staffMap,
+    getAllStaff,
+    getStaffById,
+    getStaffDisplay,
     saveTask,
     saveEvent,
     deleteTask,

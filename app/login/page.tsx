@@ -68,12 +68,13 @@ export default function LoginPage() {
         return
       }
 
+      // ✅ Hanya simpan data yang diperlukan (tiada user_id)
       const userData = {
-        id: user.id,
-        userId: user.user_id,
+        id: user.id,           // UUID dari database
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        color: user.color || 'blue'  // Optional: untuk warna profile
       }
       
       localStorage.setItem('user', JSON.stringify(userData))

@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { CalendarViews } from './components/CalendarViews'
 import { useCalendarData } from './hooks/useCalendarData'
 import AddCalendarItemModal from './AddCalendarItemModal'
 import TaskInbox from './TaskInbox'
 import CalendarFilter from './components/CalendarFilter'
-import type { Task, Event, ViewType } from '@/types/calendar'
+import type { Task, Event, ViewType} from '@/app/calendar/types/calendar'
 import type { UnscheduledTask } from './TaskInbox'
 import { useToast } from '@/components/ui/use-toast'
 import { Button } from '@/components/ui/button'
@@ -31,20 +31,22 @@ import {
 import { useUsers } from '../settings/hooks/useUsers'
 import { useHolidays } from '../settings/hooks/useHolidays'
 
-// Constants for localStorage keys
 const STORAGE_KEYS = {
   STAFF_FILTERS: 'calendar_staff_filters',
-  SHOW_HOLIDAYS: 'calendar_show_holidays'
+  SHOW_HOLIDAYS: 'calendar_show_holidays',
+  SHOW_FILTER: 'calendar_show_filter',
+  SHOW_NOTIFICATIONS: 'calendar_show_notifications',
+  SHOW_TASK_INBOX: 'calendar_show_task_inbox',
+  NOTIFICATION_BADGE_COUNT: 'notification_unread_count',
+  INBOX_BADGE_COUNT: 'inbox_unread_count'
 }
 
-// Helper function to create stable date
 const createStableDate = (date: Date): Date => {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0)
 }
 
-// Type untuk staff filters (tasks & events per staff)
 interface StaffFilters {
-  [staffCode: string]: {
+  [staffId: string]: {
     tasks: boolean
     events: boolean
   }
@@ -67,12 +69,16 @@ export default function CalendarPage() {
   const [isInitialized, setIsInitialized] = useState(false)
   const [staffFilters, setStaffFilters] = useState<StaffFilters>({})
   const [showHolidays, setShowHolidays] = useState(false)
-  const [prefilledTaskData, setPrefilledTaskData] = useState<any>(null) // NEW
-  const [isTestingNotif, setIsTestingNotif] = useState(false)
+  const [prefilledTaskData, setPrefilledTaskData] = useState<any>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [notificationUnreadCount, setNotificationUnreadCount] = useState(0)
+  const [inboxUnreadCount, setInboxUnreadCount] = useState(0)
+  const [badgeCountsLoaded, setBadgeCountsLoaded] = useState(false)
+  
   const { toast } = useToast()
   const supabase = createClient()
   
-  // ===== HOOKS =====
   const { 
     tasks, 
     events, 
@@ -84,255 +90,298 @@ export default function CalendarPage() {
     deleteTask, 
     deleteEvent,
     refresh,
-    staffColors
   } = useCalendarData(currentDate, view)
 
   const { users: allUsers, loading: loadingUsers } = useUsers()
   const { holidays: allHolidays, loading: loadingHolidays } = useHolidays()
 
-  
+  // ========== LOAD BADGE COUNTS FROM LOCALSTORAGE (KEKAL WALAUPUN REFRESH) ==========
   useEffect(() => {
     try {
-      const savedStaffFilters = localStorage.getItem(STORAGE_KEYS.STAFF_FILTERS)
-      if (savedStaffFilters) {
-        const parsed = JSON.parse(savedStaffFilters)
-        setStaffFilters(parsed)
-        console.log('📦 Loaded staff filters from storage:', parsed)
+      const savedNotificationCount = localStorage.getItem(STORAGE_KEYS.NOTIFICATION_BADGE_COUNT)
+      const savedInboxCount = localStorage.getItem(STORAGE_KEYS.INBOX_BADGE_COUNT)
+      
+      if (savedNotificationCount !== null) {
+        setNotificationUnreadCount(parseInt(savedNotificationCount))
+        console.log('📂 Loaded notification badge count:', savedNotificationCount)
       }
-
-      // Load show holidays setting
-      const savedHolidays = localStorage.getItem(STORAGE_KEYS.SHOW_HOLIDAYS)
-      if (savedHolidays !== null) {
-        setShowHolidays(JSON.parse(savedHolidays))
-        console.log('📦 Loaded holidays from storage:', JSON.parse(savedHolidays))
+      
+      if (savedInboxCount !== null) {
+        setInboxUnreadCount(parseInt(savedInboxCount))
+        console.log('📂 Loaded inbox badge count:', savedInboxCount)
       }
     } catch (error) {
-      console.error('Error loading filter state from localStorage:', error)
+      console.error('Error loading badge counts from localStorage:', error)
     } finally {
-      setIsInitialized(true)
+      setBadgeCountsLoaded(true)
     }
   }, [])
 
-  // Save staff filters to localStorage
+  // ========== SAVE NOTIFICATION BADGE COUNT ==========
   useEffect(() => {
-    if (!isInitialized) return
-    try {
-      localStorage.setItem(STORAGE_KEYS.STAFF_FILTERS, JSON.stringify(staffFilters))
-      console.log('💾 Saved staff filters to storage:', staffFilters)
-    } catch (error) {
-      console.error('Error saving staff filters:', error)
+    if (badgeCountsLoaded) {
+      localStorage.setItem(STORAGE_KEYS.NOTIFICATION_BADGE_COUNT, notificationUnreadCount.toString())
+      console.log('💾 Saved notification badge count:', notificationUnreadCount)
     }
-  }, [staffFilters, isInitialized])
+  }, [notificationUnreadCount, badgeCountsLoaded])
 
-  // Save holidays setting to localStorage
+  // ========== SAVE INBOX BADGE COUNT ==========
   useEffect(() => {
-    if (!isInitialized) return
-    try {
-      localStorage.setItem(STORAGE_KEYS.SHOW_HOLIDAYS, JSON.stringify(showHolidays))
-      console.log('💾 Saved holidays to storage:', showHolidays)
-    } catch (error) {
-      console.error('Error saving holidays:', error)
+    if (badgeCountsLoaded) {
+      localStorage.setItem(STORAGE_KEYS.INBOX_BADGE_COUNT, inboxUnreadCount.toString())
+      console.log('💾 Saved inbox badge count:', inboxUnreadCount)
     }
-  }, [showHolidays, isInitialized])
+  }, [inboxUnreadCount, badgeCountsLoaded])
 
-  const testNotification = async () => {
-    setIsTestingNotif(true)
-    
-    try {
-      const supabase = createClient()
-      
-      // Get user from localStorage instead of auth
-      const userData = localStorage.getItem('user')
-      
-      if (!userData) {
-        toast({
-          title: "No User Found",
-          description: "Please log in first",
-          variant: "destructive",
-        })
-        setIsTestingNotif(false)
-        return
-      }
-      
-      const parsedUser = JSON.parse(userData)
-      console.log('User from localStorage:', parsedUser)
-      
-      // Find user in database by email or name
-      let dbUser = null
-      
-      // Try by email first
-      if (parsedUser.email) {
-        const { data } = await supabase
-          .from('users')
-          .select('id, name, email')
-          .eq('email', parsedUser.email)
-          .maybeSingle()
-        dbUser = data
-      }
-      
-      // If not found by email, try by name
-      if (!dbUser && parsedUser.name) {
-        const { data } = await supabase
-          .from('users')
-          .select('id, name, email')
-          .eq('name', parsedUser.name)
-          .maybeSingle()
-        dbUser = data
-      }
-      
-      // If still not found, try by user_id
-      if (!dbUser && parsedUser.user_id) {
-        const { data } = await supabase
-          .from('users')
-          .select('id, name, email')
-          .eq('user_id', parsedUser.user_id)
-          .maybeSingle()
-        dbUser = data
-      }
-      
-      if (!dbUser) {
-        // Get first available user as fallback
-        const { data: firstUser } = await supabase
-          .from('users')
-          .select('id, name')
-          .limit(1)
-          .single()
-        dbUser = firstUser
-      }
-      
-      if (!dbUser) {
-        toast({
-          title: "No User Found",
-          description: "No users exist in database",
-          variant: "destructive",
-        })
-        return
-      }
-      
-      console.log('Sending notification to user:', dbUser)
-      
-      // Insert notification
-      const { error: notifError } = await supabase
-        .from('notifications')
-        .insert({
-          user_id: dbUser.id,
-          title: "🔔 TEST NOTIFICATION",
-          message: `Test sent at ${new Date().toLocaleTimeString()} to ${dbUser.name}`,
-          type: "task_assignment",
-          read: false,
-          created_at: new Date().toISOString()
-        })
-      
-      if (notifError) {
-        console.error('Error:', notifError)
-        toast({
-          title: "Error",
-          description: notifError.message,
-          variant: "destructive",
-        })
-      } else {
-        toast({
-          title: "✅ Success",
-          description: `Test notification sent to ${dbUser.name}!`,
-        })
-      }
-      
-    } catch (error) {
-      console.error('Error:', error)
-      toast({
-        title: "Error",
-        description: "Something went wrong",
-        variant: "destructive",
-      })
-    } finally {
-      setIsTestingNotif(false)
-    }
-  }
-
-  // ===== FILTER LOGIC =====
-  
-  // Filter TASKS berdasarkan staffFilters
-  const filteredTasks = tasks.filter(task => {
-    // Jika tiada staff filters, jangan tunjuk apa-apa
-    if (Object.keys(staffFilters).length === 0) return false
-    
-    // Dapatkan staff code untuk task ini
-    const taskStaffCode = task.taskPicStaff || task.task_pic_staff
-    
-    // Jika task tiada PIC, jangan tunjuk
-    if (!taskStaffCode) return false
-    
-    // Dapatkan filter untuk staff ini
-    const staffFilter = staffFilters[taskStaffCode]
-    
-    // Jika staff tidak dalam filter, jangan tunjuk
-    if (!staffFilter) return false
-    
-    // Tunjuk task hanya jika checkbox tasks untuk staff ini adalah true
-    return staffFilter.tasks === true
-  })
-  
-  // Filter EVENTS berdasarkan staffFilters
-  const filteredEvents = events.filter(event => {
-    // Jika tiada staff filters, jangan tunjuk apa-apa
-    if (Object.keys(staffFilters).length === 0) return false
-    
-    // Dapatkan staff code untuk event ini
-    const eventStaffCode = event.eventPicStaff || event.event_pic_staff
-    
-    // Jika event tiada PIC, jangan tunjuk
-    if (!eventStaffCode) return false
-    
-    // Dapatkan filter untuk staff ini
-    const staffFilter = staffFilters[eventStaffCode]
-    
-    // Jika staff tidak dalam filter, jangan tunjuk
-    if (!staffFilter) return false
-    
-    // Tunjuk event hanya jika checkbox events untuk staff ini adalah true
-    return staffFilter.events === true
-  })
-
-  // Filter HOLIDAYS
-  const filteredHolidays = showHolidays ? holidays : []
-
-  // Count active filters
-  const activeFilterCount = Object.values(staffFilters).filter(
-    f => f.tasks || f.events
-  ).length + (showHolidays ? 1 : 0)
-
-  // Check if anything is selected
-  const hasSelection = Object.keys(staffFilters).length > 0 || showHolidays
-
-  // ===== DEBUG LOG =====
+  // ========== HIGHLIGHT FROM NOTIFICATION ==========
   useEffect(() => {
-    console.log('🎯 Calendar State:', {
-      staffFilters,
-      staffFiltersCount: Object.keys(staffFilters).length,
-      showHolidays,
-      totalTasks: tasks.length,
-      filteredTasksCount: filteredTasks.length,
-      totalEvents: events.length,
-      filteredEventsCount: filteredEvents.length,
-      totalHolidays: holidays.length,
-      filteredHolidaysCount: filteredHolidays.length,
-      activeFilterCount,
-      hasSelection,
-      isInitialized
+    const urlParams = new URLSearchParams(window.location.search)
+    const taskIdFromUrl = urlParams.get('task')
+    const eventIdFromUrl = urlParams.get('event')
+    const highlightTaskId = localStorage.getItem('highlight_task_id') || taskIdFromUrl
+    const highlightEventId = localStorage.getItem('highlight_event_id') || eventIdFromUrl
+    
+    if (highlightTaskId) {
+      console.log('🔍 Looking for task to highlight:', highlightTaskId)
+      
+      // Wait for DOM and tasks to be loaded
+      const timeoutId = setTimeout(() => {
+        let taskElement = document.querySelector(`[data-task-id="${highlightTaskId}"]`)
+        
+        if (!taskElement) {
+          taskElement = document.querySelector(`[data-id="${highlightTaskId}"]`)
+        }
+        
+        if (!taskElement) {
+          taskElement = document.querySelector(`.task-item[data-id="${highlightTaskId}"]`)
+        }
+        
+        if (taskElement) {
+          console.log('✅ Found task element, highlighting...')
+          // Scroll to task
+          taskElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          
+          // Add highlight classes
+          taskElement.classList.add('ring-4', 'ring-blue-500', 'animate-pulse', 'bg-blue-100', 'shadow-lg')
+          
+          // Remove highlight after 3 seconds
+          setTimeout(() => {
+            taskElement?.classList.remove('ring-4', 'ring-blue-500', 'animate-pulse', 'bg-blue-100', 'shadow-lg')
+          }, 3000)
+        } else {
+          console.warn('❌ Task element not found for ID:', highlightTaskId)
+        }
+        
+        localStorage.removeItem('highlight_task_id')
+        const newUrl = window.location.pathname
+        window.history.replaceState({}, '', newUrl)
+      }, 1000)
+      
+      return () => clearTimeout(timeoutId)
+    }
+    
+    if (highlightEventId) {
+      console.log('🔍 Looking for event to highlight:', highlightEventId)
+      const timeoutId = setTimeout(() => {
+        let eventElement = document.querySelector(`[data-event-id="${highlightEventId}"]`)
+        
+        if (!eventElement) {
+          eventElement = document.querySelector(`[data-id="${highlightEventId}"]`)
+        }
+        
+        if (!eventElement) {
+          eventElement = document.querySelector(`.event-item[data-id="${highlightEventId}"]`)
+        }
+        
+        if (eventElement) {
+          console.log('✅ Found event element, highlighting...')
+          eventElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          
+          // Add highlight classes
+          eventElement.classList.add('ring-4', 'ring-purple-500', 'animate-pulse', 'bg-purple-100', 'shadow-lg')
+          
+          // Remove highlight after 3 seconds
+          setTimeout(() => {
+            eventElement?.classList.remove('ring-4', 'ring-purple-500', 'animate-pulse', 'bg-purple-100', 'shadow-lg')
+          }, 3000)
+        } else {
+          console.warn('❌ Event element not found for ID:', highlightEventId)
+        }
+        localStorage.removeItem('highlight_event_id')
+        const newUrl = window.location.pathname
+        window.history.replaceState({}, '', newUrl)
+      }, 1000)
+      
+      return () => clearTimeout(timeoutId)
+    }
+  }, [tasks, events, view, currentDate])
+
+  // ========== FILTERED DATA - APPLY FILTERS HERE ==========
+  const filteredTasks = useMemo(() => {
+    if (Object.keys(staffFilters).length === 0) {
+      return tasks
+    }
+    
+    return tasks.filter(task => {
+      if (task.task_pic_id && staffFilters[task.task_pic_id]?.tasks === true) {
+        return true
+      }
+      
+      const supportIds = task.task_support_ids || []
+      for (const supportId of supportIds) {
+        if (staffFilters[supportId]?.tasks === true) {
+          return true
+        }
+      }
+      
+      return false
     })
-  }, [tasks, events, holidays, staffFilters, showHolidays, filteredTasks.length, filteredEvents.length, filteredHolidays.length, activeFilterCount, hasSelection, isInitialized])
+  }, [tasks, staffFilters])
 
-  // View options for dropdown
-  const viewOptions = [
+  const filteredEvents = useMemo(() => {
+    if (Object.keys(staffFilters).length === 0) {
+      return events
+    }
+    
+    return events.filter(event => {
+      if (event.event_pic_id && staffFilters[event.event_pic_id]?.events === true) {
+        return true
+      }
+      
+      const supportIds = event.event_support_ids || []
+      for (const supportId of supportIds) {
+        if (staffFilters[supportId]?.events === true) {
+          return true
+        }
+      }
+      
+      return false
+    })
+  }, [events, staffFilters])
+
+const filteredHolidays = useMemo(() => {
+  if (!showHolidays) return []
+  
+  
+  return allHolidays.map(holiday => ({
+    id: holiday.id,
+    name: holiday.name,
+    date: holiday.date,
+    states: holiday.states || undefined
+  }))
+}, [allHolidays, showHolidays])
+
+  const activeFilterCount = useMemo(() => {
+    return Object.values(staffFilters).filter(f => f.tasks || f.events).length + (showHolidays ? 1 : 0)
+  }, [staffFilters, showHolidays])
+  
+  // ========== VIEW OPTIONS ==========
+  const viewOptions = useMemo(() => [
     { value: 'day', label: 'Day' },
     { value: 'week', label: 'Week' },
     { value: 'month', label: 'Month' },
     { value: 'year', label: 'Year' },
     { value: 'schedule', label: 'Schedule' },
-  ]
+  ], [])
 
-  // ===== NAVIGATION HANDLERS =====
-  const handlePrev = () => {
+  // ========== LOAD ALL STATES FROM LOCALSTORAGE ==========
+  useEffect(() => {
+    try {
+      // Load staff filters
+      const savedStaffFilters = localStorage.getItem(STORAGE_KEYS.STAFF_FILTERS)
+      if (savedStaffFilters) {
+        const parsed = JSON.parse(savedStaffFilters)
+        setStaffFilters(parsed)
+        console.log('📂 Loaded staff filters:', parsed)
+      }
+      
+      // Load holidays setting
+      const savedHolidays = localStorage.getItem(STORAGE_KEYS.SHOW_HOLIDAYS)
+      if (savedHolidays !== null) {
+        setShowHolidays(JSON.parse(savedHolidays))
+      }
+      
+      // Load filter panel state
+      const savedShowFilter = localStorage.getItem(STORAGE_KEYS.SHOW_FILTER)
+      if (savedShowFilter !== null) {
+        setShowFilter(JSON.parse(savedShowFilter))
+        console.log('📂 Loaded showFilter:', JSON.parse(savedShowFilter))
+      }
+      
+      // Load notifications panel state
+      const savedShowNotifications = localStorage.getItem(STORAGE_KEYS.SHOW_NOTIFICATIONS)
+      if (savedShowNotifications !== null) {
+        setShowNotifications(JSON.parse(savedShowNotifications))
+        console.log('📂 Loaded showNotifications:', JSON.parse(savedShowNotifications))
+      }
+      
+      // Load task inbox panel state
+      const savedShowTaskInbox = localStorage.getItem(STORAGE_KEYS.SHOW_TASK_INBOX)
+      if (savedShowTaskInbox !== null) {
+        setShowTaskInbox(JSON.parse(savedShowTaskInbox))
+        console.log('📂 Loaded showTaskInbox:', JSON.parse(savedShowTaskInbox))
+      }
+      
+    } catch (error) {
+      console.error('Error loading state from localStorage:', error)
+    } finally {
+      setIsInitialized(true)
+    }
+  }, [])
+
+  // ========== SAVE FILTERS TO LOCALSTORAGE ==========
+  useEffect(() => {
+    if (!isInitialized) return
+    try {
+      localStorage.setItem(STORAGE_KEYS.STAFF_FILTERS, JSON.stringify(staffFilters))
+      console.log('💾 Saved staff filters:', staffFilters)
+    } catch (error) {
+      console.error('Error saving staff filters:', error)
+    }
+  }, [staffFilters, isInitialized])
+
+  useEffect(() => {
+    if (!isInitialized) return
+    try {
+      localStorage.setItem(STORAGE_KEYS.SHOW_HOLIDAYS, JSON.stringify(showHolidays))
+    } catch (error) {
+      console.error('Error saving holidays:', error)
+    }
+  }, [showHolidays, isInitialized])
+
+  // ========== SAVE PANEL STATES TO LOCALSTORAGE ==========
+  useEffect(() => {
+    if (!isInitialized) return
+    try {
+      localStorage.setItem(STORAGE_KEYS.SHOW_FILTER, JSON.stringify(showFilter))
+      console.log('💾 Saved showFilter:', showFilter)
+    } catch (error) {
+      console.error('Error saving showFilter:', error)
+    }
+  }, [showFilter, isInitialized])
+
+  useEffect(() => {
+    if (!isInitialized) return
+    try {
+      localStorage.setItem(STORAGE_KEYS.SHOW_NOTIFICATIONS, JSON.stringify(showNotifications))
+      console.log('💾 Saved showNotifications:', showNotifications)
+    } catch (error) {
+      console.error('Error saving showNotifications:', error)
+    }
+  }, [showNotifications, isInitialized])
+
+  useEffect(() => {
+    if (!isInitialized) return
+    try {
+      localStorage.setItem(STORAGE_KEYS.SHOW_TASK_INBOX, JSON.stringify(showTaskInbox))
+      console.log('💾 Saved showTaskInbox:', showTaskInbox)
+    } catch (error) {
+      console.error('Error saving showTaskInbox:', error)
+    }
+  }, [showTaskInbox, isInitialized])
+
+  // ========== NAVIGATION HANDLERS ==========
+  const handlePrev = useCallback(() => {
     const newDate = new Date(currentDate)
     switch (view) {
       case 'day': newDate.setDate(currentDate.getDate() - 1); break
@@ -343,9 +392,9 @@ export default function CalendarPage() {
     }
     newDate.setHours(12, 0, 0, 0)
     setCurrentDate(newDate)
-  }
+  }, [currentDate, view])
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     const newDate = new Date(currentDate)
     switch (view) {
       case 'day': newDate.setDate(currentDate.getDate() + 1); break
@@ -356,9 +405,10 @@ export default function CalendarPage() {
     }
     newDate.setHours(12, 0, 0, 0)
     setCurrentDate(newDate)
-  }
+  }, [currentDate, view])
 
-  const getTitle = () => {
+  // ========== GET TITLE ==========
+  const getTitle = useCallback(() => {
     switch (view) {
       case 'day':
         return currentDate.toLocaleDateString('default', { 
@@ -378,136 +428,115 @@ export default function CalendarPage() {
       case 'year':
         return currentDate.getFullYear().toString()
       case 'schedule':
-        return 'Upcoming Schedule'
+        return 'Schedule'
       default:
         return ''
     }
-  }
+  }, [currentDate, view])
 
-  // ===== CALENDAR INTERACTION HANDLERS =====
-  const handleDateClick = (date: Date) => {
+  // ========== MODAL HANDLERS ==========
+  const handleDateClick = useCallback((date: Date) => {
     const fixedDate = createStableDate(date)
     setCurrentDate(fixedDate)
     setSelectedDate(fixedDate)
     setSelectedTask(null)
     setSelectedEvent(null)
     setSelectedItemType(null)
-    setPrefilledTaskData(null) // Clear prefilled data
+    setPrefilledTaskData(null)
     setShowItemModal(true)
-  }
+  }, [])
 
-  const handleAddClick = (date: Date) => {
+  const handleAddClick = useCallback((date: Date) => {
     const fixedDate = createStableDate(date)
     setSelectedDate(fixedDate)
     setSelectedTask(null)
     setSelectedEvent(null)
     setSelectedItemType(null)
-    setPrefilledTaskData(null) // Clear prefilled data
+    setPrefilledTaskData(null)
     setShowItemModal(true)
-  }
+  }, [])
 
-  const handleEditTask = (task: Task) => {
-    console.log('✏️ Editing task:', task)
+  const handleEditTask = useCallback((task: Task) => {
     setSelectedTask(task)
     setSelectedEvent(null)
     setSelectedDate(createStableDate(new Date(task.dateStart)))
     setSelectedItemType('task')
-    setPrefilledTaskData(null) // Clear prefilled data for edit
+    setPrefilledTaskData(null)
     setShowItemModal(true)
-  }
+  }, [])
 
-  const handleEditEvent = (event: Event) => {
-    console.log('✏️ Editing event:', event)
+  const handleEditEvent = useCallback((event: Event) => {
     setSelectedEvent(event)
     setSelectedTask(null)
     setSelectedDate(createStableDate(new Date(event.dateStart)))
     setSelectedItemType('event')
-    setPrefilledTaskData(null) // Clear prefilled data for edit
+    setPrefilledTaskData(null)
     setShowItemModal(true)
-  }
+  }, [])
 
-  // ===== DRAG AND DROP HANDLERS =====
-  const handleDragStart = (task: UnscheduledTask) => {
-    console.log('🎯 Drag started:', task)
+  // ========== DRAG & DROP HANDLERS ==========
+  const handleDragStart = useCallback((task: UnscheduledTask) => {
     setDraggedTask(task)
     setIsDragging(true)
-  }
+  }, [])
 
-  const handleDragOver = (e: React.DragEvent, date: Date) => {
+  const handleDragOver = useCallback((e: React.DragEvent, date: Date) => {
     e.preventDefault()
     const dateKey = date.toISOString().split('T')[0]
     setDraggedOverDate(dateKey)
-  }
+  }, [])
 
-  // MODIFIED: handleDrop with prefilled data
-  const handleDrop = (e: React.DragEvent, date: Date) => {
+  const handleDrop = useCallback((e: React.DragEvent, date: Date) => {
     e.preventDefault()
     
     if (draggedTask) {
-      const dateKey = date.toISOString().split('T')[0]
-      
-      console.log('📅 Dropped task:', draggedTask)
-      console.log('📅 On date:', dateKey)
-      
-      // Set prefilled data untuk modal
       setPrefilledTaskData({
         clientName: draggedTask.clientName,
         jobTask: draggedTask.jobTask,
-        jobTaskCode: draggedTask.jobTaskCode,
-        taskPicStaff: draggedTask.taskPicStaff,
-        taskPicName: draggedTask.taskPicName,
-        taskPicColor: draggedTask.taskPicColor,
-        pdfJobOrder: draggedTask.pdfJobOrder,
-        pdfJobOrderName: draggedTask.pdfJobOrderName,
+        task_pic_id: draggedTask.task_pic_id,     
+        task_pic_name: draggedTask.task_pic_name, 
+        task_pic_color: draggedTask.task_pic_color,
+        pdfJobOrderPath: draggedTask.pdfJobOrderPath,
+        pdfJobOrderUrl: draggedTask.pdfJobOrderUrl,
         runningNumber: draggedTask.runningNumber,
-        additionalRemark: draggedTask.notes || draggedTask.additionalRemark || '',
       })
       
-      // Set date untuk modal
       setSelectedDate(createStableDate(date))
-      
-      // Clear selected task/event untuk new task
       setSelectedTask(null)
       setSelectedEvent(null)
-      
-      // Set type ke task
       setSelectedItemType('task')
-      
-      // Buka modal
       setShowItemModal(true)
-      
-      // Clear dragged task
       setDraggedTask(null)
       setIsDragging(false)
       setDraggedOverDate(null)
     }
-  }
+  }, [draggedTask])
 
-  const handleDragLeave = () => {
+  const handleDragLeave = useCallback(() => {
     setDraggedOverDate(null)
-  }
+  }, [])
 
-  // ===== CRUD HANDLERS =====
-  // MODIFIED: handleSaveItem with prefilled data
-  const handleSaveItem = async (data: any, type: 'event' | 'task') => {
+  // ========== SAVE ITEM HANDLER ==========
+  const handleSaveItem = useCallback(async (data: any, type: 'event' | 'task') => {
+    if (isSaving) return
+    setIsSaving(true)
+    
     try {
-      // Gabungkan prefilled data dengan data dari form jika ada
       let finalData = data
       
       if (prefilledTaskData && type === 'task') {
         finalData = {
-          ...data, // Data dari form (date, time, remark, etc)
-          // Data dari prefilled task (client, job, pic, etc)
+          ...data,
           client_name: prefilledTaskData.clientName,
           job_task: prefilledTaskData.jobTask,
-          task_pic_staff: prefilledTaskData.taskPicStaff,
+          task_pic_id: prefilledTaskData.task_pic_id,
+          task_pic_name: prefilledTaskData.task_pic_name,
+          task_pic_color: prefilledTaskData.task_pic_color,
           running_number: prefilledTaskData.runningNumber,
-          pdf_job_order: prefilledTaskData.pdfJobOrder,
-          additional_remark: data.additional_remark || prefilledTaskData.additionalRemark,
-          // Pastikan data dari form override jika ada
+          pdf_job_order_path: prefilledTaskData.pdfJobOrderPath,
+          pdf_job_order_url: prefilledTaskData.pdfJobOrderUrl,
           ...data
         }
-        console.log('📦 Combined data with prefilled:', finalData)
       }
       
       if (type === 'event') {
@@ -520,19 +549,27 @@ export default function CalendarPage() {
       setSelectedTask(null)
       setSelectedEvent(null)
       setSelectedDate(null)
-      setPrefilledTaskData(null) // Clear prefilled data
+      setPrefilledTaskData(null)
       await refresh()
       
     } catch (error: any) {
-      // Error already handled in hooks
       console.error('Error in handleSaveItem:', error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
     }
-  }
+  }, [isSaving, prefilledTaskData, saveEvent, saveTask, selectedEvent, selectedTask, refresh, toast])
 
-  const handleDeleteItem = async (id: string, type: 'event' | 'task') => {
+  // ========== DELETE ITEM HANDLER ==========
+  const handleDeleteItem = useCallback(async (id: string, type: 'event' | 'task') => {
+    if (isDeleting) return
+    setIsDeleting(true)
+    
     try {
-      console.log('🗑️ handleDeleteItem called with:', { id, type });
-      
       if (type === 'event') {
         await deleteEvent(id)
       } else {
@@ -540,63 +577,108 @@ export default function CalendarPage() {
       }
       
       setShowItemModal(false)
-      setPrefilledTaskData(null) // Clear prefilled data
+      setPrefilledTaskData(null)
       await refresh()
-      setCurrentDate(new Date(currentDate.getTime() + 1))
+      
+      toast({
+        title: "Success",
+        description: `${type === 'event' ? 'Event' : 'Task'} deleted successfully`,
+      })
       
     } catch (error: any) {
-      console.error('❌ Error in handleDeleteItem:', error);
+      console.error('Error in handleDeleteItem:', error)
       toast({
         title: "Error",
         description: error.message || "Failed to delete",
         variant: "destructive",
       })
+    } finally {
+      setIsDeleting(false)
     }
-  }
+  }, [isDeleting, deleteEvent, deleteTask, refresh, toast])
 
-  // ===== FILTER HANDLERS UNTUK CALENDAR FILTER COMPONENT =====
-  const handleStaffTaskToggle = (staffCode: string, value: boolean) => {
-    setStaffFilters(prev => ({
-      ...prev,
-      [staffCode]: {
-        tasks: value,
-        events: prev[staffCode]?.events || false
+  // ========== FILTER HANDLERS ==========
+  const handleStaffTaskToggle = useCallback((staffId: string, value: boolean) => {
+    console.log('🎯 Toggle Task for staff:', staffId, value)
+    setStaffFilters(prev => {
+      const newFilters = {
+        ...prev,
+        [staffId]: {
+          tasks: value,
+          events: prev[staffId]?.events || false
+        }
       }
-    }))
-  }
+      console.log('📊 New staff filters:', newFilters)
+      return newFilters
+    })
+  }, [])
 
-  const handleStaffEventToggle = (staffCode: string, value: boolean) => {
-    setStaffFilters(prev => ({
-      ...prev,
-      [staffCode]: {
-        tasks: prev[staffCode]?.tasks || false,
-        events: value
+  const handleStaffEventToggle = useCallback((staffId: string, value: boolean) => {
+    console.log('🎯 Toggle Event for staff:', staffId, value)
+    setStaffFilters(prev => {
+      const newFilters = {
+        ...prev,
+        [staffId]: {
+          tasks: prev[staffId]?.tasks || false,
+          events: value
+        }
       }
-    }))
-  }
+      console.log('📊 New staff filters:', newFilters)
+      return newFilters
+    })
+  }, [])
 
-  const handleHolidaysToggle = () => {
+  const handleHolidaysToggle = useCallback(() => {
     setShowHolidays(prev => !prev)
-  }
+  }, [])
 
-  // Prepare users for filter component
-  const filterUsers = allUsers.map(user => ({
+  // ========== PANEL TOGGLE HANDLERS ==========
+  const handleFilterToggle = useCallback(() => {
+    setShowFilter(prev => !prev)
+  }, [])
+
+  const handleNotificationsToggle = useCallback(() => {
+    setShowNotifications(prev => !prev)
+  }, [])
+
+  const handleTaskInboxToggle = useCallback(() => {
+    setShowTaskInbox(prev => !prev)
+  }, [])
+
+  // ========== FILTER USERS ==========
+// ========== FILTER USERS ==========
+const filterUsers = useMemo(() => {
+  return allUsers.map(user => ({
     id: user.id,
     name: user.name,
-    user_id: user.user_id,
+    email: user.email || '', // Add email (required by User type)
+    password: user.password || '', // Add password (required by User type)
+    user_id: user.id,
     role: user.role,
-    color: user.color || 'blue'
+    color: user.color || 'blue',
+    created_at: user.created_at || new Date().toISOString() // Add created_at
   }))
+}, [allUsers])
+
+  // Debug logs
+  useEffect(() => {
+    console.log('🔍 Debug - Staff Filters:', staffFilters)
+    console.log('🔍 Debug - Total Tasks:', tasks.length)
+    console.log('🔍 Debug - Filtered Tasks:', filteredTasks.length)
+    console.log('🔍 Debug - Total Events:', events.length)
+    console.log('🔍 Debug - Filtered Events:', filteredEvents.length)
+  }, [staffFilters, tasks, events, filteredTasks, filteredEvents])
+
+  // ========== RENDER ==========
+  const title = getTitle()
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
-      {/* Header */}
+      {/* HEADER */}
       <div className="bg-white border-b border-gray-200 px-4 py-2">
         <div className="flex items-center justify-between">
-          {/* Left side - Title and Navigation */}
           <div className="flex items-center space-x-4">
             <h1 className="text-xl font-semibold text-gray-900">Calendar</h1>
-            
             <div className="flex items-center space-x-2">
               <Button variant="outline" size="icon" onClick={handlePrev} className="bg-white">
                 <ChevronLeft className="h-4 w-4" />
@@ -606,26 +688,26 @@ export default function CalendarPage() {
               </Button>
             </div>
 
-            <span className="text-lg font-medium text-gray-700">{getTitle()}</span>
+            <span className="text-lg font-medium text-gray-700">{title}</span>
           </div>
 
-          {/* Right side - ALL BUTTONS INCLUDING TEST BUTTON */}
           <div className="flex items-center space-x-2">
-
+            {/* FILTER BUTTON */}
             <Button
               variant={showFilter ? "default" : "outline"}
-              onClick={() => setShowFilter(!showFilter)}
+              onClick={handleFilterToggle}
               className="flex items-center space-x-2 relative"
             >
               <Filter className="h-4 w-4" />
               <span>Filter</span>
               {activeFilterCount > 0 && !showFilter && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">
-                  {activeFilterCount}
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center px-1">
+                  {activeFilterCount > 99 ? '99+' : activeFilterCount}
                 </span>
               )}
             </Button>
-
+            
+            {/* VIEW DROPDOWN */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="flex items-center space-x-2 bg-white">
@@ -649,34 +731,46 @@ export default function CalendarPage() {
               </DropdownMenuContent>
             </DropdownMenu>
 
+            {/* NOTIFICATIONS BUTTON - WITH RED BADGE (KEKAL WALAUPUN REFRESH) */}
             <Button
               variant={showNotifications ? "default" : "outline"}
-              onClick={() => setShowNotifications(!showNotifications)}
-              className="flex items-center space-x-2"
+              onClick={handleNotificationsToggle}
+              className="flex items-center space-x-2 relative"
             >
               <Bell className="h-4 w-4" />
               <span>Notifications</span>
+              {notificationUnreadCount > 0 && !showNotifications && badgeCountsLoaded && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center px-1">
+                  {notificationUnreadCount > 99 ? '99+' : notificationUnreadCount}
+                </span>
+              )}
             </Button>
 
+            {/* INBOX BUTTON - WITH RED BADGE (KEKAL WALAUPUN REFRESH) */}
             <Button
               variant={showTaskInbox ? "default" : "outline"}
-              onClick={() => setShowTaskInbox(!showTaskInbox)}
-              className="flex items-center space-x-2"
+              onClick={handleTaskInboxToggle}
+              className="flex items-center space-x-2 relative"
             >
               <Inbox className="h-4 w-4" />
               <span>Inbox</span>
+              {inboxUnreadCount > 0 && !showTaskInbox && badgeCountsLoaded && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center px-1">
+                  {inboxUnreadCount > 99 ? '99+' : inboxUnreadCount}
+                </span>
+              )}
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* MAIN CONTENT */}
       <div className="flex-1 flex min-h-0">
-        {/* Filter Sidebar */}
+        {/* FILTER SIDEBAR */}
         {showFilter && (
           <CalendarFilter
             users={filterUsers}
-            holidays={allHolidays}
+            holidays={filteredHolidays}
             showHolidays={showHolidays}
             onHolidaysToggle={handleHolidaysToggle}
             staffTaskEventFilters={staffFilters}
@@ -685,9 +779,8 @@ export default function CalendarPage() {
           />
         )}
 
-        {/* Calendar and Right Panels */}
+        {/* CALENDAR AREA */}
         <div className="flex-1 flex min-h-0 px-4 py-3 gap-4">
-          {/* Calendar Section */}
           <div className={`flex flex-col min-h-0 transition-all duration-300 ${
             showTaskInbox && showNotifications ? 'flex-[2]' : 
             showTaskInbox || showNotifications ? 'flex-[2.5]' : 'flex-1'
@@ -717,49 +810,17 @@ export default function CalendarPage() {
                   onDragLeave={handleDragLeave}
                   draggedOverDate={draggedOverDate}
                   isDragging={isDragging}
+                  staffTaskEventFilters={staffFilters}
                 />
               )}
             </div>
-
-            {/* Status Messages */}
-            {!loading && isInitialized && (
-              <div className="mt-3 space-y-1">
-                {!hasSelection && (
-                  <div className="text-sm text-center text-gray-500 bg-gray-50 py-2 rounded-lg border border-gray-200">
-                    <span className="flex items-center justify-center">
-                      <Filter className="h-4 w-4 mr-2 text-gray-400" />
-                      No filters selected - calendar is empty
-                    </span>
-                    <Button
-                      variant="link"
-                      onClick={() => setShowFilter(true)}
-                      className="text-xs text-blue-600 ml-2"
-                    >
-                      Open Filter Panel
-                    </Button>
-                  </div>
-                )}
-                
-                {hasSelection && filteredTasks.length === 0 && filteredEvents.length === 0 && filteredHolidays.length === 0 && (
-                  <div className="text-sm text-center text-gray-500 bg-gray-50 py-2 rounded-lg border border-gray-200">
-                    No tasks, events or holidays found for selected filters in this {view}
-                  </div>
-                )}
-                
-                {showHolidays && holidays.length > 0 && filteredHolidays.length === 0 && (
-                  <div className="text-sm text-right text-gray-500">
-                    No holidays in this {view}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
-          {/* Right Section */}
+          {/* RIGHT SIDEBARS */}
           <div className="flex gap-4">
             {showNotifications && (
               <div className="w-80 flex flex-col min-h-0">
-                <NotificationsPanel />
+                <NotificationsPanel onUnreadCountChange={setNotificationUnreadCount} />
               </div>
             )}
             
@@ -783,18 +844,24 @@ export default function CalendarPage() {
                       timeStart: '',
                       timeStop: '',
                       additionalRemark: task.notes || '',
-                      staff: task.taskPicStaff || '',
-                      staff2: '',
-                      pdfJobOrder: task.pdfJobOrder || '',
-                      pdfFinalReport: '',
-                      finalReportStaff: '',
+                      pdfJobOrderPath: task.pdfJobOrderPath || '',
+                      pdfJobOrderUrl: task.pdfJobOrderUrl || '',
+                      pdfFinalReportPath: '',
+                      pdfFinalReportUrl: '',
                       jobStatus: 'in-progress',
-                    })
+                      task_pic_id: task.task_pic_id || '',
+                      task_pic_name: task.task_pic_name || '',
+                      task_pic_color: task.task_pic_color || 'blue',
+                      task_support_ids: [],
+                      task_support_names: [],
+                      task_support_colors: []
+                    } as Task)
                     setSelectedItemType('task')
                     setPrefilledTaskData(null)
                     setShowItemModal(true)
                   }}
                   onTaskSaved={refresh}
+                  onUnreadCountChange={setInboxUnreadCount}
                 />
               </div>
             )}
@@ -802,7 +869,7 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Add/Edit Modal */}
+      {/* MODAL */}
       <AddCalendarItemModal 
         isOpen={showItemModal}
         onClose={() => {
@@ -810,12 +877,14 @@ export default function CalendarPage() {
           setSelectedTask(null)
           setSelectedEvent(null)
           setSelectedItemType(null)
-          setPrefilledTaskData(null) // Clear prefilled data on close
+          setPrefilledTaskData(null)
+          setIsSaving(false)
+          setIsDeleting(false)
         }}
         selectedDate={selectedDate}
         selectedItem={selectedTask || selectedEvent}
         selectedType={selectedItemType}
-        prefilledData={prefilledTaskData} // Pass prefilled data to modal
+        prefilledData={prefilledTaskData}
         onSave={handleSaveItem}
         onDelete={handleDeleteItem}
       />

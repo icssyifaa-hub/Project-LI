@@ -123,7 +123,6 @@ export function HolidaysTab() {
     try {
       await deleteHoliday(id)
     } catch (error) {
-      // Error already handled in hook
     }
   }
 

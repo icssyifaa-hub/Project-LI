@@ -51,16 +51,16 @@ export interface UnscheduledTask {
   id: string
   clientName: string
   jobTask: string
-  jobTaskCode?: string
-  taskPicStaff: string
-  taskPicName?: string
-  taskPicColor?: string
-  pdfJobOrder?: string
-  pdfJobOrderName?: string
+  task_pic_id: string
+  task_pic_name?: string
+  task_pic_color?: string
   pdfJobOrderPath?: string
   pdfJobOrderUrl?: string
+  pdfFinalReportPath?: string
+  pdfFinalReportUrl?: string
   runningNumber?: string
   createdAt: Date
+  notes?: string
 }
 
 interface TaskInboxProps {
@@ -68,18 +68,17 @@ interface TaskInboxProps {
   onDragEnd: (taskId: string, date: Date | null) => void
   onTaskClick?: (task: UnscheduledTask) => void
   onTaskSaved?: () => void
+  onUnreadCountChange?: (count: number) => void  // ← TAMBAH INI
 }
 
 interface JobTask {
   id: string
-  code: string
   name: string
 }
 
 interface Staff {
   id: string
   name: string
-  user_id: string
   color?: string
 }
 
@@ -181,7 +180,6 @@ function SortableTaskItem({
         } ${isDeleting ? 'opacity-50' : ''}`}
       >
         <div className="flex items-start gap-2">
-          {/* Drag Handle */}
           <div 
             {...listeners} 
             className="cursor-grab hover:text-blue-600 mt-1 flex-shrink-0"
@@ -190,7 +188,6 @@ function SortableTaskItem({
             <GripVertical className="h-4 w-4 text-gray-400" />
           </div>
 
-          {/* Task Content */}
           <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onTaskClick?.(task)}>
             <div className="flex items-start justify-between gap-2">
               <h4 className="font-medium text-sm truncate">{task.clientName}</h4>
@@ -202,19 +199,18 @@ function SortableTaskItem({
             </div>
             
             <p className="text-xs text-gray-600 mt-1 truncate">
-              {task.jobTaskCode && <span className="font-mono bg-gray-100 px-1 rounded mr-1">{task.jobTaskCode}</span>}
-              {task.jobTask}
+              {task.jobTask && <span className="font-mono bg-gray-100 px-1 rounded mr-1">{task.jobTask}</span>}
             </p>
             
             <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
               <span className="flex items-center">
                 <div 
                   className="w-2 h-2 rounded-full mr-1" 
-                  style={{ backgroundColor: task.taskPicColor || '#3b82f6' }}
+                  style={{ backgroundColor: task.task_pic_color || '#3b82f6' }}
                 ></div>
-                <span className="truncate">{task.taskPicName || task.taskPicStaff}</span>
+                <span className="truncate">{task.task_pic_name || 'No PIC'}</span>
               </span>
-              {task.pdfJobOrderName && (
+              {task.pdfJobOrderUrl && (
                 <span className="flex items-center">
                   <FileText className="h-3 w-3 mr-1" />
                   <span className="truncate">PDF</span>
@@ -223,7 +219,6 @@ function SortableTaskItem({
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex items-center gap-1 flex-shrink-0">
             {task.pdfJobOrderUrl && (
               <button
@@ -259,11 +254,10 @@ function SortableTaskItem({
         </div>
       </div>
 
-      {/* PDF Viewer Modal */}
       {showPDF && task.pdfJobOrderUrl && (
         <PDFViewerModal
           url={task.pdfJobOrderUrl}
-          fileName={task.pdfJobOrderName || 'Document.pdf'}
+          fileName="Job Order Document.pdf"
           isOpen={showPDF}
           onClose={() => setShowPDF(false)}
         />
@@ -277,81 +271,37 @@ function AddTaskModal({
   isOpen, 
   onClose, 
   onAdd,
+  staffList,
+  jobTasks
 }: { 
   isOpen: boolean, 
   onClose: () => void, 
   onAdd: (task: UnscheduledTask) => Promise<void>,
+  staffList: Staff[],
+  jobTasks: JobTask[]
 }) {
   const [formData, setFormData] = useState({
     clientName: '',
-    jobTaskId: '',
-    taskPicStaff: '',
+    jobTask: '',
+    task_pic_id: '',
     pdfFile: null as File | null,
-    pdfFileName: ''
   })
   const [saving, setSaving] = useState(false)
-  const [jobTasks, setJobTasks] = useState<JobTask[]>([])
-  const [staffList, setStaffList] = useState<Staff[]>([])
-  const supabase = createClient()
   const { toast } = useToast()
+  const supabase = createClient()
 
   useEffect(() => {
     if (isOpen) {
-      console.log('📂 AddTaskModal opened, fetching data...')
-      fetchJobTasks()
-      fetchStaff()
       setFormData({
         clientName: '',
-        jobTaskId: '',
-        taskPicStaff: '',
+        jobTask: '',
+        task_pic_id: '',
         pdfFile: null,
-        pdfFileName: ''
       })
     }
   }, [isOpen])
 
-  const fetchJobTasks = async () => {
-    try {
-      console.log('🔍 Fetching job tasks...')
-      const { data, error } = await supabase
-        .from('job_tasks')
-        .select('*')
-        .order('code')
-      
-      if (error) {
-        console.error('❌ Error fetching job tasks:', error)
-        return
-      }
-      
-      console.log(`✅ Loaded ${data?.length || 0} job tasks`)
-      if (data) setJobTasks(data)
-    } catch (error) {
-      console.error('💥 Error in fetchJobTasks:', error)
-    }
-  }
-
-  const fetchStaff = async () => {
-    try {
-      console.log('🔍 Fetching staff...')
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, name, user_id, color')
-        .eq('role', 'staff')
-      
-      if (error) {
-        console.error('❌ Error fetching staff:', error)
-        return
-      }
-      
-      console.log(`✅ Loaded ${data?.length || 0} staff members`)
-      if (data) setStaffList(data)
-    } catch (error) {
-      console.error('💥 Error in fetchStaff:', error)
-    }
-  }
-
   const generateRunningNumber = async (date: Date) => {
-    console.log('🔢 Generating running number for date:', date)
     const year = date.getFullYear().toString().slice(-2)
     const month = (date.getMonth() + 1).toString().padStart(2, '0')
     const prefix = `ICS${year}${month}`
@@ -365,14 +315,13 @@ function AddTaskModal({
         .limit(1)
       
       if (error) {
-        console.error('❌ Error fetching last running number:', error)
+        console.error('Error fetching last running number:', error)
         return `${prefix}001`
       }
       
       let nextNumber = 1
       if (data && data.length > 0) {
         const lastNumber = data[0].running_number
-        console.log('📋 Last running number:', lastNumber)
         const lastSeq = parseInt(lastNumber.slice(-3))
         if (!isNaN(lastSeq)) {
           nextNumber = lastSeq + 1
@@ -380,12 +329,10 @@ function AddTaskModal({
       }
       
       const seq = nextNumber.toString().padStart(3, '0')
-      const newNumber = `${prefix}${seq}`
-      console.log('✅ Generated new running number:', newNumber)
-      return newNumber
+      return `${prefix}${seq}`
       
     } catch (error) {
-      console.error('💥 Error in generateRunningNumber:', error)
+      console.error('Error in generateRunningNumber:', error)
       return `${prefix}001`
     }
   }
@@ -409,17 +356,14 @@ function AddTaskModal({
         })
         return
       }
-      console.log('📄 PDF file selected:', file.name)
-      setFormData({ ...formData, pdfFile: file, pdfFileName: file.name })
+      setFormData({ ...formData, pdfFile: file })
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('📝 Form submitted with data:', formData)
     
-    if (!formData.clientName || !formData.jobTaskId || !formData.taskPicStaff) {
-      console.warn('⚠️ Validation failed: missing required fields')
+    if (!formData.clientName || !formData.jobTask || !formData.task_pic_id) {
       toast({
         title: "Validation Error",
         description: "Client Name, Job Task, and PIC are required",
@@ -430,29 +374,20 @@ function AddTaskModal({
 
     setSaving(true)
     try {
-      const selectedJobTask = jobTasks.find(jt => jt.id === formData.jobTaskId)
-      console.log('✅ Selected job task:', selectedJobTask)
-      
-      const selectedStaff = staffList.find(s => s.user_id === formData.taskPicStaff)
-      console.log('✅ Selected staff:', selectedStaff)
-      
+      const selectedStaff = staffList.find(s => s.id === formData.task_pic_id)
       const runningNumber = await generateRunningNumber(new Date())
-      console.log('✅ Running number:', runningNumber)
 
       const newTask: UnscheduledTask = {
         id: `temp-${Date.now()}`,
         clientName: formData.clientName,
-        jobTask: selectedJobTask?.name || '',
-        jobTaskCode: selectedJobTask?.code,
-        taskPicStaff: formData.taskPicStaff,
-        taskPicName: selectedStaff?.name,
-        taskPicColor: selectedStaff?.color || 'blue',
-        pdfJobOrderName: formData.pdfFileName || undefined,
+        jobTask: formData.jobTask,
+        task_pic_id: formData.task_pic_id,
+        task_pic_name: selectedStaff?.name,
+        task_pic_color: selectedStaff?.color || 'blue',
         runningNumber: runningNumber,
         createdAt: new Date()
       }
 
-      console.log('📦 New task object:', newTask)
       await onAdd(newTask)
       onClose()
       
@@ -461,7 +396,7 @@ function AddTaskModal({
         description: "Task created successfully",
       })
     } catch (error: any) {
-      console.error('❌ Error in handleSubmit:', error)
+      console.error('Error in handleSubmit:', error)
       toast({
         title: "Error",
         description: error.message || "Failed to create task",
@@ -485,7 +420,6 @@ function AddTaskModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
-          {/* Client Name */}
           <div className="space-y-2">
             <Label className="text-gray-700 font-medium">
               Client Name <span className="text-red-500">*</span>
@@ -500,80 +434,54 @@ function AddTaskModal({
             />
           </div>
 
-          {/* Job Task */}
           <div className="space-y-2">
             <Label className="text-gray-700 font-medium">
               Job Task <span className="text-red-500">*</span>
             </Label>
             <Select
-              value={formData.jobTaskId}
-              onValueChange={(value) => setFormData({...formData, jobTaskId: value})}
+              value={formData.jobTask}
+              onValueChange={(value) => setFormData({...formData, jobTask: value})}
             >
               <SelectTrigger className="bg-white border-gray-300">
                 <SelectValue placeholder="Select job task" />
               </SelectTrigger>
-              <SelectContent className= "bg-white border border-gray-200 shadow-lg max-h-80" >
+              <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
                 {jobTasks.map((jt) => (
-                  <SelectItem key={jt.id} value={jt.id}>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded">
-                        {jt.code}
-                      </span>
-                      <span>{jt.name}</span>
-                    </div>
+                  <SelectItem key={jt.id} value={jt.name}>
+                    {jt.name}
                   </SelectItem>
                 ))}
-                {jobTasks.length === 0 && (
-                  <div className="p-2 text-sm text-gray-500 text-center">
-                    No job tasks available
-                  </div>
-                )}
               </SelectContent>
             </Select>
           </div>
 
-          {/* PIC Staff */}
           <div className="space-y-2">
             <Label className="text-gray-700 font-medium">
               PIC (Person In Charge) <span className="text-red-500">*</span>
             </Label>
             <Select
-              value={formData.taskPicStaff}
-              onValueChange={(value) => setFormData({...formData, taskPicStaff: value})}
+              value={formData.task_pic_id}
+              onValueChange={(value) => setFormData({...formData, task_pic_id: value})}
             >
               <SelectTrigger className="bg-white border-gray-300">
                 <SelectValue placeholder="Select PIC" />
               </SelectTrigger>
-              <SelectContent className= "bg-white border border-gray-200 shadow-lg max-h-80">
+              <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
                 {staffList.map((staff) => (
-                  <SelectItem key={staff.id} value={staff.user_id}>
+                  <SelectItem key={staff.id} value={staff.id}>
                     <div className="flex items-center gap-2">
-                      <div 
-                        className="w-3 h-3 rounded-full" 
-                        style={{ backgroundColor: staff.color || '#3b82f6' }}
-                      ></div>
-                      <span>{staff.name} ({staff.user_id})</span>
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: staff.color || '#3b82f6' }}></div>
+                      <span>{staff.name}</span>
                     </div>
                   </SelectItem>
                 ))}
-                {staffList.length === 0 && (
-                  <div className="p-2 text-sm text-gray-500 text-center">
-                    No staff available
-                  </div>
-                )}
               </SelectContent>
             </Select>
           </div>
 
-          {/* PDF Job Order */}
           <div className="space-y-2">
             <Label className="text-gray-700 font-medium">PDF Job Order (Optional)</Label>
-            <Input
-              type="file"
-              accept=".pdf"
-              onChange={handleFileChange}
-              className="border-gray-300"
-            />
+            <Input type="file" accept=".pdf" onChange={handleFileChange} className="border-gray-300" />
             <p className="text-xs text-gray-500">Upload job order PDF (max 10MB)</p>
           </div>
 
@@ -582,9 +490,7 @@ function AddTaskModal({
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Create Task
             </Button>
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
           </div>
         </form>
       </div>
@@ -597,67 +503,60 @@ function EditTaskModal({
   task, 
   isOpen, 
   onClose, 
-  onSave 
+  onSave,
+  staffList,
+  jobTasks
 }: { 
   task: UnscheduledTask | null, 
   isOpen: boolean, 
   onClose: () => void, 
-  onSave: (task: UnscheduledTask) => Promise<void> 
+  onSave: (task: UnscheduledTask) => Promise<void>,
+  staffList: Staff[],
+  jobTasks: JobTask[]
 }) {
   const [formData, setFormData] = useState({
     clientName: '',
-    jobTaskId: '',
-    taskPicStaff: '',
+    jobTask: '',
+    task_pic_id: '',
     pdfFile: null as File | null,
-    pdfFileName: ''
   })
   const [saving, setSaving] = useState(false)
-  const [jobTasks, setJobTasks] = useState<JobTask[]>([])
-  const [staffList, setStaffList] = useState<Staff[]>([])
-  const supabase = createClient()
   const { toast } = useToast()
 
   useEffect(() => {
     if (task && isOpen) {
-      console.log('✏️ EditTaskModal opened for task:', task)
-      fetchJobTasks()
-      fetchStaff()
+      let picId = task.task_pic_id || ''
       
-      const jobTaskObj = jobTasks.find(jt => jt.name === task.jobTask)
+      if (!picId && task.task_pic_name) {
+        const foundStaff = staffList.find(s => s.name === task.task_pic_name)
+        if (foundStaff) {
+          picId = foundStaff.id
+        }
+      }
+      
+      if (!picId && task.task_pic_name) {
+        const foundStaff = staffList.find(s => 
+          s.name.toLowerCase() === task.task_pic_name?.toLowerCase()
+        )
+        if (foundStaff) {
+          picId = foundStaff.id
+        }
+      }
+      
+      let jobTaskValue = task.jobTask || ''
+      
+      if (!jobTaskValue && jobTasks.length > 0) {
+        jobTaskValue = jobTasks[0].name
+      }
       
       setFormData({
         clientName: task.clientName || '',
-        jobTaskId: jobTaskObj?.id || '',
-        taskPicStaff: task.taskPicStaff || '',
+        jobTask: jobTaskValue,
+        task_pic_id: picId,
         pdfFile: null,
-        pdfFileName: task.pdfJobOrderName || ''
       })
     }
-  }, [task, isOpen, jobTasks])
-
-  const fetchJobTasks = async () => {
-    try {
-      const { data } = await supabase
-        .from('job_tasks')
-        .select('*')
-        .order('code')
-      if (data) setJobTasks(data)
-    } catch (error) {
-      console.error('Error fetching job tasks:', error)
-    }
-  }
-
-  const fetchStaff = async () => {
-    try {
-      const { data } = await supabase
-        .from('users')
-        .select('id, name, user_id, color')
-        .eq('role', 'staff')
-      if (data) setStaffList(data)
-    } catch (error) {
-      console.error('Error fetching staff:', error)
-    }
-  }
+  }, [task, isOpen, staffList, jobTasks])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -678,13 +577,13 @@ function EditTaskModal({
         })
         return
       }
-      setFormData({ ...formData, pdfFile: file, pdfFileName: file.name })
+      setFormData({ ...formData, pdfFile: file })
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.clientName || !formData.jobTaskId || !formData.taskPicStaff) {
+    if (!formData.clientName || !formData.jobTask || !formData.task_pic_id) {
       toast({
         title: "Validation Error",
         description: "Client Name, Job Task, and PIC are required",
@@ -695,18 +594,15 @@ function EditTaskModal({
 
     setSaving(true)
     try {
-      const selectedJobTask = jobTasks.find(jt => jt.id === formData.jobTaskId)
-      const selectedStaff = staffList.find(s => s.user_id === formData.taskPicStaff)
+      const selectedStaff = staffList.find(s => s.id === formData.task_pic_id)
 
       const updatedTask: UnscheduledTask = {
         ...task!,
         clientName: formData.clientName,
-        jobTask: selectedJobTask?.name || '',
-        jobTaskCode: selectedJobTask?.code,
-        taskPicStaff: formData.taskPicStaff,
-        taskPicName: selectedStaff?.name,
-        taskPicColor: selectedStaff?.color || 'blue',
-        pdfJobOrderName: formData.pdfFileName || undefined,
+        jobTask: formData.jobTask,
+        task_pic_id: formData.task_pic_id,
+        task_pic_name: selectedStaff?.name,
+        task_pic_color: selectedStaff?.color || 'blue',
       }
 
       await onSave(updatedTask)
@@ -736,11 +632,8 @@ function EditTaskModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
-          {/* Client Name */}
           <div className="space-y-2">
-            <Label className="text-gray-700 font-medium">
-              Client Name <span className="text-red-500">*</span>
-            </Label>
+            <Label className="text-gray-700 font-medium">Client Name <span className="text-red-500">*</span></Label>
             <Input
               value={formData.clientName}
               onChange={(e) => setFormData({...formData, clientName: e.target.value})}
@@ -750,62 +643,54 @@ function EditTaskModal({
             />
           </div>
 
-          {/* Job Task */}
           <div className="space-y-2">
-            <Label className="text-gray-700 font-medium">
-              Job Task <span className="text-red-500">*</span>
-            </Label>
+            <Label className="text-gray-700 font-medium">Job Task <span className="text-red-500">*</span></Label>
             <Select
-              value={formData.jobTaskId}
-              onValueChange={(value) => setFormData({...formData, jobTaskId: value})}
+              key={`jobtask-select-${formData.jobTask || 'empty'}`}
+              value={formData.jobTask}
+              onValueChange={(value) => setFormData({...formData, jobTask: value})}
             >
               <SelectTrigger className="bg-white border-gray-300">
                 <SelectValue placeholder="Select job task" />
               </SelectTrigger>
-              <SelectContent className= "bg-white border border-gray-200 shadow-lg max-h-80">
+              <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
                 {jobTasks.map((jt) => (
-                  <SelectItem key={jt.id} value={jt.id}>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded">
-                        {jt.code}
-                      </span>
-                      <span>{jt.name}</span>
-                    </div>
+                  <SelectItem key={jt.id} value={jt.name}>
+                    {jt.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          {/* PIC Staff */}
           <div className="space-y-2">
-            <Label className="text-gray-700 font-medium">
-              PIC (Person In Charge) <span className="text-red-500">*</span>
-            </Label>
+            <Label className="text-gray-700 font-medium">PIC (Person In Charge) <span className="text-red-500">*</span></Label>
             <Select
-              value={formData.taskPicStaff}
-              onValueChange={(value) => setFormData({...formData, taskPicStaff: value})}
+              key={`pic-select-${formData.task_pic_id || 'empty'}`}
+              value={formData.task_pic_id}
+              onValueChange={(value) => setFormData({...formData, task_pic_id: value})}
             >
               <SelectTrigger className="bg-white border-gray-300">
                 <SelectValue placeholder="Select PIC" />
               </SelectTrigger>
               <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
                 {staffList.map((staff) => (
-                  <SelectItem key={staff.id} value={staff.user_id}>
+                  <SelectItem key={staff.id} value={staff.id}>
                     <div className="flex items-center gap-2">
-                      <div 
-                        className="w-3 h-3 rounded-full" 
-                        style={{ backgroundColor: staff.color || '#3b82f6' }}
-                      ></div>
-                      <span>{staff.name} ({staff.user_id})</span>
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: staff.color || '#3b82f6' }}></div>
+                      <span>{staff.name}</span>
                     </div>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {formData.task_pic_id && (
+              <div className="mt-1 text-xs text-green-600">
+                Selected: {staffList.find(s => s.id === formData.task_pic_id)?.name || 'Unknown'}
+              </div>
+            )}
           </div>
 
-          {/* PDF Job Order */}
           <div className="space-y-2">
             <Label className="text-gray-700 font-medium">PDF Job Order (Optional)</Label>
             {task.pdfJobOrderUrl && (
@@ -813,29 +698,17 @@ function EditTaskModal({
                 <p className="text-blue-700 flex items-center justify-between">
                   <span className="flex items-center">
                     <FileText className="h-4 w-4 mr-2" />
-                    Current: {task.pdfJobOrderName || 'PDF Available'}
+                    Current PDF attached
                   </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => window.open(task.pdfJobOrderUrl, '_blank')}
-                    className="text-blue-600"
-                  >
-                    <Eye className="h-3 w-3 mr-1" />
-                    View
+                  <Button type="button" variant="ghost" size="sm" onClick={() => window.open(task.pdfJobOrderUrl!, '_blank')} className="text-blue-600">
+                    <Eye className="h-3 w-3 mr-1" /> View
                   </Button>
                 </p>
               </div>
             )}
-            <Input
-              type="file"
-              accept=".pdf"
-              onChange={handleFileChange}
-              className="border-gray-300"
-            />
+            <Input type="file" accept=".pdf" onChange={handleFileChange} className="border-gray-300" />
             <p className="text-xs text-gray-500">
-              {task.pdfJobOrderName ? 'Upload new PDF to replace existing file' : 'Upload job order PDF (max 10MB)'}
+              {task.pdfJobOrderUrl ? 'Upload new PDF to replace existing file' : 'Upload job order PDF (max 10MB)'}
             </p>
           </div>
 
@@ -844,9 +717,7 @@ function EditTaskModal({
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Save Changes
             </Button>
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
           </div>
         </form>
       </div>
@@ -855,69 +726,130 @@ function EditTaskModal({
 }
 
 // ==================== MAIN TASK INBOX COMPONENT ====================
-export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskSaved }: TaskInboxProps) {
+export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskSaved, onUnreadCountChange }: TaskInboxProps) {
   const [tasks, setTasks] = useState<UnscheduledTask[]>([])
   const [filter, setFilter] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [editingTask, setEditingTask] = useState<UnscheduledTask | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [staffList, setStaffList] = useState<Staff[]>([])
+  const [jobTasks, setJobTasks] = useState<JobTask[]>([])
+  const [loadingData, setLoadingData] = useState(true)
 
   const { toast } = useToast()
   const supabase = createClient()
 
-  // Fetch existing unscheduled tasks from database
-  const fetchUnscheduledTasks = async () => {
-    setLoading(true)
+  // Fetch all required data
+  const fetchAllData = async () => {
+    setLoadingData(true)
     try {
-      console.log('🔍 Fetching unscheduled tasks...')
-      // Get tasks that don't have a date_start (unscheduled)
-      const { data, error } = await supabase
+      console.log('🔄 Fetching all data...')
+      
+      const { data: staffData, error: staffError } = await supabase
+        .from('users')
+        .select('id, name, color')
+        .order('name')
+      
+      if (staffError) throw staffError
+      
+      const formattedStaff: Staff[] = (staffData || []).map((user: {id: string; name:string; color?: string})=> ({
+        id: user.id,
+        name: user.name,
+        color: user.color || 'blue'
+      }))
+      setStaffList(formattedStaff)
+      console.log('✅ Staff loaded:', formattedStaff.length)
+      
+      const { data: jobTasksData, error: jobTasksError } = await supabase
+        .from('job_tasks')
+        .select('*')
+        .order('name')
+      
+      if (jobTasksError) throw jobTasksError
+      setJobTasks(jobTasksData || [])
+      console.log('✅ Job tasks loaded:', jobTasksData?.length)
+      
+      // Fetch unscheduled tasks (where date_start is null)
+      const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
         .select('*')
         .is('date_start', null)
         .order('created_at', { ascending: false })
-
-      if (error) {
-        console.error('❌ Error fetching tasks:', error)
-        throw error
-      }
-
-      console.log(`✅ Loaded ${data?.length || 0} unscheduled tasks`)
       
-      const formattedTasks: UnscheduledTask[] = (data || []).map(task => ({
-        id: task.id,
-        clientName: task.client_name || 'Unknown Client',
-        jobTask: task.job_task || '',
-        jobTaskCode: '',
-        taskPicStaff: task.task_pic_staff || '',
-        taskPicName: task.task_pic_name,
-        taskPicColor: task.task_pic_color || 'blue',
-        pdfJobOrder: task.pdf_job_order,
-        pdfJobOrderName: task.pdf_job_order,
-        pdfJobOrderPath: task.pdf_job_order_path,
-        pdfJobOrderUrl: task.pdf_job_order_url,
-        runningNumber: task.running_number,
-        createdAt: new Date(task.created_at)
-      }))
-
+      if (tasksError) throw tasksError
+      
+      console.log('📋 Raw unscheduled tasks from DB:', tasksData?.length || 0)
+      
+      const formattedTasks: UnscheduledTask[] = (tasksData || []).map((task:{
+        id: string;
+        client_name: string;
+        job_task: string;
+        task_pic_id: string;
+        task_pic_name: string;
+        task_pic_color: string;
+        pdf_job_order_path: string;
+        pdf_job_order_url: string;
+        pdf_final_report_path: string;
+        pdf_final_report_url: string;
+        running_number: string;
+        created_at: string;
+        additional_remark: string;
+      }) => {
+        let staffInfo = formattedStaff.find(s => s.id === task.task_pic_id)
+        
+        if (!staffInfo && task.task_pic_name) {
+          staffInfo = formattedStaff.find(s => s.name === task.task_pic_name)
+        }
+        
+        if (!staffInfo && task.task_pic_name) {
+          staffInfo = formattedStaff.find(s => 
+            s.name.toLowerCase() === task.task_pic_name?.toLowerCase()
+          )
+        }
+        
+        return {
+          id: task.id,
+          clientName: task.client_name || 'Unknown Client',
+          jobTask: task.job_task || '',
+          task_pic_id: staffInfo?.id || task.task_pic_id || '',
+          task_pic_name: staffInfo?.name || task.task_pic_name,
+          task_pic_color: staffInfo?.color || task.task_pic_color || 'blue',
+          pdfJobOrderPath: task.pdf_job_order_path,
+          pdfJobOrderUrl: task.pdf_job_order_url,
+          pdfFinalReportPath: task.pdf_final_report_path,
+          pdfFinalReportUrl: task.pdf_final_report_url,
+          runningNumber: task.running_number,
+          createdAt: new Date(task.created_at),
+          notes: task.additional_remark
+        }
+      })
       setTasks(formattedTasks)
+      console.log('✅ Formatted unscheduled tasks:', formattedTasks.length)
+      
+      // Send count to parent (for badge)
+      onUnreadCountChange?.(formattedTasks.length)
+      
     } catch (error: any) {
-      console.error('💥 Error in fetchUnscheduledTasks:', error)
+      console.error('💥 Error fetching data:', error)
       toast({
         title: "Error",
-        description: error?.message || "Failed to load unscheduled tasks",
+        description: error?.message || "Failed to load data",
         variant: "destructive",
       })
     } finally {
-      setLoading(false)
+      setLoadingData(false)
     }
   }
 
   useEffect(() => {
-    fetchUnscheduledTasks()
+    fetchAllData()
   }, [])
+
+  // Update parent when tasks count changes
+  useEffect(() => {
+    onUnreadCountChange?.(tasks.length)
+  }, [tasks.length, onUnreadCountChange])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -930,7 +862,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
     })
   )
 
-  const handleDragStart = (event: DragStartEvent) => {
+  const handleDragStartEvent = (event: DragStartEvent) => {
     const task = tasks.find(t => t.id === event.active.id)
     if (task) {
       console.log('🎯 Drag started for task:', task.clientName)
@@ -938,7 +870,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
     }
   }
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEndEvent = (event: DragEndEvent) => {
     const { active, over } = event
 
     if (over && active.id !== over.id) {
@@ -950,14 +882,18 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
     }
   }
 
-  // Upload PDF to storage
-  const uploadTaskPDF = async (file: File, taskId: string): Promise<{ path: string, url: string, name: string } | null> => {
+  const uploadTaskPDF = async (file: File, taskId: string): Promise<{ path: string, url: string } | null> => {
     try {
       const result = await uploadPDF(file, taskId, 'job_order')
+
+       if (!result) {
+      console.error('Upload failed: result is null')
+      return null
+      }
+
       return {
-        path: result.filePath,
-        url: result.publicUrl,
-        name: result.fileName
+        path: result.path,
+        url: result.publicUrl
       }
     } catch (error) {
       console.error('Error uploading PDF:', error)
@@ -965,26 +901,25 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
     }
   }
 
-  // Save task to database (as unscheduled)
   const saveTaskToDatabase = async (taskData: UnscheduledTask, isNew: boolean = true, pdfFile?: File | null) => {
     console.log('💾 saveTaskToDatabase called:', { taskData, isNew })
     
     const userData = localStorage.getItem('user')
     const currentUser = userData ? JSON.parse(userData) : null
     
-    console.log('👤 Current user:', currentUser)
+    const selectedStaff = staffList.find(s => s.id === taskData.task_pic_id)
 
-    // Prepare base data
     const baseData = {
       client_name: taskData.clientName,
       running_number: taskData.runningNumber,
       job_task: taskData.jobTask,
-      task_pic_staff: taskData.taskPicStaff,
-      task_pic_name: taskData.taskPicName,
-      task_pic_color: taskData.taskPicColor,
-      pdf_job_order: taskData.pdfJobOrderName || null,
+      task_pic_id: taskData.task_pic_id,
+      task_pic_name: selectedStaff?.name || taskData.task_pic_name,
+      task_pic_color: selectedStaff?.color || taskData.task_pic_color || 'blue',
       pdf_job_order_path: taskData.pdfJobOrderPath || null,
       pdf_job_order_url: taskData.pdfJobOrderUrl || null,
+      pdf_final_report_path: taskData.pdfFinalReportPath || null,
+      pdf_final_report_url: taskData.pdfFinalReportUrl || null,
       job_status: 'in-progress',
       date_start: null,
       date_stop: null,
@@ -992,32 +927,23 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
       updated_at: new Date().toISOString()
     }
 
-    // Add created_at only for new tasks
     const dataToSave = isNew 
       ? { ...baseData, created_at: new Date().toISOString() }
       : baseData
-
-    console.log('📦 Data to save:', dataToSave)
 
     try {
       let savedTask
       
       if (isNew) {
-        console.log('🆕 Inserting new task...')
         const { data, error } = await supabase
           .from('tasks')
           .insert(dataToSave)
           .select()
           .single()
 
-        if (error) {
-          console.error('❌ Insert error:', error)
-          throw new Error(`Database insert failed: ${error.message}`)
-        }
+        if (error) throw error
         savedTask = data
-        console.log('✅ Task inserted successfully:', savedTask)
       } else {
-        console.log('✏️ Updating task...')
         const { data, error } = await supabase
           .from('tasks')
           .update(dataToSave)
@@ -1025,19 +951,11 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
           .select()
           .single()
 
-        if (error) {
-          console.error('❌ Update error:', error)
-          throw new Error(`Database update failed: ${error.message}`)
-        }
+        if (error) throw error
         savedTask = data
-        console.log('✅ Task updated successfully:', savedTask)
       }
 
-      // Handle PDF upload if there's a new file
       if (pdfFile && savedTask?.id) {
-        console.log('📄 Uploading PDF for task:', savedTask.id)
-        
-        // Delete old PDF if exists
         if (taskData.pdfJobOrderPath) {
           await deletePDF(taskData.pdfJobOrderPath)
         }
@@ -1045,24 +963,16 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
         const uploadResult = await uploadTaskPDF(pdfFile, savedTask.id)
         
         if (uploadResult) {
-          // Update task with PDF info
-          const { error: updateError } = await supabase
+          await supabase
             .from('tasks')
             .update({
-              pdf_job_order: uploadResult.name,
               pdf_job_order_path: uploadResult.path,
               pdf_job_order_url: uploadResult.url
             })
             .eq('id', savedTask.id)
           
-          if (updateError) {
-            console.error('Error updating task with PDF info:', updateError)
-          } else {
-            // Update the returned task with PDF info
-            savedTask.pdf_job_order = uploadResult.name
-            savedTask.pdf_job_order_path = uploadResult.path
-            savedTask.pdf_job_order_url = uploadResult.url
-          }
+          savedTask.pdf_job_order_path = uploadResult.path
+          savedTask.pdf_job_order_url = uploadResult.url
         }
       }
 
@@ -1074,19 +984,15 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
   }
 
   const handleAddTask = async (newTask: UnscheduledTask) => {
-    console.log('🚀 handleAddTask called with:', newTask)
     setSaving(true)
     
     try {
       if (!newTask.runningNumber) {
-        console.error('❌ No running number generated')
         throw new Error('Failed to generate running number')
       }
 
-      console.log('💾 Saving to database...')
       const savedTask = await saveTaskToDatabase(newTask, true, null)
 
-      console.log('✅ Task saved, updating state...')
       const finalTask: UnscheduledTask = {
         ...newTask,
         id: savedTask.id,
@@ -1107,7 +1013,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
       console.error('❌ Error in handleAddTask:', error)
       toast({
         title: "Error",
-        description: error.message || "Failed to create task. Please check console for details.",
+        description: error.message || "Failed to create task",
         variant: "destructive",
       })
       throw error
@@ -1117,10 +1023,6 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
   }
 
   const handleUpdateTask = async (updatedTask: UnscheduledTask) => {
-    console.log('✏️ handleUpdateTask called:', updatedTask)
-    
-    // Find the edit modal data to get the PDF file if any
-    // For now, we'll update without PDF
     try {
       const savedTask = await saveTaskToDatabase(updatedTask, false, null)
       
@@ -1150,14 +1052,10 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
   }
 
   const handleDeleteTask = async (id: string) => {
-    console.log('🗑️ handleDeleteTask called for ID:', id)
-    
-    // Find the task to get PDF path for deletion
     const taskToDelete = tasks.find(t => t.id === id)
     
     setDeletingId(id)
     try {
-      // Delete PDF from storage if exists
       if (taskToDelete?.pdfJobOrderPath) {
         await deletePDF(taskToDelete.pdfJobOrderPath)
       }
@@ -1167,10 +1065,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
         .delete()
         .eq('id', id)
 
-      if (error) {
-        console.error('❌ Delete error:', error)
-        throw error
-      }
+      if (error) throw error
 
       setTasks(tasks.filter(t => t.id !== id))
       
@@ -1198,7 +1093,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
     return matchesSearch
   })
 
-  if (loading) {
+  if (loadingData) {
     return (
       <div className="bg-white rounded-lg shadow-lg h-full flex flex-col items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
@@ -1210,7 +1105,6 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
   return (
     <>
       <div className="bg-white rounded-lg shadow-lg h-full flex flex-col">
-        {/* Header */}
         <div className="p-4 border-b border-gray-200">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center space-x-2">
@@ -1225,7 +1119,6 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
             </div>
           </div>
 
-          {/* Search */}
           <div className="relative">
             <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
@@ -1237,13 +1130,12 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
           </div>
         </div>
 
-        {/* Task List - Scrollable */}
         <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-gray-50">
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
+            onDragStart={handleDragStartEvent}
+            onDragEnd={handleDragEndEvent}
           >
             <SortableContext
               items={filteredTasks.map(t => t.id)}
@@ -1271,20 +1163,13 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
           )}
         </div>
 
-        {/* Add Task Button */}
         <div className="p-3 border-t border-gray-200">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="w-full"
-            onClick={() => setShowAddModal(true)}
-          >
+          <Button variant="outline" size="sm" className="w-full" onClick={() => setShowAddModal(true)}>
             <Plus className="h-4 w-4 mr-2" />
             New Unscheduled Task
           </Button>
         </div>
 
-        {/* Drag Hint */}
         <div className="px-3 pb-2 text-[10px] text-gray-400 flex items-center">
           <GripVertical className="h-3 w-3 mr-1" />
           <Calendar className="h-3 w-3 mr-1" />
@@ -1292,19 +1177,21 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
         </div>
       </div>
 
-      {/* Add Task Modal */}
       <AddTaskModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
         onAdd={handleAddTask}
+        staffList={staffList}
+        jobTasks={jobTasks}
       />
 
-      {/* Edit Task Modal */}
       <EditTaskModal
         task={editingTask}
         isOpen={!!editingTask}
         onClose={() => setEditingTask(null)}
         onSave={handleUpdateTask}
+        staffList={staffList}
+        jobTasks={jobTasks}
       />
     </>
   )

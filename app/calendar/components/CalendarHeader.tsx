@@ -13,7 +13,7 @@ import {
   ListTodo,
   Menu
 } from 'lucide-react'
-import type { ViewType } from '@/components/calendar/types'
+import type { ViewType } from '@/app/calendar/types/calendar'
 
 interface CalendarHeaderProps {
   view: ViewType

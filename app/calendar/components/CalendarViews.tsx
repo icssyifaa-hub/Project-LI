@@ -1,12 +1,14 @@
+'use client'
+
 import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Plus, CalendarCheck, X, Edit2 } from 'lucide-react'
-import type { Task, Event } from '@/types/calendar'
+import type { Task, Event } from '@/app/calendar/types/calendar'
 import { MALAYSIA_STATES } from '@/app/settings/types'
 
 // ==================== TYPE FOR STAFF FILTERS ====================
 interface StaffFilters {
-  [staffCode: string]: {
+  [staffId: string]: {
     tasks: boolean
     events: boolean
   }
@@ -111,27 +113,32 @@ export const getItemBorderColor = (item: any) => {
 
 export const holidayStyle = 'bg-green-400 text-white border-green-600 cursor-pointer hover:bg-green-500 transition-colors'
 
+// ==================== DISPLAY FUNCTIONS ====================
+
 const getTaskDisplayText = (item: any) => {
   const jobTask = item.jobTask || 'No Job Task'
   const clientName = item.clientName || 'No Client'
   
   let staffText = item.task_pic_name || 'No PIC'
-  if (item.task_support_name) {
-    staffText += ` + ${item.task_support_name}`
+  if (item.task_support_names && item.task_support_names.length > 0) {
+    staffText += ` + ${item.task_support_names.join(', ')}`
   }
-  
+
   return `${jobTask} - ${clientName} (${staffText})`
 }
 
 const getTaskDisplayElement = (item: any) => {
-  const displayText = `${item.jobTask || 'Task'} - ${item.clientName || 'No Client'}`
+  const jobTask = item.jobTask || 'No Job Task'
+  const clientName = item.clientName || 'No Client'
   const picText = item.task_pic_name || 'No PIC'
-  const supportText = item.task_support_name ? ` + ${item.task_support_name}` : ''
+  const supportText = item.task_support_names && item.task_support_names.length > 0
+    ? `, ${item.task_support_names.join(',')}`
+    : ''
   
   return (
     <div className="flex items-center justify-between w-full">
       <span className="truncate font-medium">
-        {displayText}
+        {jobTask} - {clientName}
       </span>
       <div className="flex items-center space-x-1 flex-shrink-0 ml-2">
         <span className={`text-[10px] px-1.5 py-0.5 rounded-full bg-${item.task_pic_color}-200 text-${item.task_pic_color}-800`}>
@@ -142,25 +149,44 @@ const getTaskDisplayElement = (item: any) => {
   )
 }
 
+const getEventDisplayText = (item: any) => {
+  let staffText = item.event_pic_name || 'No PIC'
+  if (item.event_support_names && item.event_support_names.length > 0) {
+    staffText += ` + ${item.event_support_names.join(', ')}`
+  }
+  return `${item.title} (${staffText})`
+}
+
 const getEventDisplayElement = (item: any) => {
-  const hasPIC = item.event_pic_name || item.eventPicStaff
+  const hasPIC = item.event_pic_name || item.event_pic_id
   const picColor = item.event_pic_color || 'purple'
+  const picName = item.event_pic_name || 'No PIC'
+  
+  const supportNames = item.event_support_names || []
+  const supportText = supportNames.length > 0 
+    ? ` + ${supportNames.join(', ')}` 
+    : ''
   
   return (
-    <div className="flex items-center justify-between w-full">
+    <div className="flex items-center justify-between w-full gap-2">
       <span className="truncate font-medium">
         {item.title}
       </span>
-      <div className="flex items-center space-x-1 flex-shrink-0 ml-2">
-        {hasPIC && (
-          <span className={`text-[10px] px-1.5 py-0.5 rounded-full bg-${picColor}-200 text-${picColor}-800`}>
-            {item.event_pic_name || 'PIC'}
-            {item.event_support_name && ` + ${item.event_support_name}`}
+      {hasPIC && (
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <span className={`text-[10px] px-1.5 py-0.5 rounded-full bg-${picColor}-200 text-${picColor}-800 whitespace-nowrap`}>
+            👤 {picName}{supportText}
           </span>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
+}
+
+const getEventMiniDisplay = (item: any) => {
+  const picName = item.event_pic_name || 'No PIC'
+  
+  return `${item.title} (${picName})`
 }
 
 const getItemIcon = (item: any) => {
@@ -297,27 +323,31 @@ const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, onClose, 
           </div>
           
           <div className="border-t pt-3 mt-2">
-            <p className="text-sm font-medium text-gray-700 mb-2">Person In Charge:</p>
-            <div className="flex items-center p-2 rounded-lg" style={{ backgroundColor: `${item.event_pic_color}10` }}>
-              <span className={`w-3 h-3 rounded-full bg-${item.event_pic_color || 'purple'}-500 mr-2`}></span>
-              <span className="text-sm text-gray-900">
-                {item.event_pic_name} {item.eventPicStaff && `(${item.eventPicStaff})`}
-              </span>
+            <p className="text-sm font-medium text-gray-700 mb-2">👥 Person In Charge:</p>
+            <div className="flex flex-wrap items-center gap-2 p-2 rounded-lg" style={{ backgroundColor: `${item.event_pic_color}10` }}>
+              <div className="flex items-center gap-1">
+                <span className={`w-3 h-3 rounded-full bg-${item.event_pic_color || 'purple'}-500`}></span>
+                <span className="text-sm font-semibold text-gray-900">
+                  {item.event_pic_name || 'No PIC'}
+                </span>
+              </div>
               
-              {item.event_support_name && (
+              {item.event_support_names && item.event_support_names.length > 0 && (
                 <>
-                  <span className="mx-2 text-gray-400">|</span>
-                  <span className={`w-3 h-3 rounded-full bg-${item.event_support_color}-500 mr-2`}></span>
-                  <span className="text-sm text-gray-600">
-                    {item.event_support_name} {item.eventSupportStaff && `(${item.eventSupportStaff})`}
-                  </span>
+                  <span className="text-gray-400">→</span>
+                  {item.event_support_names.map((name: string, idx: number) => (
+                    <div key={idx} className="flex items-center gap-1">
+                      <span className={`w-3 h-3 rounded-full bg-${item.event_support_colors?.[idx] || 'purple'}-500`}></span>
+                      <span className="text-sm text-gray-700">{name}</span>
+                    </div>
+                  ))}
                 </>
               )}
             </div>
           </div>
           
           {item.description && (
-            <p className="text-gray-700 text-sm mt-3 border-t pt-3">{item.description}</p>
+            <p className="text-gray-700 text-sm mt-3 border-t pt-3">📝 {item.description}</p>
           )}
         </div>
       )
@@ -334,20 +364,24 @@ const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, onClose, 
           </div>
           
           <div className="border-t pt-3 mt-2">
-            <p className="text-sm font-medium text-gray-700 mb-2">Person In Charge:</p>
-            <div className="flex items-center p-2 rounded-lg" style={{ backgroundColor: `${item.task_pic_color}10` }}>
-              <span className={`w-3 h-3 rounded-full bg-${item.task_pic_color || 'blue'}-500 mr-2`}></span>
-              <span className="text-sm text-gray-900">
-                {item.task_pic_name} {item.taskPicStaff && `(${item.taskPicStaff})`}
-              </span>
+            <p className="text-sm font-medium text-gray-700 mb-2">👥 Person In Charge:</p>
+            <div className="flex flex-wrap items-center gap-2 p-2 rounded-lg" style={{ backgroundColor: `${item.task_pic_color}10` }}>
+              <div className="flex items-center gap-1">
+                <span className={`w-3 h-3 rounded-full bg-${item.task_pic_color || 'blue'}-500`}></span>
+                <span className="text-sm font-semibold text-gray-900">
+                  {item.task_pic_name || 'No PIC'}
+                </span>
+              </div>
               
-              {item.task_support_name && (
+              {item.task_support_names && item.task_support_names.length > 0 && (
                 <>
-                  <span className="mx-2 text-gray-400">|</span>
-                  <span className={`w-3 h-3 rounded-full bg-${item.task_support_color}-500 mr-2`}></span>
-                  <span className="text-sm text-gray-600">
-                    {item.task_support_name} {item.taskSupportStaff && `(${item.taskSupportStaff})`}
-                  </span>
+                  <span className="text-gray-400">→</span>
+                  {item.task_support_names.map((name: string, idx: number) => (
+                    <div key={idx} className="flex items-center gap-1">
+                      <span className={`w-3 h-3 rounded-full bg-${item.task_support_colors?.[idx] || 'blue'}-500`}></span>
+                      <span className="text-sm text-gray-700">{name}</span>
+                    </div>
+                  ))}
                 </>
               )}
             </div>
@@ -355,7 +389,7 @@ const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, onClose, 
 
           {item.additionalRemark && (
             <div className="border-t pt-3">
-              <p className="text-xs text-gray-500 mb-1">Remark:</p>
+              <p className="text-xs text-gray-500 mb-1">📝 Remark:</p>
               <p className="text-sm text-gray-700 bg-gray-50 p-2 rounded-lg">
                 {item.additionalRemark}
               </p>
@@ -379,9 +413,9 @@ const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, onClose, 
       <div className="bg-white rounded-lg w-full max-w-md" onClick={(e) => e.stopPropagation()}>
         <div className={`flex items-center justify-between p-4 border-b rounded-t-lg ${getHeaderColor()} text-white`}>
           <h2 className="text-lg font-semibold">
-            {type === 'event' ? 'Event Details' : 'Task Details'}
+            {type === 'event' ? '📅 Event Details' : '📋 Task Details'}
           </h2>
-          <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-opacity-20">
+          <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/20">
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -393,7 +427,7 @@ const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, onClose, 
 
           <div className="border-t pt-4">
             <p className="text-sm text-gray-600">
-              {formatDate(item.dateStart)}
+              📅 {formatDate(item.dateStart)}
               {item.timeStart && ` at ${item.timeStart}`}
               {item.timeStop && ` - ${item.timeStop}`}
             </p>
@@ -425,314 +459,6 @@ const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, onClose, 
   )
 }
 
-// ==================== MORE ITEMS POPUP ====================
-interface MoreItemsPopupProps {
-  date: Date
-  items: any[]
-  holidays: any[]
-  onClose: () => void
-  onItemClick: (item: any, type: 'task' | 'event') => void
-  onHolidayClick: (holiday: any) => void
-}
-
-const MoreItemsPopup: React.FC<MoreItemsPopupProps> = ({ 
-  date, 
-  items, 
-  holidays,
-  onClose, 
-  onItemClick,
-  onHolidayClick
-}) => {
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-GB', { 
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    })
-  }
-
-  const getItemDisplayText = (item: any) => {
-    if (item.type === 'holiday') {
-      return item.name
-    }
-    if (item.type === 'event') {
-      return item.title
-    }
-    if (item.type === 'task') {
-      const jobTask = item.jobTask || 'No Job Task'
-      const clientName = item.clientName || 'No Client'
-      return `${jobTask} - ${clientName}`
-    }
-    return ''
-  }
-
-  const getItemIconLocal = (item: any) => {
-    if (item.type === 'task') return '📋'
-    if (item.type === 'event') return '📅'
-    return '🎉'
-  }
-
-  const groupedItems = {
-    holidays: holidays.map(h => ({ ...h, type: 'holiday' as const })),
-    tasks: items.filter(item => item.type === 'task'),
-    events: items.filter(item => item.type === 'event')
-  }
-
-  const sortByTime = (a: any, b: any) => {
-    if (a.timeStart && b.timeStart) return a.timeStart.localeCompare(b.timeStart)
-    if (a.timeStart) return -1
-    if (b.timeStart) return 1
-    return 0
-  }
-
-  groupedItems.tasks.sort(sortByTime)
-  groupedItems.events.sort(sortByTime)
-
-  const allItems = [
-    ...groupedItems.holidays,
-    ...groupedItems.tasks,
-    ...groupedItems.events
-  ]
-
-  return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-start justify-center pt-16" onClick={onClose}>
-      <div className="bg-white rounded-xl w-[450px] shadow-2xl max-h-[80vh] flex flex-col border border-gray-200" onClick={(e) => e.stopPropagation()}>
-        <div className="px-5 py-4 border-b bg-gradient-to-r from-blue-600 to-blue-700 rounded-t-xl">
-          <div className="flex justify-between items-center">
-            <div>
-              <h3 className="font-semibold text-white text-lg">
-                {formatDate(date)}
-              </h3>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full">
-                  Total: {allItems.length} item{allItems.length !== 1 ? 's' : ''}
-                </span>
-                {holidays.length > 0 && (
-                  <span className="text-xs bg-green-400 text-white px-2 py-0.5 rounded-full">
-                    🎉 {holidays.length} holiday{holidays.length !== 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
-            </div>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8 text-white hover:bg-white/20 rounded-full"
-              onClick={onClose}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto py-3 px-3 bg-gray-50">
-          {allItems.length === 0 ? (
-            <div className="px-4 py-12 text-center">
-              <div className="text-4xl mb-3">📅</div>
-              <p className="text-sm text-gray-500">No items for this date</p>
-              <p className="text-xs text-gray-400 mt-1">Click the + button to add a task or event</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {allItems.map((item: any) => (
-                <div
-                  key={`${item.type}-${item.id}`}
-                  className={`
-                    group relative bg-white rounded-lg p-3 cursor-pointer transition-all
-                    hover:shadow-md border-l-4 hover:scale-[1.02] active:scale-[0.99]
-                    ${item.type === 'holiday' ? 'border-l-green-500 hover:border-l-green-600' : 
-                      item.type === 'event' ? `border-l-${item.event_pic_color || 'purple'}-500` : 
-                      `border-l-${item.task_pic_color || 'blue'}-500`}
-                    border border-gray-200 hover:border-gray-300
-                  `}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    e.currentTarget.style.pointerEvents = 'none'
-                    if (item.type === 'holiday') {
-                      onHolidayClick(item)
-                    } else {
-                      onItemClick(item, item.type)
-                    }
-                    setTimeout(() => {
-                      if (e.currentTarget) e.currentTarget.style.pointerEvents = 'auto'
-                    }, 300)
-                  }}
-                >
-                  <div className="absolute -top-2 -right-2">
-                    <span className={`
-                      text-[10px] px-2 py-0.5 rounded-full shadow-sm
-                      ${item.type === 'holiday' ? 'bg-green-500 text-white' : 
-                        item.type === 'event' ? `bg-${item.event_pic_color || 'purple'}-500 text-white` : 
-                        `bg-${item.task_pic_color || 'blue'}-500 text-white`}
-                    `}>
-                      {item.type === 'holiday' ? 'Holiday' : item.type === 'event' ? 'Event' : 'Task'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className={`
-                      w-8 h-8 rounded-lg flex items-center justify-center text-lg
-                      ${item.type === 'holiday' ? 'bg-green-100' : 
-                        item.type === 'event' ? `bg-${item.event_pic_color || 'purple'}-100` : 
-                        `bg-${item.task_pic_color || 'blue'}-100`}
-                    `}>
-                      {getItemIconLocal(item)}
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-gray-900 break-words pr-16">
-                        {getItemDisplayText(item)}
-                      </div>
-                      
-                      <div className="mt-2 space-y-1.5">
-                        {item.timeStart && (
-                          <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                            <span className="text-gray-400">🕒</span>
-                            <span className="font-medium">
-                              {item.timeStart}
-                              {item.timeStop && ` - ${item.timeStop}`}
-                            </span>
-                          </div>
-                        )}
-
-                        {item.type === 'task' && (
-                          <div className="flex flex-wrap items-center gap-2 text-xs">
-                            <span className="text-gray-500">👥 PIC:</span>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <div className="flex items-center gap-1">
-                                <span className={`w-2 h-2 rounded-full bg-${item.task_pic_color}-500`}></span>
-                                <span className="font-medium">{item.task_pic_name}</span>
-                                <span className="text-gray-400 text-[10px]">({item.taskPicStaff})</span>
-                              </div>
-                              {item.task_support_name && (
-                                <>
-                                  <span className="text-gray-300">|</span>
-                                  <div className="flex items-center gap-1">
-                                    <span className={`w-2 h-2 rounded-full bg-${item.task_support_color}-500`}></span>
-                                    <span className="font-medium">{item.task_support_name}</span>
-                                    <span className="text-gray-400 text-[10px]">({item.taskSupportStaff})</span>
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {item.type === 'event' && (
-                          <div className="flex flex-wrap items-center gap-2 text-xs">
-                            <span className="text-gray-500">👥 PIC:</span>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <div className="flex items-center gap-1">
-                                <span className={`w-2 h-2 rounded-full bg-${item.event_pic_color || 'purple'}-500`}></span>
-                                <span className="font-medium">{item.event_pic_name || 'No PIC'}</span>
-                                <span className="text-gray-400 text-[10px]">({item.eventPicStaff || '-'})</span>
-                              </div>
-                              {item.event_support_name && (
-                                <>
-                                  <span className="text-gray-300">|</span>
-                                  <div className="flex items-center gap-1">
-                                    <span className={`w-2 h-2 rounded-full bg-${item.event_support_color}-500`}></span>
-                                    <span className="font-medium">{item.event_support_name}</span>
-                                    <span className="text-gray-400 text-[10px]">({item.eventSupportStaff})</span>
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {item.type === 'event' && item.location && (
-                          <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                            <span className="text-gray-400">📍</span>
-                            <span>{item.location}</span>
-                          </div>
-                        )}
-
-                        {item.type === 'holiday' && item.states && item.states.length > 0 && (
-                          <div className="flex flex-wrap items-center gap-1">
-                            <span className="text-xs text-gray-500">🗺️</span>
-                            {item.states.slice(0, 3).map((stateCode: string) => {
-                              const state = MALAYSIA_STATES.find(s => s.value === stateCode)
-                              return state ? (
-                                <span 
-                                  key={stateCode}
-                                  className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full"
-                                >
-                                  {state.label}
-                                </span>
-                              ) : null
-                            })}
-                            {item.states.length > 3 && (
-                              <span className="text-[10px] text-gray-500">
-                                +{item.states.length - 3}
-                              </span>
-                            )}
-                          </div>
-                        )}
-
-                        {item.type === 'task' && item.jobStatus && (
-                          <div className="flex items-center gap-1.5 text-xs">
-                            <span className="text-gray-500">📊 Status:</span>
-                            <span className={`
-                              px-2 py-0.5 rounded-full text-[10px] font-medium
-                              ${item.jobStatus === 'completed' ? 'bg-green-100 text-green-700' : ''}
-                              ${item.jobStatus === 'in-progress' ? 'bg-yellow-100 text-yellow-700' : ''}
-                              ${item.jobStatus === 'incompleted' ? 'bg-red-100 text-red-700' : ''}
-                            `}>
-                              {item.jobStatus === 'in-progress' ? 'In Progress' : 
-                               item.jobStatus === 'completed' ? 'Completed' : 'Incompleted'}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      {item.type === 'task' && item.additionalRemark && (
-                        <div className="mt-2 text-xs bg-gray-50 p-2 rounded-lg border border-gray-100">
-                          <span className="font-medium text-gray-700 block mb-0.5">📝 Remark:</span>
-                          <p className="text-gray-600">{item.additionalRemark}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="border-t px-4 py-3 bg-gray-50 flex justify-between items-center rounded-b-xl">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500 flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-              Task
-            </span>
-            <span className="text-xs text-gray-500 flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-purple-500"></span>
-              Event
-            </span>
-            <span className="text-xs text-gray-500 flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-green-500"></span>
-              Holiday
-            </span>
-          </div>
-          <Button 
-            variant="default" 
-            size="sm" 
-            onClick={onClose}
-            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-md"
-          >
-            Close
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ==================== MAIN CALENDAR VIEWS COMPONENT ====================
 interface CalendarViewsProps {
   view: 'day' | 'week' | 'month' | 'year' | 'schedule'
   currentDate: Date
@@ -749,7 +475,7 @@ interface CalendarViewsProps {
   onDragLeave?: () => void
   draggedOverDate?: string | null
   isDragging?: boolean
-  staffTaskEventFilters?: StaffFilters  // ✅ TAMBAH INI
+  staffTaskEventFilters?: StaffFilters
 }
 
 export const CalendarViews: React.FC<CalendarViewsProps> = ({
@@ -768,36 +494,14 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
   onDragLeave,
   draggedOverDate,
   isDragging,
-  staffTaskEventFilters = {}  // ✅ TAMBAH INI dengan default empty object
+  staffTaskEventFilters = {},
 }) => {
   const [selectedHoliday, setSelectedHoliday] = useState<any>(null)
   const [selectedItem, setSelectedItem] = useState<{item: any, type: 'task' | 'event'} | null>(null)
   const [selectedMoreItems, setSelectedMoreItems] = useState<{date: Date, items: any[], holidays: any[]} | null>(null)
 
-  // Debug
-  useEffect(() => {
-    console.log('📋 Total Tasks:', tasks.length)
-    console.log('📅 Total Events:', events.length)
-    console.log('🔍 Staff Filters:', staffTaskEventFilters)
-    
-    const allDates = [...tasks.map(t => t.dateStart), ...events.map(e => e.dateStart)]
-    const uniqueDates = [...new Set(allDates)]
-    console.log('📆 Dates with data:', uniqueDates.sort())
-    
-    const checkDates = ['2026-03-29', '2026-03-30', '2026-03-31', '2026-04-01', '2026-04-02', '2026-04-03', '2026-04-04']
-    checkDates.forEach(date => {
-      const tasksOnDate = tasks.filter(t => t.dateStart === date)
-      const eventsOnDate = events.filter(e => e.dateStart === date)
-      if (tasksOnDate.length > 0 || eventsOnDate.length > 0) {
-        console.log(`✅ ${date}: ${tasksOnDate.length} tasks, ${eventsOnDate.length} events`)
-      } else {
-        console.log(`❌ ${date}: No items found`)
-      }
-    })
-  }, [tasks, events, staffTaskEventFilters])
-
   const weekDays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
   const formatDateKey = (date: Date) => {
     const year = date.getFullYear()
@@ -818,24 +522,34 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
     })
   }
 
-  // Helper to check if task should be shown based on staff filters
+  // ========== FILTER FUNCTIONS ==========
   const shouldShowTask = (task: Task): boolean => {
     if (Object.keys(staffTaskEventFilters).length === 0) return true
     
-    const picCode = task.task_pic_id || task.task_pic_name
-    const filter = staffTaskEventFilters[picCode]
-    return filter?.tasks === true
+    const picId = task.task_pic_id
+    if (picId && staffTaskEventFilters[picId]?.tasks === true) return true
+    
+    const supportIds = task.task_support_ids || []
+    for (const supportId of supportIds) {
+      if (staffTaskEventFilters[supportId]?.tasks === true) return true
+    }
+    return false
   }
 
-  // Helper to check if event should be shown based on staff filters
   const shouldShowEvent = (event: Event): boolean => {
     if (Object.keys(staffTaskEventFilters).length === 0) return true
     
-    const picCode = event.event_pic_id || event.event_pic_name
-    const filter = staffTaskEventFilters[picCode]
-    return filter?.events === true
+    const picId = event.event_pic_id
+    if (picId && staffTaskEventFilters[picId]?.events === true) return true
+    
+    const supportIds = event.event_support_ids || []
+    for (const supportId of supportIds) {
+      if (staffTaskEventFilters[supportId]?.events === true) return true
+    }
+    return false
   }
 
+  // ========== GET ITEMS FOR DATE (WITH FILTERS) ==========
   const getItemsForDate = (date: Date) => {
     const dateKey = formatDateKey(date)
     
@@ -847,14 +561,35 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
       .filter(event => event.dateStart === dateKey && shouldShowEvent(event))
       .map(event => ({ ...event, type: 'event' as const }))
     
-    return [...dateTasks, ...dateEvents].sort((a, b) => {
+    const sorted = [...dateTasks, ...dateEvents].sort((a, b) => {
       if (a.timeStart && b.timeStart) return a.timeStart.localeCompare(b.timeStart)
       if (a.timeStart) return -1
       if (b.timeStart) return 1
       return 0
     })
+    
+    return sorted
   }
 
+  // ========== GET ALL ITEMS FOR MONTH (WITH FILTERS) ==========
+  const getAllItemsForYearMonth = (year: number, month: number) => {
+    const startDate = new Date(year, month, 1)
+    const endDate = new Date(year, month + 1, 0)
+    const items: { date: Date; items: any[]; holidays: any[] }[] = []
+    
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const date = new Date(d)
+      items.push({
+        date,
+        items: getItemsForDate(date),
+        holidays: getHolidaysForDate(date)
+      })
+    }
+    
+    return items
+  }
+
+  // ========== CLICK HANDLERS ==========
   const handleItemClick = (item: any, type: 'task' | 'event', e: React.MouseEvent) => {
     e.stopPropagation()
     e.preventDefault()
@@ -865,6 +600,10 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
     e.stopPropagation()
     e.preventDefault()
     setSelectedHoliday(holiday)
+  }
+
+  const handleDateClick = (date: Date) => {
+    onAddClick(date)
   }
 
   const handleMoreItemsClick = (date: Date, items: any[], holidays: any[], e: React.MouseEvent) => {
@@ -942,11 +681,6 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                       onClick={(e) => handleHolidayClick(holiday, e)}
                     >
                       🎉 {holiday.name}
-                      {holiday.states && holiday.states.length > 0 && (
-                        <span className="ml-1 text-xs opacity-90">
-                          ({holiday.states.length} state{holiday.states.length > 1 ? 's' : ''})
-                        </span>
-                      )}
                     </div>
                   ))}
                 </div>
@@ -961,10 +695,12 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
           <div className="flex-1 overflow-y-auto">
             {getItemsForDate(currentDate).filter(item => !item.timeStart).length > 0 && (
               <div className="border-b p-2 bg-blue-50">
-                <div className="text-xs font-semibold text-blue-600 mb-1">ALL DAY</div>
+                <div className="text-xs font-semibold text-blue-600 mb-1">📌 ALL DAY</div>
                 {getItemsForDate(currentDate).filter(item => !item.timeStart).map(item => (
                   <div
                     key={`allday-${item.type}-${item.id}`}
+                    data-task-id={item.type === 'task' ? item.id : undefined}
+                    data-event-id={item.type === 'event' ? item.id : undefined}
                     className={`p-2 mb-1 rounded-lg cursor-pointer text-sm ${getItemStyle(item)}`}
                     onClick={(e) => handleItemClick(item, item.type, e)}
                   >
@@ -991,7 +727,7 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                   className={`flex border-b min-h-[60px] hover:bg-gray-50 cursor-pointer ${
                     isCurrentHour ? 'bg-blue-50' : ''
                   }`}
-                  onClick={() => onDateClick?.(currentDate)}
+                  onClick={() => handleDateClick(currentDate)}
                 >
                   <div className="w-20 p-2 text-right text-sm text-gray-500 border-r">
                     {hour.toString().padStart(2, '0')}:00
@@ -1000,6 +736,8 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                     {hourItems.map((item) => (
                       <div
                         key={`${item.type}-${item.id}`}
+                        data-task-id={item.type === 'task' ? item.id : undefined}
+                        data-event-id={item.type === 'event' ? item.id : undefined}
                         className={`p-2 mb-1 rounded-lg cursor-pointer text-sm ${getItemStyle(item)}`}
                         onClick={(e) => handleItemClick(item, item.type, e)}
                       >
@@ -1033,20 +771,20 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
               const date = new Date(currentDate)
               date.setDate(currentDate.getDate() - currentDate.getDay() + i)
               const isToday = formatDateKey(date) === formatDateKey(new Date())
-              const holidays = getHolidaysForDate(date)
+              const dayHolidays = getHolidaysForDate(date)
               
               return (
                 <div 
                   key={i} 
                   className={`p-2 text-center ${isToday ? 'bg-blue-50' : ''} cursor-pointer hover:bg-gray-100`}
-                  onClick={() => onDateClick?.(date)}
+                  onClick={() => handleDateClick(date)}
                 >
                   <div className="font-semibold text-sm">{weekDays[date.getDay()]}</div>
                   <div className={`text-lg font-bold ${isToday ? 'text-blue-600' : ''}`}>
                     {date.getDate()}
                   </div>
                   <div className="mt-1 space-y-0.5">
-                    {holidays.map(holiday => (
+                    {dayHolidays.map(holiday => (
                       <div 
                         key={holiday.id}
                         className="text-[10px] bg-green-400 text-white px-1 py-0.5 rounded-full cursor-pointer hover:bg-green-500 transition-colors truncate"
@@ -1068,11 +806,11 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                 const date = new Date(currentDate)
                 date.setDate(currentDate.getDate() - currentDate.getDay() + i)
                 const allDayItems = getItemsForDate(date).filter(item => !item.timeStart)
-                const holidays = getHolidaysForDate(date)
+                const dayHolidays = getHolidaysForDate(date)
                 
                 return (
                   <div key={i} className="p-1 min-h-[60px]">
-                    {holidays.map(holiday => (
+                    {dayHolidays.map(holiday => (
                       <div 
                         key={holiday.id}
                         className="p-1 mb-1 rounded text-xs bg-green-400 text-white cursor-pointer hover:bg-green-500 transition-colors truncate"
@@ -1084,6 +822,8 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                     {allDayItems.map((item) => (
                       <div
                         key={`allday-${item.type}-${item.id}`}
+                        data-task-id={item.type === 'task' ? item.id : undefined}
+                        data-event-id={item.type === 'event' ? item.id : undefined}
                         className={`p-1 mb-1 rounded text-xs cursor-pointer truncate ${getItemStyle(item)}`}
                         onClick={(e) => handleItemClick(item, item.type, e)}
                       >
@@ -1113,13 +853,15 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                     <div 
                       key={i} 
                       className="relative p-1 hover:bg-gray-50 cursor-pointer"
-                      onClick={() => onDateClick?.(date)}
+                      onClick={() => handleDateClick(date)}
                       onDragOver={(e) => onDragOver?.(e, date)}
                       onDrop={(e) => onDrop?.(e, date)}
                     >
                       {hourItems.map((item) => (
                         <div
                           key={`${item.type}-${item.id}`}
+                          data-task-id={item.type === 'task' ? item.id : undefined}
+                          data-event-id={item.type === 'event' ? item.id : undefined}
                           className={`p-1 mb-1 rounded text-xs cursor-pointer truncate ${getItemStyle(item)}`}
                           onClick={(e) => handleItemClick(item, item.type, e)}
                         >
@@ -1149,46 +891,43 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
 
           <div className="flex-1 grid grid-cols-7 auto-rows-fr min-h-0 overflow-y-auto">
             {(() => {
-              const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
-              const startDayOfWeek = firstDayOfMonth.getDay()
+              const year = currentDate.getFullYear()
+              const month = currentDate.getMonth()
               
-              const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate()
-              const prevMonthDays = startDayOfWeek
-              const totalCells = Math.ceil((prevMonthDays + daysInMonth) / 7) * 7
-              const nextMonthDays = totalCells - (prevMonthDays + daysInMonth)
+              const firstDay = new Date(year, month, 1).getDay()
+              const daysInMonth = new Date(year, month + 1, 0).getDate()
               
-              const allDates = []
-              
-              // Add previous month dates
-              const prevMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 0)
-              const prevMonthDaysCount = prevMonth.getDate()
-              for (let i = prevMonthDaysCount - prevMonthDays + 1; i <= prevMonthDaysCount; i++) {
-                const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, i)
-                allDates.push(date)
+              const calendar = []
+              for (let i = 0; i < 42; i++) {
+                calendar.push(null)
               }
               
-              // Add current month dates
-              for (let i = 1; i <= daysInMonth; i++) {
-                const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), i)
-                allDates.push(date)
+              for (let day = 1; day <= daysInMonth; day++) {
+                const position = firstDay + (day - 1)
+                if (position < 42) {
+                  const date = new Date(year, month, day)
+                  calendar[position] = date
+                }
               }
               
-              // Add next month dates
-              for (let i = 1; i <= nextMonthDays; i++) {
-                const date = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, i)
-                allDates.push(date)
-              }
-              
-              return allDates.map((date, index) => {
-                const isCurrentMonth = date.getMonth() === currentDate.getMonth()
+              return calendar.map((date, index) => {
+                if (!date) {
+                  return (
+                    <div
+                      key={`empty-${index}`}
+                      className="border-b border-r p-1 min-h-[100px] bg-gray-50"
+                    />
+                  )
+                }
+                
                 const isToday = formatDateKey(date) === formatDateKey(new Date())
-                const holidays = getHolidaysForDate(date)
+                const dayHolidays = getHolidaysForDate(date)
                 const dayItems = getItemsForDate(date)
-                const holidayCount = holidays.length
+                const holidayCount = dayHolidays.length
                 const itemCount = dayItems.length
                 const totalItems = holidayCount + itemCount
-                const MAX_VISIBLE = 3
-                const visibleHolidays = holidays.slice(0, Math.min(holidayCount, MAX_VISIBLE))
+                const MAX_VISIBLE = 2
+                const visibleHolidays = dayHolidays.slice(0, Math.min(holidayCount, MAX_VISIBLE))
                 const remainingSlots = MAX_VISIBLE - visibleHolidays.length
                 const visibleItems = dayItems.slice(0, remainingSlots)
                 const hasMore = totalItems > MAX_VISIBLE
@@ -1197,19 +936,18 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                   <div
                     key={index}
                     className={`
-                      border-b border-r p-1 min-h-[100px] relative overflow-hidden
+                      border-b border-r p-1 min-h-[100px] relative
                       hover:bg-gray-50 cursor-pointer
-                      ${!isCurrentMonth ? 'bg-gray-50' : ''}
+                      bg-white
                       ${isToday ? 'bg-blue-50' : ''}
                       ${draggedOverDate === formatDateKey(date) ? 'bg-blue-100 border-2 border-dashed border-blue-400' : ''}
                     `}
-                    onClick={() => onDateClick?.(date)}
+                    onClick={() => handleDateClick(date)}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className={`
                         text-xs font-medium w-5 h-5 flex items-center justify-center
-                        ${isToday ? 'bg-blue-600 text-white rounded-full' : ''}
-                        ${!isCurrentMonth ? 'text-gray-400' : 'text-gray-700'}
+                        ${isToday ? 'bg-blue-600 text-white rounded-full' : 'text-gray-700'}
                       `}>
                         {date.getDate()}
                       </span>
@@ -1231,53 +969,46 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                             handleHolidayClick(holiday, e)
                           }}
                         >
-                          <span className="mr-1">🎉</span>
-                          <span className="truncate">{holiday.name}</span>
+                          <span className="mr-1 flex-shrink-0">🎉</span>
+                          <span className="truncate text-[9px]">{holiday.name}</span>
                         </div>
                       ))}
 
                       {visibleItems.map(item => (
                         <div
                           key={`${item.type}-${item.id}`}
+                          data-task-id={item.type === 'task' ? item.id : undefined}
+                          data-event-id={item.type === 'event' ? item.id : undefined}
                           className={`
-                            text-[10px] p-0.5 rounded truncate cursor-pointer
+                            text-[9px] p-0.5 rounded truncate cursor-pointer
                             ${getItemStyle(item)}
                             flex items-center justify-between gap-1
                           `}
                           onClick={(e) => handleItemClick(item, item.type, e)}
                         >
                           <div className="flex items-center min-w-0 flex-1">
-                            <span className="mr-1 flex-shrink-0 text-xs">{getItemIcon(item)}</span>
-                            <span className="truncate">
+                            <span className="mr-1 flex-shrink-0 text-[9px]">{getItemIcon(item)}</span>
+                            <span className="truncate text-[9px]">
                               {item.type === 'task' 
-                                ? `${item.jobTask || 'Task'} - ${item.clientName || 'No Client'}`
-                                : item.title
+                                ? (() => {
+                                    const jobTask = item.jobTask || 'No Job Task'
+                                    const clientName = item.clientName || 'No Client'
+                                    let staffText = item.task_pic_name || 'No PIC'
+                                    return `${jobTask} - ${clientName} (${staffText})`
+                                  })()
+                                : getEventMiniDisplay(item)
                               }
                             </span>
                           </div>
-                          
-                          {item.type === 'task' && item.task_pic_name && (
-                            <span className={`ml-1 text-[8px] px-1 rounded-full flex-shrink-0 bg-${item.task_pic_color}-200 text-${item.task_pic_color}-800`}>
-                              {item.task_pic_name.substring(0, 3)}
-                              {item.task_support_name && '+'}
-                            </span>
-                          )}
-                          
-                          {item.type === 'event' && item.event_pic_name && (
-                            <span className={`ml-1 text-[8px] px-1 rounded-full flex-shrink-0 bg-${item.event_pic_color || 'purple'}-200 text-${item.event_pic_color || 'purple'}-800`}>
-                              {item.event_pic_name.substring(0, 3)}
-                              {item.event_support_name && '+'}
-                            </span>
-                          )}
                         </div>
                       ))}
                       
                       {hasMore && (
                         <div 
-                          className="text-[9px] text-blue-600 hover:text-blue-800 font-medium pl-1 cursor-pointer bg-blue-50 rounded py-0.5 mt-0.5 text-center"
+                          className="text-[9px] font-medium py-0.5 mt-0.5 text-center rounded bg-blue-100 text-blue-700 cursor-pointer hover:bg-blue-200 transition-colors"
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleMoreItemsClick(date, dayItems, holidays, e)
+                            handleMoreItemsClick(date, dayItems, dayHolidays, e)
                           }}
                         >
                           +{totalItems - MAX_VISIBLE} more
@@ -1295,99 +1026,105 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
       {/* YEAR VIEW */}
       {view === 'year' && (
         <div className="h-full flex flex-col p-4 overflow-y-auto">
-          <h2 className="text-2xl font-bold mb-4">{currentDate.getFullYear()}</h2>
+          <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">
+            {currentDate.getFullYear()}
+          </h2>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {months.map((month, index) => {
               const monthHolidays = getMonthHolidays(currentDate.getFullYear(), index)
+              const monthItems = getAllItemsForYearMonth(currentDate.getFullYear(), index)
+              const totalTasksInMonth = monthItems.reduce((sum, day) => sum + day.items.filter(i => i.type === 'task').length, 0)
+              const totalEventsInMonth = monthItems.reduce((sum, day) => sum + day.items.filter(i => i.type === 'event').length, 0)
+              const totalHolidaysInMonth = monthHolidays.length
+              
+              const daysWithItems = monthItems.filter(day => day.items.length > 0 || day.holidays.length > 0).slice(0, 3)
+
+              const firstDayOfMonth = new Date(currentDate.getFullYear(), index, 1).getDay()
+              const daysInMonth = new Date(currentDate.getFullYear(), index + 1, 0).getDate()
+              const totalCells = Math.ceil((firstDayOfMonth + daysInMonth) / 7) * 7 
 
               return (
                 <div 
                   key={month} 
-                  className="border rounded-lg p-3 hover:shadow-lg transition-shadow cursor-pointer"
+                  className="border rounded-xl p-4 hover:shadow-xl transition-all cursor-pointer bg-white hover:bg-gray-50"
                   onClick={() => {
                     const newDate = new Date(currentDate.getFullYear(), index, 1)
                     onDateClick?.(newDate)
                   }}
                 >
-                  <h3 className="font-semibold text-lg mb-2 flex items-center justify-between">
-                    <span>{month}</span>
-                    {monthHolidays.length > 0 && (
-                      <span className="text-xs bg-green-400 text-white px-2 py-0.5 rounded-full">
-                        {monthHolidays.length} holidays
-                      </span>
-                    )}
-                  </h3>
-                  
-                  {monthHolidays.length > 0 && (
-                    <div className="space-y-1 mb-3">
-                      {monthHolidays.slice(0, 2).map(holiday => (
-                        <div 
-                          key={holiday.id}
-                          className="text-xs bg-green-100 text-green-800 p-1 rounded cursor-pointer hover:bg-green-200 transition-colors flex items-center"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleHolidayClick(holiday, e)
-                          }}
-                        >
-                          <span className="mr-1">🎉</span>
-                          <span className="truncate">{holiday.name}</span>
-                          <span className="ml-auto text-[10px]">
-                            {new Date(holiday.date).getDate()} {months[new Date(holiday.date).getMonth()]}
-                          </span>
-                        </div>
-                      ))}
-                      {monthHolidays.length > 2 && (
-                        <div className="text-[10px] text-gray-500 pl-1">
-                          +{monthHolidays.length - 2} more
-                        </div>
+                  <div className="flex items-center justify-between mb-3 pb-2 border-b">
+                    <h3 className="font-bold text-lg text-gray-800">{month}</h3>
+                    <div className="flex gap-1">
+                      {totalHolidaysInMonth > 0 && (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                          🎉 {totalHolidaysInMonth}
+                        </span>
                       )}
                     </div>
-                  )}
-
-                  <div className="grid grid-cols-7 gap-1 mt-2">
-                    {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
-                      <div key={i} className="text-[8px] text-gray-400 text-center">{d}</div>
-                    ))}
-                    
-                    {Array.from({ length: new Date(currentDate.getFullYear(), index, 1).getDay() === 0 ? 6 : new Date(currentDate.getFullYear(), index, 1).getDay() - 1 }).map((_, i) => (
-                      <div key={`empty-${i}`} className="h-4"></div>
-                    ))}
-
-                    {Array.from({ length: new Date(currentDate.getFullYear(), index + 1, 0).getDate() }).map((_, i) => {
-                      const day = i + 1
-                      const dateKey = formatDateKey(new Date(currentDate.getFullYear(), index, day))
-                      const dayHolidays = holidays.filter(h => h.date === dateKey)
-                      
-                      return (
-                        <div
-                          key={day}
-                          className={`
-                            h-4 text-[8px] flex items-center justify-center rounded cursor-pointer relative
-                            ${dayHolidays.length > 0 ? 'bg-green-400 text-white hover:bg-green-500' : 'bg-gray-100 hover:bg-gray-200'}
-                          `}
-                          title={dayHolidays.map(h => h.name).join(', ')}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            if (dayHolidays.length > 0) {
-                              handleHolidayClick(dayHolidays[0], e)
-                            }
-                          }}
-                        >
-                          {dayHolidays.length > 0 && (
-                            <span className="relative">
-                              🎉
-                              {dayHolidays.length > 1 && (
-                                <span className="absolute -top-1 -right-2 text-[6px] bg-red-500 text-white rounded-full w-2.5 h-2.5 flex items-center justify-center">
-                                  {dayHolidays.length}
-                                </span>
-                              )}
-                            </span>
-                          )}
-                        </div>
-                      )
-                    })}
                   </div>
+
+                  <div className="flex gap-3 mb-3 text-xs">
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                      <span className="text-gray-600">{totalTasksInMonth} Tasks</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                      <span className="text-gray-600">{totalEventsInMonth} Events</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-0.5 mb-3 text-center text-[8px] font-medium text-gray-400">
+                    {['S', 'M', 'T', 'W', 'Th', 'F', 'S'].map((day, idx) => (
+                      <div key={idx}>{day}</div>
+                    ))}
+                  </div>
+                  
+                  <div className="grid grid-cols-7 gap-0.5 text-center text-[10px]">
+                    {(() => {
+                      const previewDays = []
+                      
+                      for (let i = 0; i < firstDayOfMonth; i++) {
+                        previewDays.push(<div key={`empty-${i}`} className="h-5"></div>)
+                      }
+                      
+                      for (let day = 1; day <= daysInMonth; day++) {
+                        const date = new Date(currentDate.getFullYear(), index, day)
+                        const itemsOnDay = getItemsForDate(date)
+                        const hasItems = itemsOnDay.length > 0 || getHolidaysForDate(date).length > 0
+                        const isToday = formatDateKey(date) === formatDateKey(new Date())
+                        
+                        previewDays.push(
+                          <div 
+                            key={day} 
+                            className={`h-5 flex items-center justify-center rounded-full text-[9px] font-medium cursor-pointer
+                              ${hasItems ? 'bg-blue-100 text-blue-700 font-bold' : ''}
+                              ${isToday ? 'ring-1 ring-blue-500 bg-blue-50' : ''}
+                            `}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDateClick(date)
+                            }}
+                          >
+                            {day}
+                          </div>
+                        )
+                      }
+                      
+                      const remainingCells = totalCells - (firstDayOfMonth + daysInMonth)
+                      for (let i = 0; i < remainingCells; i++) {
+                        previewDays.push(<div key={`next-empty-${i}`} className="h-5"></div>)
+                      }
+                      
+                      return previewDays
+                    })()}
+                  </div>
+                  {daysWithItems.length === 0 && (
+                    <div className="mt-3 pt-2 border-t text-center text-[10px] text-gray-400">
+                      No items this month
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -1397,174 +1134,465 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
 
       {/* SCHEDULE VIEW */}
       {view === 'schedule' && (
-        <div className="h-full flex flex-col p-4 overflow-y-auto">
-          <h2 className="text-2xl font-bold mb-4">Upcoming Schedule</h2>
-          
-          {(() => {
-            const today = new Date()
-            today.setHours(0, 0, 0, 0)
-            
-            const allItems = [
-              ...tasks.filter(shouldShowTask).map(t => ({ ...t, type: 'task' as const })),
-              ...events.filter(shouldShowEvent).map(e => ({ ...e, type: 'event' as const }))
-            ]
-              .filter(item => new Date(item.dateStart) >= today)
-              .sort((a, b) => new Date(a.dateStart).getTime() - new Date(b.dateStart).getTime())
+        <div className="h-full flex flex-col overflow-hidden bg-gray-50">
+          <div className="flex-shrink-0 bg-white border-b p-4">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800">📅 Schedule View</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Showing tasks and events for {months[currentDate.getMonth()]} {currentDate.getFullYear()}
+              </p>
+              {Object.keys(staffTaskEventFilters).length > 0 && (
+                <p className="text-xs text-blue-600 mt-1">
+                  Filtered by {Object.values(staffTaskEventFilters).filter(f => f.tasks || f.events).length} staff member(s)
+                </p>
+              )}
+            </div>
+          </div>
 
-            const groupedByDate: { [key: string]: any[] } = {}
-            
-            allItems.forEach(item => {
-              if (!groupedByDate[item.dateStart]) {
-                groupedByDate[item.dateStart] = []
+          <div className="flex-1 overflow-y-auto p-4">
+            {(() => {
+              const year = currentDate.getFullYear()
+              const month = currentDate.getMonth()
+              
+              const monthData = getAllItemsForYearMonth(year, month)
+              const datesWithItems = monthData.filter(day => day.items.length > 0 || day.holidays.length > 0)
+              
+              if (datesWithItems.length === 0) {
+                return (
+                  <div className="flex flex-col items-center justify-center h-full">
+                    <div className="text-6xl mb-4">📅</div>
+                    <p className="text-gray-500 text-lg">No tasks or events for {months[month]} {year}</p>
+                    <p className="text-sm text-gray-400 mt-2">
+                      {Object.keys(staffTaskEventFilters).length > 0 
+                        ? 'Try selecting different staff filters or disable filters to see more items.'
+                        : 'Add tasks or events to get started.'}
+                    </p>
+                  </div>
+                )
               }
-              groupedByDate[item.dateStart].push(item)
-            })
-
-            const allDates = new Set([
-              ...Object.keys(groupedByDate),
-              ...holidays.map(h => h.date)
-            ])
-
-            if (allDates.size === 0) {
+              
               return (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">No upcoming items</p>
-                </div>
-              )
-            }
-
-            return (
-              <div className="space-y-4">
-                {Array.from(allDates).sort().map(date => {
-                  const itemDate = new Date(date)
-                  const isToday = formatDateKey(new Date()) === date
-                  const dayHolidays = holidays.filter(h => h.date === date)
-                  const dayItems = groupedByDate[date] || []
-                  
-                  return (
-                    <div key={date} className="border rounded-lg overflow-hidden">
+                <div className="space-y-3">
+                  {datesWithItems.map(({ date, items, holidays: dayHolidays }) => {
+                    const isToday = formatDateKey(date) === formatDateKey(new Date())
+                    
+                    return (
                       <div 
-                        className={`px-4 py-2 font-semibold flex items-center justify-between cursor-pointer hover:bg-opacity-80 ${
-                          isToday ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200'
+                        key={formatDateKey(date)} 
+                        className={`border rounded-lg overflow-hidden transition-shadow hover:shadow-md ${
+                          isToday ? 'ring-2 ring-blue-500' : ''
                         }`}
-                        onClick={() => onDateClick?.(itemDate)}
                       >
-                        <span className="flex items-center gap-2">
-                          {itemDate.toLocaleDateString('default', { 
-                            weekday: 'long', 
-                            month: 'long', 
-                            day: 'numeric' 
-                          })}
-                          <div className="flex gap-1">
-                            {dayHolidays.map(holiday => (
-                              <span 
-                                key={holiday.id}
-                                className="text-xs bg-green-400 text-white px-2 py-0.5 rounded-full cursor-pointer hover:bg-green-500 transition-colors"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleHolidayClick(holiday, e)
-                                }}
-                              >
-                                🎉 {holiday.name}
-                              </span>
-                            ))}
+                        <div 
+                          className={`px-4 py-3 flex items-center justify-between cursor-pointer ${
+                            isToday ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200'
+                          }`}
+                          onClick={() => handleDateClick(date)}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-lg font-semibold">
+                              {date.getDate()} {months[date.getMonth()]} {date.getFullYear()}
+                            </span>
+                            <span className={`text-sm ${isToday ? 'text-white/80' : 'text-gray-500'}`}>
+                              {date.toLocaleDateString('default', { weekday: 'long' })}
+                            </span>
+                            {dayHolidays.length > 0 && (
+                              <div className="flex gap-1">
+                                {dayHolidays.map(holiday => (
+                                  <span 
+                                    key={holiday.id}
+                                    className="text-xs bg-green-400 text-white px-2 py-0.5 rounded-full cursor-pointer hover:bg-green-500 transition-colors"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleHolidayClick(holiday, e)
+                                    }}
+                                  >
+                                    🎉 {holiday.name}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        </span>
-                        <span className="text-sm">
-                          {dayItems.length} item{dayItems.length !== 1 ? 's' : ''}
-                        </span>
-                      </div>
+                          <div className="text-sm">
+                            {items.length} item{items.length !== 1 ? 's' : ''}
+                          </div>
+                        </div>
 
-                      {dayItems.length > 0 && (
-                        <div className="divide-y">
-                          {dayItems.slice(0, 3).map(item => (
-                            <div
-                              key={`${item.type}-${item.id}`}
-                              className="p-3 hover:bg-gray-50 cursor-pointer flex items-start gap-3"
-                              onClick={(e) => handleItemClick(item, item.type, e)}
-                            >
-                              <div className="w-16 text-sm font-medium text-gray-600">
-                                {item.timeStart || 'All day'}
-                              </div>
-                              <div className={`text-lg ${getItemStyle(item)} p-1 rounded`}>
-                                {getItemIcon(item)}
-                              </div>
-                              <div className="flex-1">
-                                <div className="font-medium">
-                                  {item.type === 'event' 
-                                    ? item.title 
-                                    : getTaskDisplayText(item)
-                                  }
-                                </div>
-                                <div className="text-xs text-gray-600 mt-1 flex items-center gap-2">
-                                  {item.type === 'task' ? (
-                                    <>
-                                      <span className={`w-2 h-2 rounded-full bg-${item.task_pic_color}-500`}></span>
-                                      <span>{item.task_pic_name}</span>
-                                      {item.task_support_name && (
-                                        <>
-                                          <span>+</span>
-                                          <span className={`w-2 h-2 rounded-full bg-${item.task_support_color}-500`}></span>
-                                          <span>{item.task_support_name}</span>
-                                        </>
+                        {items.length > 0 && (
+                          <div className="divide-y">
+                            {items.map(item => (
+                              <div
+                                key={`${item.type}-${item.id}`}
+                                data-task-id={item.type === 'task' ? item.id : undefined}
+                                data-event-id={item.type === 'event' ? item.id : undefined}
+                                className="p-3 hover:bg-gray-50 cursor-pointer transition-colors"
+                                onClick={(e) => handleItemClick(item, item.type, e)}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <div className="w-16 text-sm font-medium text-gray-600">
+                                    {item.timeStart || 'All day'}
+                                    {item.timeStop && ` - ${item.timeStop}`}
+                                  </div>
+                                  <div className="text-lg">
+                                    {getItemIcon(item)}
+                                  </div>
+                                  <div className="flex-1">
+                                    <div className="font-medium">
+                                      {item.type === 'event' 
+                                        ? item.title 
+                                        : `${item.jobTask || 'Task'} - ${item.clientName || 'No Client'}`
+                                      }
+                                    </div>
+                                    <div className="text-xs text-gray-600 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                                      <span className="flex items-center gap-1">
+                                        <span className={`w-2 h-2 rounded-full bg-${item.type === 'event' ? (item.event_pic_color || 'purple') : (item.task_pic_color || 'blue')}-500`}></span>
+                                        <span>👤 PIC: {item.type === 'event' ? (item.event_pic_name || 'No PIC') : (item.task_pic_name || 'No PIC')}</span>
+                                      </span>
+                                      
+                                      {item.type === 'event' && item.event_support_names && item.event_support_names.length > 0 && (
+                                        <span className="flex items-center gap-1">
+                                          <span className="text-gray-400">→</span>
+                                          <span>👥 Support: {item.event_support_names.join(', ')}</span>
+                                        </span>
                                       )}
-                                    </>
-                                  ) : (
-                                    <>
-                                      <span className={`w-2 h-2 rounded-full bg-${item.event_pic_color || 'purple'}-500`}></span>
-                                      <span>{item.event_pic_name || 'No PIC'}</span>
-                                      {item.event_support_name && (
-                                        <>
-                                          <span>+</span>
-                                          <span className={`w-2 h-2 rounded-full bg-${item.event_support_color}-500`}></span>
-                                          <span>{item.event_support_name}</span>
-                                        </>
+                                      
+                                      {item.type === 'task' && item.task_support_names && item.task_support_names.length > 0 && (
+                                        <span className="flex items-center gap-1">
+                                          <span className="text-gray-400">→</span>
+                                          <span>👥 Support: {item.task_support_names.join(', ')}</span>
+                                        </span>
                                       )}
-                                      {item.location && (
-                                        <>
+                                      
+                                      {item.type === 'event' && item.location && (
+                                        <span className="flex items-center gap-1">
                                           <span>📍</span>
                                           <span>{item.location}</span>
-                                        </>
+                                        </span>
                                       )}
-                                    </>
+                                    </div>
+                                  </div>
+                                  {item.type === 'task' && item.jobStatus && (
+                                    <div className={`
+                                      text-xs px-2 py-1 rounded-full whitespace-nowrap
+                                      ${item.jobStatus === 'completed' ? 'bg-green-100 text-green-800' : ''}
+                                      ${item.jobStatus === 'in-progress' ? 'bg-yellow-100 text-yellow-800' : ''}
+                                      ${item.jobStatus === 'incompleted' ? 'bg-red-100 text-red-800' : ''}
+                                    `}>
+                                      {item.jobStatus === 'in-progress' ? 'In Progress' : 
+                                       item.jobStatus === 'completed' ? 'Completed' : 'Incompleted'}
+                                    </div>
                                   )}
                                 </div>
                               </div>
-                              {item.type === 'task' && item.jobStatus && (
-                                <div className={`
-                                  text-xs px-2 py-1 rounded-full
-                                  ${item.jobStatus === 'completed' ? 'bg-green-100 text-green-800' : ''}
-                                  ${item.jobStatus === 'in-progress' ? 'bg-yellow-100 text-yellow-800' : ''}
-                                  ${item.jobStatus === 'incompleted' ? 'bg-red-100 text-red-800' : ''}
-                                `}>
-                                  {item.jobStatus === 'in-progress' ? 'In Progress' : 
-                                   item.jobStatus === 'completed' ? 'Completed' : 'Incompleted'}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                          
-                          {dayItems.length > 3 && (
-                            <div 
-                              className="p-2 text-center text-sm text-blue-600 hover:text-blue-800 font-medium cursor-pointer border-t"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleMoreItemsClick(itemDate, dayItems, dayHolidays, e)
-                              }}
-                            >
-                              +{dayItems.length - 3} more items
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )
-          })()}
+                            ))}
+                          </div>
+                        )}
+                        
+                        {items.length === 0 && dayHolidays.length > 0 && (
+                          <div className="p-3 bg-green-50 text-center text-sm text-green-700">
+                            {dayHolidays.map(holiday => (
+                              <span key={holiday.id} className="inline-block mr-2">
+                                🎉 Public Holiday: {holiday.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
+          </div>
         </div>
       )}
     </>
+  )
+}
+
+// ==================== MORE ITEMS POPUP ====================
+interface MoreItemsPopupProps {
+  date: Date
+  items: any[]
+  holidays: any[]
+  onClose: () => void
+  onItemClick: (item: any, type: 'task' | 'event') => void
+  onHolidayClick: (holiday: any) => void
+}
+
+const MoreItemsPopup: React.FC<MoreItemsPopupProps> = ({ 
+  date, 
+  items, 
+  holidays,
+  onClose, 
+  onItemClick,
+  onHolidayClick
+}) => {
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-GB', { 
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    })
+  }
+
+  const getItemIconLocal = (item: any) => {
+    if (item.type === 'task') return '📋'
+    if (item.type === 'event') return '📅'
+    return '🎉'
+  }
+
+  const getItemDisplayText = (item: any) => {
+    if (item.type === 'holiday') {
+      return item.name
+    }
+    if (item.type === 'event') {
+      return getEventDisplayText(item)
+    }
+    if (item.type === 'task') {
+      return getTaskDisplayText(item)
+    }
+    return ''
+  }
+
+  const groupedItems = {
+    holidays: holidays.map(h => ({ ...h, type: 'holiday' as const })),
+    tasks: items.filter(item => item.type === 'task'),
+    events: items.filter(item => item.type === 'event')
+  }
+
+  const sortByTime = (a: any, b: any) => {
+    if (a.timeStart && b.timeStart) return a.timeStart.localeCompare(b.timeStart)
+    if (a.timeStart) return -1
+    if (b.timeStart) return 1
+    return 0
+  }
+
+  groupedItems.tasks.sort(sortByTime)
+  groupedItems.events.sort(sortByTime)
+
+  const allItems = [
+    ...groupedItems.holidays,
+    ...groupedItems.tasks,
+    ...groupedItems.events
+  ]
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-start justify-center pt-16" onClick={onClose}>
+      <div className="bg-white rounded-xl w-[500px] shadow-2xl max-h-[80vh] flex flex-col border border-gray-200" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b bg-gray-100 rounded-t-xl">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="font-semibold text-gray-800 text-lg">
+                {formatDate(date)}
+              </h3>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full">
+                  Total: {allItems.length} item{allItems.length !== 1 ? 's' : ''}
+                </span>
+                {holidays.length > 0 && (
+                  <span className="text-xs bg-green-400 text-white px-2 py-0.5 rounded-full">
+                    🎉 {holidays.length} holiday{holidays.length !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8 text-gray-500 hover:bg-gray-200 rounded-full"
+              onClick={onClose}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto py-3 px-3 bg-gray-50">
+          {allItems.length === 0 ? (
+            <div className="px-4 py-12 text-center">
+              <div className="text-4xl mb-3">📅</div>
+              <p className="text-sm text-gray-500">No items for this date</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {allItems.map((item: any) => (
+                <div
+                  key={`${item.type}-${item.id}`}
+                  className={`
+                    group relative bg-white rounded-lg p-3 cursor-pointer transition-all
+                    hover:shadow-md border-l-4 hover:scale-[1.02] active:scale-[0.99]
+                    ${item.type === 'holiday' ? 'border-l-green-500 hover:border-l-green-600' : 
+                      item.type === 'event' ? `border-l-${item.event_pic_color || 'purple'}-500` : 
+                      `border-l-${item.task_pic_color || 'blue'}-500`}
+                    border border-gray-200 hover:border-gray-300
+                  `}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    e.currentTarget.style.pointerEvents = 'none'
+                    if (item.type === 'holiday') {
+                      onHolidayClick(item)
+                    } else {
+                      onItemClick(item, item.type)
+                    }
+                    setTimeout(() => {
+                      if (e.currentTarget) e.currentTarget.style.pointerEvents = 'auto'
+                    }, 300)
+                  }}
+                >
+                  <div className="absolute -top-2 -right-2">
+                    <span className={`
+                      text-[10px] px-2 py-0.5 rounded-full shadow-sm
+                      ${item.type === 'holiday' ? 'bg-green-500 text-white' : 
+                        item.type === 'event' ? `bg-${item.event_pic_color || 'purple'}-500 text-white` : 
+                        `bg-${item.task_pic_color || 'blue'}-500 text-white`}
+                    `}>
+                      {item.type === 'holiday' ? 'Holiday' : item.type === 'event' ? 'Event' : 'Task'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <div className={`
+                      w-8 h-8 rounded-lg flex items-center justify-center text-lg
+                      ${item.type === 'holiday' ? 'bg-green-100' : 
+                        item.type === 'event' ? `bg-${item.event_pic_color || 'purple'}-100` : 
+                        `bg-${item.task_pic_color || 'blue'}-100`}
+                    `}>
+                      {getItemIconLocal(item)}
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-gray-900 break-words pr-16">
+                        {getItemDisplayText(item)}
+                      </div>
+                      
+                      <div className="mt-2 space-y-1.5">
+                        {item.timeStart && (
+                          <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                            <span className="text-gray-400">🕒</span>
+                            <span className="font-medium">
+                              {item.timeStart}
+                              {item.timeStop && ` - ${item.timeStop}`}
+                            </span>
+                          </div>
+                        )}
+
+                        {item.type === 'task' && (
+                          <div className="flex flex-wrap items-center gap-2 text-xs">
+                            <span className="text-gray-500">👥 Staff:</span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <div className="flex items-center gap-1">
+                                <span className={`w-2 h-2 rounded-full bg-${item.task_pic_color || 'blue'}-500`}></span>
+                                <span className="font-medium">PIC: {item.task_pic_name || 'No PIC'}</span>
+                              </div>
+                              {item.task_support_names && item.task_support_names.map((name: string, idx: number) => (
+                                <div key={idx} className="flex items-center gap-1">
+                                  <span className="text-gray-300">+</span>
+                                  <span className={`w-2 h-2 rounded-full bg-${item.task_support_colors?.[idx] || 'blue'}-500`}></span>
+                                  <span className="font-medium">{name}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {item.type === 'event' && (
+                          <div className="flex flex-wrap items-center gap-2 text-xs">
+                            <span className="text-gray-500">👥 Staff:</span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <div className="flex items-center gap-1">
+                                <span className={`w-2 h-2 rounded-full bg-${item.event_pic_color || 'purple'}-500`}></span>
+                                <span className="font-medium">PIC: {item.event_pic_name || 'No PIC'}</span>
+                              </div>
+                              {item.event_support_names && item.event_support_names.map((name: string, idx: number) => (
+                                <div key={idx} className="flex items-center gap-1">
+                                  <span className="text-gray-300">+</span>
+                                  <span className={`w-2 h-2 rounded-full bg-${item.event_support_colors?.[idx] || 'purple'}-500`}></span>
+                                  <span className="font-medium">{name}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {item.type === 'event' && item.location && (
+                          <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                            <span className="text-gray-400">📍</span>
+                            <span>{item.location}</span>
+                          </div>
+                        )}
+
+                        {item.type === 'holiday' && item.states && item.states.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="text-xs text-gray-500">🗺️</span>
+                            {item.states.slice(0, 3).map((stateCode: string) => {
+                              const state = MALAYSIA_STATES.find(s => s.value === stateCode)
+                              return state ? (
+                                <span 
+                                  key={stateCode}
+                                  className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full"
+                                >
+                                  {state.label}
+                                </span>
+                              ) : null
+                            })}
+                            {item.states.length > 3 && (
+                              <span className="text-[10px] text-gray-500">
+                                +{item.states.length - 3}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {item.type === 'task' && item.jobStatus && (
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <span className="text-gray-500">📊 Status:</span>
+                            <span className={`
+                              px-2 py-0.5 rounded-full text-[10px] font-medium
+                              ${item.jobStatus === 'completed' ? 'bg-green-100 text-green-700' : ''}
+                              ${item.jobStatus === 'in-progress' ? 'bg-yellow-100 text-yellow-700' : ''}
+                              ${item.jobStatus === 'incompleted' ? 'bg-red-100 text-red-700' : ''}
+                            `}>
+                              {item.jobStatus === 'in-progress' ? 'In Progress' : 
+                               item.jobStatus === 'completed' ? 'Completed' : 'Incompleted'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="border-t px-4 py-3 bg-gray-50 flex justify-between items-center rounded-b-xl">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+              Task
+            </span>
+            <span className="text-xs text-gray-500 flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+              Event
+            </span>
+            <span className="text-xs text-gray-500 flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-green-500"></span>
+              Holiday
+            </span>
+          </div>
+          <Button 
+            variant="default" 
+            size="sm" 
+            onClick={onClose}
+            className="bg-gray-600 hover:bg-gray-700 text-white shadow-md"
+          >
+            Close
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }

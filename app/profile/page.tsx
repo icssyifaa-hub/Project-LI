@@ -38,7 +38,6 @@ import {
   Info,
 } from 'lucide-react'
 
-// Color mapping with actual Tailwind classes (not dynamic)
 const staffColors = [
   { name: 'Ocean', value: 'blue', bgClass: 'bg-blue-500', bgLightClass: 'bg-blue-100', textClass: 'text-blue-600', ringClass: 'ring-blue-200', borderClass: 'border-blue-200', hoverBgClass: 'hover:bg-blue-600' },
   { name: 'Forest', value: 'green', bgClass: 'bg-green-500', bgLightClass: 'bg-green-100', textClass: 'text-green-600', ringClass: 'ring-green-200', borderClass: 'border-green-200', hoverBgClass: 'hover:bg-green-600' },
@@ -57,7 +56,6 @@ const staffColors = [
   { name: 'Violet', value: 'violet', bgClass: 'bg-violet-500', bgLightClass: 'bg-violet-100', textClass: 'text-violet-600', ringClass: 'ring-violet-200', borderClass: 'border-violet-200', hoverBgClass: 'hover:bg-violet-600' },
 ]
 
-// Helper function to get color object by value
 const getColorByValue = (value: string) => {
   return staffColors.find(c => c.value === value) || staffColors[0]
 }
@@ -245,7 +243,7 @@ export default function ProfilePage() {
 
       if (error) throw error
 
-      const colors = data.map(user => user.color).filter(Boolean)
+    const colors = data.map((user: { color: string }) => user.color).filter(Boolean)
       setUsedColors(colors)
     } catch (error) {
       console.error('Error fetching used colors:', error)

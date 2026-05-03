@@ -36,9 +36,11 @@ import {
     Trash2,
     UserPlus,
     Users,
-    X
+    X,
+    ExternalLink,
+    Eye
 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { uploadPDF, deletePDF } from '@/lib/pdf-service'
 
 interface AddCalendarItemModalProps {
@@ -48,15 +50,14 @@ interface AddCalendarItemModalProps {
   selectedEndDate?: Date | null 
   selectedItem?: any | null
   selectedType?: 'event' | 'task' | null
-  prefilledData?: {  // NEW PROP
+  prefilledData?: {
     clientName?: string
     jobTask?: string
-    jobTaskCode?: string
-    taskPicStaff?: string
+    taskPicId?: string
     taskPicName?: string
     taskPicColor?: string
-    pdfJobOrder?: string
-    pdfJobOrderName?: string
+    pdfJobOrderPath?: string
+    pdfJobOrderUrl?: string
     runningNumber?: string
   } | null
   onSuccess?: () => void
@@ -74,7 +75,6 @@ const formatDateToString = (date: Date): string => {
 interface Staff {
   id: string
   name: string
-  code: string
   color?: string
 }
 
@@ -86,7 +86,6 @@ const taskStatuses = [
 
 interface JobTask {
   id: string
-  code: string
   name: string
 }
 
@@ -98,11 +97,11 @@ const initialEventData = {
   timeStart: '',
   timeStop: '',
   location: '',
-  eventPicStaff: '',
-  eventSupportStaff: [] as string[],
-  event_pic_name: '',
-  event_pic_color: '',
-  event_support_names: [] as string[],
+  event_pic_id: '',           
+  event_support_ids: [] as string[],  
+  event_pic_name: '',          
+  event_pic_color: '',         
+  event_support_names: [] as string[],  
   event_support_colors: [] as string[],
 }
 
@@ -116,19 +115,17 @@ const initialTaskData = {
   timeStop: '',
   additionalRemark: '',
   pdfJobOrder: null as File | null,
-  pdfJobOrderName: '',
   pdfJobOrderPath: '',
   pdfJobOrderUrl: '', 
-  taskPicStaff: '',
-  taskSupportStaff: [] as string[],
+  task_pic_id: '',            
+  task_support_ids: [] as string[],  
   pdfFinalReport: null as File | null,
-  pdfFinalReportName: '',
   pdfFinalReportPath: '',
   pdfFinalReportUrl: '',
   jobStatus: 'in-progress',
-  task_pic_name: '',
-  task_pic_color: '',
-  task_support_names: [] as string[],
+  task_pic_name: '',           
+  task_pic_color: '',          
+  task_support_names: [] as string[],  
   task_support_colors: [] as string[],
 }
 
@@ -168,6 +165,16 @@ export default function AddCalendarItemModal({
   const [taskData, setTaskData] = useState(initialTaskData)
   const [currentUser, setCurrentUser] = useState<any>(null)
 
+  const [jobOrderPreviewUrl, setJobOrderPreviewUrl] = useState<string | null>(null)
+  const [finalReportPreviewUrl, setFinalReportPreviewUrl] = useState<string | null>(null)
+  const [showJobOrderPreview, setShowJobOrderPreview] = useState(false)
+  const [showFinalReportPreview, setShowFinalReportPreview] = useState(false)
+  
+  const [tempJobOrderFile, setTempJobOrderFile] = useState<File | null>(null)
+  const [tempFinalReportFile, setTempFinalReportFile] = useState<File | null>(null)
+
+  const initialLoadDone = useRef(false)
+
   const getNextRunningNumber = useCallback(async (date: Date) => {
     const year = date.getFullYear().toString().slice(-2)
     const month = (date.getMonth() + 1).toString().padStart(2, '0')
@@ -201,174 +208,171 @@ export default function AddCalendarItemModal({
     }
   }, [supabase])
 
-  // ==================== FIXED NOTIFICATION FUNCTIONS ====================
-  
-const sendTaskNotifications = async (taskData: any, taskId: string) => {
-  console.log('1️⃣ Function started');
-  console.log('2️⃣ TaskData:', taskData);
-  console.log('3️⃣ TaskId:', taskId);
-  
-  try {
-    console.log('4️⃣ Inside try block');
+  // ==================== SEND TASK NOTIFICATIONS ====================
+  const sendTaskNotifications = async (data: any, taskId: string, action: 'created' | 'updated' = 'created') => {
+    console.log('🔔 TASK NOTIFICATION CALLED:', { task_pic_id: data.task_pic_id, task_support_ids: data.task_support_ids, taskId, action })
     
-    // Hardcode untuk test - guna user pertama dalam database
-    const { data: firstUser, error: userError } = await supabase
-      .from('users')
-      .select('id')
-      .limit(1)
-      .single();
-    
-    console.log('5️⃣ First user query result:', firstUser);
-    
-    if (userError) {
-      console.error('Error getting user:', userError);
-      return;
-    }
-    
-    if (!firstUser) {
-      console.error('No user found');
-      return;
-    }
-    
-    // Insert ONE test notification
-    const testNotif = {
-      user_id: firstUser.id,
-      title: 'TEST NOTIFICATION',
-      message: `This is a test for task: ${taskData.clientName || 'No client'}`,
-      type: 'task_assignment',
-      task_id: taskId,
-      read: false,
-      created_at: new Date().toISOString()
-    };
-    
-    console.log('6️⃣ About to insert:', testNotif);
-    
-    const { data, error: insertError } = await supabase
-      .from('notifications')
-      .insert(testNotif)
-      .select();
-    
-    console.log('7️⃣ Insert result:', { data, insertError });
-    
-    if (insertError) {
-      console.error('Insert error:', insertError);
-    } else {
-      console.log('✅ Success! Notification created:', data);
-    }
-    
-  } catch (error) {
-    console.error('❌ Catch error:', error);
-  }
-  
-  console.log('8️⃣ Function ended');
-};
-
-  const sendEventNotifications = async (eventData: any, eventId: string) => {
     try {
-      console.log('📨 ===== STARTING EVENT NOTIFICATION PROCESS =====')
-      console.log('Event Data:', eventData)
+      let staffIdsToNotify: string[] = []
       
-      const staffToNotify = []
-      
-      // Add PIC (staff code)
-      if (eventData.eventPicStaff) {
-        staffToNotify.push(eventData.eventPicStaff)
-        console.log('Added Event PIC code:', eventData.eventPicStaff)
+      if (data.task_pic_id) {
+        staffIdsToNotify.push(data.task_pic_id)
       }
       
-      // Add Support Staff (staff codes)
-      if (eventData.eventSupportStaff && eventData.eventSupportStaff.length > 0) {
-        staffToNotify.push(...eventData.eventSupportStaff)
-        console.log('Added Event Support Staff codes:', eventData.eventSupportStaff)
+      if (data.task_support_ids && data.task_support_ids.length > 0) {
+        staffIdsToNotify.push(...data.task_support_ids)
       }
-
-      if (staffToNotify.length === 0) {
-        console.log('⚠️ No staff to notify for event, exiting...')
+      
+      staffIdsToNotify = [...new Set(staffIdsToNotify)]
+      
+      if (staffIdsToNotify.length === 0) {
+        console.log('⚠️ No staff to notify')
         return
       }
-
-      console.log('Event staff codes to lookup:', staffToNotify)
-
-      // Look up users by their 'user_id' column (staff code)
-      const { data: staffUsers, error: staffError } = await supabase
+      
+      const { data: users, error: usersError } = await supabase
         .from('users')
-        .select('id, name, user_id')
-        .in('user_id', staffToNotify)
+        .select('id, name')
+        .in('id', staffIdsToNotify)
 
-      if (staffError) {
-        console.error('❌ Error in user lookup:', staffError)
-        toast({
-          title: "Notification Error",
-          description: "Failed to find staff members",
-          variant: "destructive",
-        })
+      if (usersError) {
+        console.error('❌ Error fetching users:', usersError)
         return
       }
-
-      console.log('Found event staff users:', staffUsers)
-
-      if (!staffUsers || staffUsers.length === 0) {
-        console.error('❌ No staff found for event with codes:', staffToNotify)
-        toast({
-          title: "Notification Failed",
-          description: `Staff codes not found: ${staffToNotify.join(', ')}`,
-          variant: "destructive",
-        })
-        return
-      }
-
-      // Create notification for each staff member
-      const notifications = staffUsers.map(staff => ({
-        user_id: staff.id,  // UUID from users table
-        title: '📅 New Event Assignment',
-        message: `You have been assigned as ${staff.user_id === eventData.eventPicStaff ? 'PIC' : 'Support'} for event: ${eventData.title || 'New Event'}`,
-        type: 'event_assignment',
-        event_id: eventId,
-        read: false,
-        created_at: new Date().toISOString()
-      }))
-
-      console.log('Inserting event notifications:', notifications)
-
-      const { error: notifError } = await supabase
-        .from('notifications')
-        .insert(notifications)
-
-      if (notifError) {
-        console.error('❌ Error inserting event notifications:', notifError)
-        toast({
-          title: "Notification Error",
-          description: "Failed to send event notifications",
-          variant: "destructive",
-        })
-        return
-      }
-
-      console.log(`✅ SUCCESS! ${notifications.length} event notification(s) sent`)
       
-      toast({
-        title: "✅ Notifications Sent",
-        description: `Event assigned to ${staffUsers.length} staff member(s)`,
+      const assignedByName = currentUser?.name || currentUser?.email || 'Someone'
+      
+      const taskDate = data.dateStart
+      const formattedDate = taskDate ? new Date(taskDate).toLocaleDateString('en-MY', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      }) : 'Date not set'
+      
+      const notifications = users.map ((user: { id: string; name: string }) => {
+        const role = user.id === data.task_pic_id ? 'PIC' : 'Support'
+        const type = action === 'created' ? 'task_assignment' : 'task_update'
+        const title = action === 'created' ? '📋 New Task Assignment' : '✏️ Task Assignment Updated'
+        const message = action === 'created' 
+          ? `${assignedByName} has assigned you as ${role} for task: ${data.clientName || data.client_name || 'New Task'} (Due: ${formattedDate})`
+          : `${assignedByName} has updated your assignment for "${data.clientName || data.client_name || 'Task'}" (Role: ${role})`
+        
+        return {
+          user_id: user.id,
+          title,
+          message,
+          type,
+          task_id: taskId,
+          read: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          created_by_name: assignedByName
+        }
       })
       
+      console.log('📨 Task notifications to insert:', notifications)
+      
+      if (notifications.length > 0) {
+        const { error: insertError } = await supabase
+          .from('notifications')
+          .insert(notifications)
+        
+        if (insertError) {
+          console.error('❌ Task notification insert error:', insertError)
+        } else {
+          console.log('✅ Task notifications inserted:', notifications.length)
+        }
+      }
     } catch (error) {
-      console.error('❌ Fatal error in sendEventNotifications:', error)
-      toast({
-        title: "Notification Error",
-        description: "Unexpected error sending notifications",
-        variant: "destructive",
-      })
+      console.error('❌ Error in sendTaskNotifications:', error)
     }
   }
 
-  // ==================== END OF NOTIFICATION FUNCTIONS ====================
+  // ==================== SEND EVENT NOTIFICATIONS ====================
+  const sendEventNotifications = async (data: any, eventId: string, action: 'created' | 'updated' = 'created') => {
+    console.log('🔔 EVENT NOTIFICATION CALLED:', { event_pic_id: data.event_pic_id, event_support_ids: data.event_support_ids, eventId, action })
+    
+    try {
+      let staffIdsToNotify: string[] = []
+      
+      if (data.event_pic_id) {
+        staffIdsToNotify.push(data.event_pic_id)
+      }
+      
+      if (data.event_support_ids && data.event_support_ids.length > 0) {
+        staffIdsToNotify.push(...data.event_support_ids)
+      }
+      
+      staffIdsToNotify = [...new Set(staffIdsToNotify)]
+      
+      if (staffIdsToNotify.length === 0) {
+        console.log('⚠️ No event staff to notify')
+        return
+      }
+      
+      const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select('id, name')
+        .in('id', staffIdsToNotify)
+      
+      if (usersError) {
+        console.error('❌ Error fetching event users:', usersError)
+        return
+      }
+      
+      const assignedByName = currentUser?.name || currentUser?.email || 'Someone'
+      
+      const eventDate = data.dateStart
+      const formattedDate = eventDate ? new Date(eventDate).toLocaleDateString('en-MY', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      }) : 'Date not set'
+      
+      const notifications = users.map ((user: { id:string; name: string })=> {
+        const role = user.id === data.event_pic_id ? 'PIC' : 'Support'
+        const type = action === 'created' ? 'event_assignment' : 'event_update'
+        const title = action === 'created' ? '📅 New Event Assignment' : '✏️ Event Assignment Updated'
+        const message = action === 'created' 
+          ? `${assignedByName} has assigned you as ${role} for event: ${data.title || 'New Event'} (Date: ${formattedDate})`
+          : `${assignedByName} has updated your assignment for "${data.title || 'Event'}" (Role: ${role})`
+        
+        return {
+          user_id: user.id,
+          title,
+          message,
+          type,
+          event_id: eventId,
+          read: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          created_by_name: assignedByName
+        }
+      })
+      
+      console.log('📨 Event notifications to insert:', notifications)
+      
+      if (notifications.length > 0) {
+        const { error: insertError } = await supabase
+          .from('notifications')
+          .insert(notifications)
+        
+        if (insertError) {
+          console.error('❌ Event notification insert error:', insertError)
+        } else {
+          console.log('✅ Event notifications inserted:', notifications.length)
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error in sendEventNotifications:', error)
+    }
+  }
 
   useEffect(() => {
     try {
       const userData = localStorage.getItem('user')
       if (userData) {
         setCurrentUser(JSON.parse(userData))
-        console.log('👤 Current user loaded:', JSON.parse(userData))
       }
     } catch (e) {
       console.error('Error parsing user data:', e)
@@ -387,16 +391,20 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
     setShowEventSupport(false)
     setErrors({})
     setTouched({})
-  }, [])
-
-  useEffect(() => {
-    if (!isOpen) {
-      const timer = setTimeout(() => {
-        resetForm()
-      }, 300)
-      return () => clearTimeout(timer)
+    
+    if (jobOrderPreviewUrl) {
+      URL.revokeObjectURL(jobOrderPreviewUrl)
+      setJobOrderPreviewUrl(null)
     }
-  }, [isOpen, resetForm])
+    if (finalReportPreviewUrl) {
+      URL.revokeObjectURL(finalReportPreviewUrl)
+      setFinalReportPreviewUrl(null)
+    }
+    setShowJobOrderPreview(false)
+    setShowFinalReportPreview(false)
+    setTempJobOrderFile(null)
+    setTempFinalReportFile(null)
+  }, [jobOrderPreviewUrl, finalReportPreviewUrl])
 
   const fetchJobTasks = async () => {
     setLoadingTasks(true)
@@ -404,7 +412,7 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
       const { data, error } = await supabase
         .from('job_tasks')
         .select('*')
-        .order('code', { ascending: true })
+        .order('name', { ascending: true })
       if (error) throw error
       setJobTasks(data || [])
     } catch (error) {
@@ -419,208 +427,210 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, name, user_id, color')
-        .eq('role', 'staff')
+        .select('id, name, color')
         .order('name')
       
       if (error) throw error
       
-      setStaffList(data.map(user => ({
+      const staffData = data.map((user : {id: string; name: string; color ?: string}) => ({
         id: user.id,
         name: user.name,
-        code: user.user_id,  // Use user_id as the staff code
         color: user.color || 'blue'
-      })))
+      }))
+      
+      setStaffList(staffData)
+      return staffData
+      
     } catch (error) {
       console.error('Error fetching staff:', error)
+      return []
     } finally {
       setLoadingStaff(false)
     }
   }
 
-  useEffect(() => {
-    if (isOpen) {
-      resetForm()
-      fetchJobTasks()
-      fetchStaff()
-      
-      if (selectedType) {
-        setActiveTab(selectedType)
+  const populateTaskForm = useCallback((item: any) => {
+    let taskSupportIdsArray: string[] = []
+    let taskSupportNamesArray: string[] = []
+    let taskSupportColorsArray: string[] = []
+    
+    if (item.task_support_ids) {
+      if (typeof item.task_support_ids === 'string') {
+        taskSupportIdsArray = item.task_support_ids.split(',').filter((s: string) => s && s.trim())
+      } else if (Array.isArray(item.task_support_ids)) {
+        taskSupportIdsArray = item.task_support_ids
       }
+    }
+    
+    if (item.task_support_names) {
+      if (typeof item.task_support_names === 'string') {
+        taskSupportNamesArray = item.task_support_names.split(',').filter((s: string) => s && s.trim())
+      } else if (Array.isArray(item.task_support_names)) {
+        taskSupportNamesArray = item.task_support_names
+      }
+    }
+    
+    if (item.task_support_colors) {
+      if (typeof item.task_support_colors === 'string') {
+        taskSupportColorsArray = item.task_support_colors.split(',').filter((s: string) => s && s.trim())
+      } else if (Array.isArray(item.task_support_colors)) {
+        taskSupportColorsArray = item.task_support_colors
+      }
+    }
+    
+    let jobStatus = item.job_status || item.jobStatus || 'in-progress'
+    if (jobStatus === 'pending' || jobStatus === 'cancelled') {
+      jobStatus = 'incompleted'
+    }
+    
+    setTaskData({
+      clientName: item.client_name || item.clientName || '',
+      runningNumber: item.running_number || item.runningNumber || '',
+      jobTask: item.job_task || item.jobTask || '',
+      dateStart: item.date_start || item.dateStart || '',
+      dateStop: item.date_stop || item.dateStop || '',
+      timeStart: item.time_start || item.timeStart || '',
+      timeStop: item.time_stop || item.timeStop || '',
+      additionalRemark: item.additional_remark || item.additionalRemark || '',
+      pdfJobOrder: null,
+      pdfJobOrderPath: item.pdf_job_order_path || '',
+      pdfJobOrderUrl: item.pdf_job_order_url || '',
+      task_pic_id: item.task_pic_id || '',
+      task_support_ids: taskSupportIdsArray,
+      pdfFinalReport: null,
+      pdfFinalReportPath: item.pdf_final_report_path || '',
+      pdfFinalReportUrl: item.pdf_final_report_url || '',
+      jobStatus: jobStatus,
+      task_pic_name: item.task_pic_name || '',
+      task_pic_color: item.task_pic_color || '',
+      task_support_names: taskSupportNamesArray,
+      task_support_colors: taskSupportColorsArray,
+    })
+    
+    const timeStart = item.time_start || item.timeStart || ''
+    const timeStop = item.time_stop || item.timeStop || ''
+    setShowTime(!!(timeStart || timeStop))
+    setShowDescription(!!(item.additional_remark || item.additionalRemark))
+    setShowSupport(taskSupportIdsArray.length > 0 || taskSupportNamesArray.length > 0)
+    setShowFinalReport(!!(item.pdf_final_report_path))
+  }, [])
+
+  const populateEventForm = useCallback((item: any) => {
+    let eventSupportIdsArray: string[] = []
+    let eventSupportNamesArray: string[] = []
+    let eventSupportColorsArray: string[] = []
+    
+    if (item.event_support_ids) {
+      if (typeof item.event_support_ids === 'string') {
+        eventSupportIdsArray = item.event_support_ids.split(',').filter((s: string) => s && s.trim())
+      } else if (Array.isArray(item.event_support_ids)) {
+        eventSupportIdsArray = item.event_support_ids
+      }
+    }
+    
+    if (item.event_support_names) {
+      if (typeof item.event_support_names === 'string') {
+        eventSupportNamesArray = item.event_support_names.split(',').filter((s: string) => s && s.trim())
+      } else if (Array.isArray(item.event_support_names)) {
+        eventSupportNamesArray = item.event_support_names
+      }
+    }
+    
+    if (item.event_support_colors) {
+      if (typeof item.event_support_colors === 'string') {
+        eventSupportColorsArray = item.event_support_colors.split(',').filter((s: string) => s && s.trim())
+      } else if (Array.isArray(item.event_support_colors)) {
+        eventSupportColorsArray = item.event_support_colors
+      }
+    }
+    
+    setEventData({
+      title: item.title || '',
+      description: item.description || '',
+      dateStart: item.date_start || item.dateStart || '',
+      dateStop: item.date_stop || item.dateStop || '',
+      timeStart: item.time_start || item.timeStart || '',
+      timeStop: item.time_stop || item.timeStop || '',
+      location: item.location || '',
+      event_pic_id: item.event_pic_id || '',
+      event_support_ids: eventSupportIdsArray,
+      event_pic_name: item.event_pic_name || '',
+      event_pic_color: item.event_pic_color || '',
+      event_support_names: eventSupportNamesArray,
+      event_support_colors: eventSupportColorsArray,
+    })
+    
+    const timeStart = item.time_start || item.timeStart || ''
+    const timeStop = item.time_stop || item.timeStop || ''
+    setShowTime(!!(timeStart || timeStop))
+    setShowDescription(!!item.description)
+    setShowLocation(!!item.location)
+    setShowEventPic(!!(item.event_pic_name || item.event_pic_id))
+    setShowEventSupport(eventSupportIdsArray.length > 0 || eventSupportNamesArray.length > 0)
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen) {
+      initialLoadDone.current = false
+      return
+    }
+    
+    if (initialLoadDone.current) return
+    
+    const loadData = async () => {
+      await fetchJobTasks()
+      await fetchStaff()
       
       if (selectedItem) {
         if (selectedType === 'event') {
-          let eventSupportArray: string[] = []
-          let eventSupportNamesArray: string[] = []
-          let eventSupportColorsArray: string[] = []
-          
-          if (selectedItem.eventSupportStaff) {
-            if (Array.isArray(selectedItem.eventSupportStaff)) {
-              eventSupportArray = selectedItem.eventSupportStaff
-            } else if (typeof selectedItem.eventSupportStaff === 'string') {
-              eventSupportArray = selectedItem.eventSupportStaff.split(',').map((s: string) => s.trim()).filter((s: string) => s && s !== 'none')
-            }
-          } else if (selectedItem.staff2) {
-            if (Array.isArray(selectedItem.staff2)) {
-              eventSupportArray = selectedItem.staff2
-            } else if (typeof selectedItem.staff2 === 'string') {
-              eventSupportArray = selectedItem.staff2.split(',').map((s: string) => s.trim()).filter((s: string) => s && s !== 'none')
-            }
-          }
-
-          if (selectedItem.event_support_names) {
-            eventSupportNamesArray = typeof selectedItem.event_support_names === 'string' 
-              ? selectedItem.event_support_names.split(',').filter((s: string) => s) 
-              : selectedItem.event_support_names
-          }
-
-          // Fix for event_support_colors (around line 475-480)
-          if (selectedItem.event_support_colors) {
-            eventSupportColorsArray = typeof selectedItem.event_support_colors === 'string' 
-              ? selectedItem.event_support_colors.split(',').filter((s: string) => s) 
-              : selectedItem.event_support_colors
-          }
-          
-          setEventData({
-            title: selectedItem.title || '',
-            description: selectedItem.description || '',
-            dateStart: selectedItem.date_start || selectedItem.dateStart || selectedItem.datestart || '',
-            dateStop: selectedItem.date_stop || selectedItem.dateStop || selectedItem.datestop || '',
-            timeStart: selectedItem.time_start || selectedItem.timeStart || selectedItem.timestart || '',
-            timeStop: selectedItem.time_stop || selectedItem.timeStop || selectedItem.timestop || '',
-            location: selectedItem.location || '',
-            eventPicStaff: selectedItem.event_pic_staff || selectedItem.eventPicStaff || selectedItem.staff || '',
-            eventSupportStaff: eventSupportArray,
-            event_pic_name: selectedItem.event_pic_name || '',
-            event_pic_color: selectedItem.event_pic_color || '',
-            event_support_names: eventSupportNamesArray,
-            event_support_colors: eventSupportColorsArray,
-          })
-          setShowTime(!!selectedItem.time_start || !!selectedItem.timeStart || !!selectedItem.timestart || !!selectedItem.timeStop)
-          setShowDescription(!!selectedItem.description)
-          setShowLocation(!!selectedItem.location)
-          setShowEventPic(!!selectedItem.event_pic_staff || !!selectedItem.eventPicStaff || !!selectedItem.staff)
-          setShowEventSupport(eventSupportArray.length > 0)
-        } else {
-          let taskSupportArray: string[] = []
-          let taskSupportNamesArray: string[] = []
-          let taskSupportColorsArray: string[] = []
-          
-        if (selectedItem.taskSupportStaff) {
-          if (Array.isArray(selectedItem.taskSupportStaff)) {
-            taskSupportArray = selectedItem.taskSupportStaff
-          } else if (typeof selectedItem.taskSupportStaff === 'string') {
-            taskSupportArray = selectedItem.taskSupportStaff.split(',').map((s: string) => s.trim()).filter((s: string) => s && s !== 'none')
-          }
-        } else if (selectedItem.staff2) {
-          if (Array.isArray(selectedItem.staff2)) {
-            taskSupportArray = selectedItem.staff2
-          } else if (typeof selectedItem.staff2 === 'string') {
-            taskSupportArray = selectedItem.staff2.split(',').map((s: string) => s.trim()).filter((s: string) => s && s !== 'none')
-          }
+          populateEventForm(selectedItem)
+        } else if (selectedType === 'task') {
+          populateTaskForm(selectedItem)
         }
-
-          if (selectedItem.task_support_names) {
-            taskSupportNamesArray = typeof selectedItem.task_support_names === 'string' 
-              ? selectedItem.task_support_names.split(',').filter((s: string) => s) 
-              : selectedItem.task_support_names
-          }
-
-          // Fix for task_support_colors (around line 540-545)
-          if (selectedItem.task_support_colors) {
-            taskSupportColorsArray = typeof selectedItem.task_support_colors === 'string' 
-              ? selectedItem.task_support_colors.split(',').filter((s: string) => s) 
-              : selectedItem.task_support_colors
-          }
-          
-          let jobStatus = selectedItem.job_status || selectedItem.jobStatus || selectedItem.jobstatus || 'in-progress'
-          if (jobStatus === 'pending' || jobStatus === 'cancelled') {
-            jobStatus = 'incompleted'
-          }
-          
-          setTaskData({
-            clientName: selectedItem.client_name || selectedItem.clientName || selectedItem.clientname || '',
-            runningNumber: selectedItem.running_number || selectedItem.runningNumber || selectedItem.runningnumber || '',
-            jobTask: selectedItem.job_task || selectedItem.jobTask || selectedItem.jobtask || '',
-            dateStart: selectedItem.date_start || selectedItem.dateStart || selectedItem.datestart || '',
-            dateStop: selectedItem.date_stop || selectedItem.dateStop || selectedItem.datestop || '',
-            timeStart: selectedItem.time_start || selectedItem.timeStart || selectedItem.timestart || '',
-            timeStop: selectedItem.time_stop || selectedItem.timeStop || selectedItem.timestop || '',
-            additionalRemark: selectedItem.additional_remark || selectedItem.additionalRemark || selectedItem.additionalremark || '',
-            pdfJobOrder: null,
-            pdfJobOrderName: selectedItem.pdf_job_order || selectedItem.pdfJobOrder || selectedItem.pdfjoborder || '',
-            pdfJobOrderPath: selectedItem.pdf_job_order_path || '',
-            pdfJobOrderUrl: selectedItem.pdf_job_order_url || '', 
-            taskPicStaff: selectedItem.task_pic_staff || selectedItem.taskPicStaff || selectedItem.staff || '',
-            taskSupportStaff: taskSupportArray,
-            pdfFinalReport: null,
-            pdfFinalReportName: selectedItem.pdf_final_report || selectedItem.pdfFinalReport || selectedItem.pdffinalreport || '',
-            pdfFinalReportPath: selectedItem.pdf_final_report_path || '',  // ← NEW
-            pdfFinalReportUrl: selectedItem.pdf_final_report_url || '', 
-            jobStatus: jobStatus,
-            task_pic_name: selectedItem.task_pic_name || '',
-            task_pic_color: selectedItem.task_pic_color || '',
-            task_support_names: taskSupportNamesArray,
-            task_support_colors: taskSupportColorsArray,
-          })
-          setShowTime(!!selectedItem.time_start || !!selectedItem.timeStart || !!selectedItem.timestart || !!selectedItem.timeStop)
-          setShowDescription(!!selectedItem.additional_remark || !!selectedItem.additionalRemark)
-          setShowSupport(taskSupportArray.length > 0)
-          setShowFinalReport(!!selectedItem.pdf_final_report || !!selectedItem.pdfFinalReport)
-        }
-      } 
-      else if (selectedDate) {
+        setActiveTab(selectedType || 'event')
+      } else if (selectedDate) {
         const dateStr = formatDateToString(selectedDate)
         
-        setEventData(prev => ({
-          ...prev,
-          dateStart: dateStr,
-          dateStop: ''
-        }))
-        
-        setTaskData(prev => ({
-          ...prev,
-          dateStart: dateStr,
-          dateStop: ''
-        }))
+        setEventData(prev => ({ ...prev, dateStart: dateStr, dateStop: '' }))
+        setTaskData(prev => ({ ...prev, dateStart: dateStr, dateStop: '' }))
         
         if (activeTab === 'task') {
-          getNextRunningNumber(selectedDate).then(runningNum => {
-            setTaskData(prev => ({
-              ...prev,
-              runningNumber: runningNum
-            }))
-          })
+          const runningNum = await getNextRunningNumber(selectedDate)
+          setTaskData(prev => ({ ...prev, runningNumber: runningNum }))
         }
       }
+      
+      initialLoadDone.current = true
     }
-  }, [isOpen, selectedItem, selectedDate, selectedType, resetForm, activeTab, getNextRunningNumber])
+    
+    loadData()
+    
+    return () => {
+      resetForm()
+      initialLoadDone.current = false
+    }
+  }, [isOpen, selectedItem, selectedDate, selectedType, activeTab, getNextRunningNumber, populateEventForm, populateTaskForm, resetForm])
 
   if (!isOpen) return null
 
-  const handleTaskSupportToggle = (staffCode: string) => {
-    const selectedStaff = staffList.find(s => s.code === staffCode)
+  const handleTaskSupportToggle = (staffId: string) => {
+    const selectedStaff = staffList.find(s => s.id === staffId)
     
     setTaskData(prev => {
-      const current = [...prev.taskSupportStaff]
+      const currentIds = [...prev.task_support_ids]
       const currentNames = [...(prev.task_support_names || [])]
       const currentColors = [...(prev.task_support_colors || [])]
       
-      if (current.includes(staffCode)) {
-        const index = current.indexOf(staffCode)
-        current.splice(index, 1)
+      if (currentIds.includes(staffId)) {
+        const index = currentIds.indexOf(staffId)
+        currentIds.splice(index, 1)
         currentNames.splice(index, 1)
         currentColors.splice(index, 1)
-        return {
-          ...prev,
-          taskSupportStaff: current,
-          task_support_names: currentNames,
-          task_support_colors: currentColors
-        }
+        return { ...prev, task_support_ids: currentIds, task_support_names: currentNames, task_support_colors: currentColors }
       } else {
         return {
           ...prev,
-          taskSupportStaff: [...current, staffCode],
+          task_support_ids: [...currentIds, staffId],
           task_support_names: [...currentNames, selectedStaff?.name || ''],
           task_support_colors: [...currentColors, selectedStaff?.color || 'blue']
         }
@@ -628,29 +638,24 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
     })
   }
 
-  const handleEventSupportToggle = (staffCode: string) => {
-    const selectedStaff = staffList.find(s => s.code === staffCode)
+  const handleEventSupportToggle = (staffId: string) => {
+    const selectedStaff = staffList.find(s => s.id === staffId)
     
     setEventData(prev => {
-      const current = [...prev.eventSupportStaff]
+      const currentIds = [...prev.event_support_ids]
       const currentNames = [...(prev.event_support_names || [])]
       const currentColors = [...(prev.event_support_colors || [])]
       
-      if (current.includes(staffCode)) {
-        const index = current.indexOf(staffCode)
-        current.splice(index, 1)
+      if (currentIds.includes(staffId)) {
+        const index = currentIds.indexOf(staffId)
+        currentIds.splice(index, 1)
         currentNames.splice(index, 1)
         currentColors.splice(index, 1)
-        return {
-          ...prev,
-          eventSupportStaff: current,
-          event_support_names: currentNames,
-          event_support_colors: currentColors
-        }
+        return { ...prev, event_support_ids: currentIds, event_support_names: currentNames, event_support_colors: currentColors }
       } else {
         return {
           ...prev,
-          eventSupportStaff: [...current, staffCode],
+          event_support_ids: [...currentIds, staffId],
           event_support_names: [...currentNames, selectedStaff?.name || ''],
           event_support_colors: [...currentColors, selectedStaff?.color || 'purple']
         }
@@ -665,6 +670,9 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
         break
       case 'dateStart':
         if (!value) return 'Start date is required'
+        break
+      case 'event_pic_id':
+        if (!value) return 'Event PIC is required'
         break
       case 'dateStop':
         if (eventData.dateStart && value) {
@@ -691,7 +699,7 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
         if (value.length < 2) return 'Client name must be at least 2 characters'
         if (value.length > 100) return 'Client name cannot exceed 100 characters'
         break
-      case 'taskPicStaff':
+      case 'task_pic_id':
         if (!value) return 'PIC Staff is required'
         break
       case 'dateStart':
@@ -704,9 +712,6 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
           start.setHours(0,0,0,0)
           stop.setHours(0,0,0,0)
           if (stop < start) return 'Stop date cannot be before start date'
-          const diffTime = Math.abs(stop.getTime() - start.getTime())
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-          if (diffDays > 365) return 'Task duration cannot exceed 365 days'
         }
         break
       case 'timeStop':
@@ -727,6 +732,8 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
     if (titleError) newErrors.title = titleError
     const dateStartError = validateEventField('dateStart', eventData.dateStart)
     if (dateStartError) newErrors.dateStart = dateStartError
+    const picError = validateEventField('event_pic_id', eventData.event_pic_id)
+    if (picError) newErrors.event_pic_id = picError
     if (eventData.dateStop) {
       const dateStopError = validateEventField('dateStop', eventData.dateStop)
       if (dateStopError) newErrors.dateStop = dateStopError
@@ -743,8 +750,8 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
     const newErrors: {[key: string]: string} = {}
     const clientNameError = validateTaskField('clientName', taskData.clientName)
     if (clientNameError) newErrors.clientName = clientNameError
-    const picStaffError = validateTaskField('taskPicStaff', taskData.taskPicStaff)
-    if (picStaffError) newErrors.taskPicStaff = picStaffError
+    const picStaffError = validateTaskField('task_pic_id', taskData.task_pic_id)
+    if (picStaffError) newErrors.task_pic_id = picStaffError
     const dateStartError = validateTaskField('dateStart', taskData.dateStart)
     if (dateStartError) newErrors.dateStart = dateStartError
     if (taskData.dateStop) {
@@ -774,29 +781,79 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'JobOrder' | 'FinalReport') => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0]
+      
+      if (file.type !== 'application/pdf') {
+        toast({ title: "Invalid File", description: "Only PDF files are allowed", variant: "destructive" })
+        return
+      }
+      
+      if (file.size > 10 * 1024 * 1024) {
+        toast({ title: "File Too Large", description: "File size cannot exceed 10MB", variant: "destructive" })
+        return
+      }
+      
+      if (field === 'JobOrder' && jobOrderPreviewUrl) URL.revokeObjectURL(jobOrderPreviewUrl)
+      if (field === 'FinalReport' && finalReportPreviewUrl) URL.revokeObjectURL(finalReportPreviewUrl)
+      
+      const previewUrl = URL.createObjectURL(file)
+      
+      if (field === 'JobOrder') {
+        setJobOrderPreviewUrl(previewUrl)
+        setTempJobOrderFile(file)
+        setShowJobOrderPreview(true)
+      } else {
+        setFinalReportPreviewUrl(previewUrl)
+        setTempFinalReportFile(file)
+        setShowFinalReportPreview(true)
+      }
+    }
+  }
+
+  const handleRemoveTempFile = (field: 'JobOrder' | 'FinalReport') => {
+    if (field === 'JobOrder') {
+      if (jobOrderPreviewUrl) { URL.revokeObjectURL(jobOrderPreviewUrl); setJobOrderPreviewUrl(null) }
+      setTempJobOrderFile(null)
+      setShowJobOrderPreview(false)
+    } else {
+      if (finalReportPreviewUrl) { URL.revokeObjectURL(finalReportPreviewUrl); setFinalReportPreviewUrl(null) }
+      setTempFinalReportFile(null)
+      setShowFinalReportPreview(false)
+    }
+  }
+
+  const handleRemoveExistingFile = async (field: 'JobOrder' | 'FinalReport') => {
+    if (!confirm(`Remove this ${field === 'JobOrder' ? 'Job Order' : 'Final Report'} PDF?`)) return
     
+    if (field === 'JobOrder') {
+      if (taskData.pdfJobOrderPath) {
+        try { await deletePDF(taskData.pdfJobOrderPath) } catch (error) { console.error('Failed to delete PDF:', error) }
+      }
+      setTaskData(prev => ({ ...prev, pdfJobOrderPath: '', pdfJobOrderUrl: '', pdfJobOrder: null }))
+    } else {
+      if (taskData.pdfFinalReportPath) {
+        try { await deletePDF(taskData.pdfFinalReportPath) } catch (error) { console.error('Failed to delete PDF:', error) }
+      }
+      setTaskData(prev => ({ ...prev, pdfFinalReportPath: '', pdfFinalReportUrl: '', pdfFinalReport: null }))
+    }
+    
+    toast({ title: "File Removed", description: "PDF file has been removed" })
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     if (isSaving) return
     
     setErrors({})
     
-    let isValid = false
-    
-    if (activeTab === 'event') {
-      isValid = validateEventForm()
-    } else {
-      isValid = validateTaskForm()
-    }
+    const isValid = activeTab === 'event' ? validateEventForm() : validateTaskForm()
     
     if (!isValid) {
       const firstError = Object.values(errors)[0]
       if (firstError) {
-        toast({
-          title: "Validation Error",
-          description: firstError,
-          variant: "destructive",
-        })
+        toast({ title: "Validation Error", description: firstError, variant: "destructive" })
       }
       return
     }
@@ -806,6 +863,7 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
       
       try {
         if (activeTab === 'event') {
+          // ============ EVENT SAVE ============
           const dataToSave = {
             title: eventData.title,
             description: eventData.description || '',
@@ -814,18 +872,12 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
             time_start: eventData.timeStart || '',
             time_stop: eventData.timeStop || '',
             location: eventData.location || '',
-            event_pic_staff: eventData.eventPicStaff || null,
-            event_support_staff: eventData.eventSupportStaff.length > 0 
-              ? eventData.eventSupportStaff.join(',') 
-              : null,
+            event_pic_id: eventData.event_pic_id || null,
             event_pic_name: eventData.event_pic_name || '',
             event_pic_color: eventData.event_pic_color || '',
-            event_support_names: eventData.event_support_names.length > 0 
-              ? eventData.event_support_names.join(',') 
-              : null,
-            event_support_colors: eventData.event_support_colors.length > 0 
-              ? eventData.event_support_colors.join(',') 
-              : null,
+            event_support_ids: eventData.event_support_ids.length > 0 ? eventData.event_support_ids.join(',') : null,
+            event_support_names: eventData.event_support_names.length > 0 ? eventData.event_support_names.join(',') : null,
+            event_support_colors: eventData.event_support_colors.length > 0 ? eventData.event_support_colors.join(',') : null,
             created_by: currentUser?.id
           }
           
@@ -836,27 +888,57 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
             throw new Error("Save function not available")
           }
 
-        if (result && result.id) {
-          console.log('📨 Event saved with ID:', result.id);
-          
-          // Send notifications if there are staff assigned
-          if (eventData.eventPicStaff || (eventData.eventSupportStaff && eventData.eventSupportStaff.length > 0)) {
-            console.log('📨 Sending event notifications...');
-            await sendEventNotifications(eventData, result.id);
-          } else {
-            console.log('⚠️ No staff assigned, skipping notifications');
+          if (result && result.id) {
+            const action = selectedItem ? 'updated' : 'created'
+            if (eventData.event_pic_id || eventData.event_support_ids.length > 0) {
+              await sendEventNotifications(eventData, result.id, action)
+            }
           }
-        }
 
           toast({
             title: "Success",
             description: selectedItem ? "Event updated successfully" : "Event created successfully",
           })
-        } else {
-          const runningNumber = taskData.runningNumber
 
-          if (!runningNumber) {
-            throw new Error("Running number not generated")
+        } else {
+          // ============ TASK SAVE ============
+          const runningNumber = taskData.runningNumber
+          if (!runningNumber) throw new Error("Running number not generated")
+
+          let pdfJobOrderPath = taskData.pdfJobOrderPath
+          let pdfJobOrderUrl = taskData.pdfJobOrderUrl
+          let pdfFinalReportPath = taskData.pdfFinalReportPath
+          let pdfFinalReportUrl = taskData.pdfFinalReportUrl
+
+          const jobOrderFileToUpload = tempJobOrderFile || taskData.pdfJobOrder
+          const finalReportFileToUpload = tempFinalReportFile || taskData.pdfFinalReport
+
+          if (jobOrderFileToUpload) {
+            if (selectedItem && taskData.pdfJobOrderPath) {
+              try { await deletePDF(taskData.pdfJobOrderPath) } catch (error) { console.error('Failed to delete old job order PDF:', error) }
+            }
+            
+            const uploadResult = await uploadPDF(jobOrderFileToUpload, 'task-job-orders', `task_${selectedItem?.id || 'new'}_${Date.now()}`)
+            if (uploadResult) {
+              pdfJobOrderPath = uploadResult.path
+              pdfJobOrderUrl = uploadResult.publicUrl
+            } else {
+              throw new Error("Failed to upload Job Order PDF")
+            }
+          }
+
+          if (finalReportFileToUpload) {
+            if (selectedItem && taskData.pdfFinalReportPath) {
+              try { await deletePDF(taskData.pdfFinalReportPath) } catch (error) { console.error('Failed to delete old final report PDF:', error) }
+            }
+            
+            const uploadResult = await uploadPDF(finalReportFileToUpload, 'task-final-reports', `task_${selectedItem?.id || 'new'}_${Date.now()}`)
+            if (uploadResult) {
+              pdfFinalReportPath = uploadResult.path
+              pdfFinalReportUrl = uploadResult.publicUrl
+            } else {
+              throw new Error("Failed to upload Final Report PDF")
+            }
           }
 
           const dataToSave = {
@@ -868,18 +950,16 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
             time_start: taskData.timeStart || '',
             time_stop: taskData.timeStop || '',
             additional_remark: taskData.additionalRemark || '',
-            pdf_job_order: taskData.pdfJobOrderName || '',
-            pdf_job_order_path: taskData.pdfJobOrderPath || null,
-            pdf_job_order_url: taskData.pdfJobOrderUrl || null,
-            task_pic_staff: taskData.taskPicStaff,
-            task_support_staff: taskData.taskSupportStaff.join(','),
+            pdf_job_order_path: pdfJobOrderPath || null,
+            pdf_job_order_url: pdfJobOrderUrl || null,
+            task_pic_id: taskData.task_pic_id || null,
             task_pic_name: taskData.task_pic_name || '',
             task_pic_color: taskData.task_pic_color || '',
-            task_support_names: taskData.task_support_names.join(','),
-            task_support_colors: taskData.task_support_colors.join(','),
-            pdf_final_report: taskData.pdfFinalReportName || '',
-            pdf_final_report_path: taskData.pdfFinalReportPath || null,
-            pdf_final_report_url: taskData.pdfFinalReportUrl || null,
+            task_support_ids: taskData.task_support_ids.length > 0 ? taskData.task_support_ids.join(',') : null,
+            task_support_names: taskData.task_support_names.length > 0 ? taskData.task_support_names.join(',') : null,
+            task_support_colors: taskData.task_support_colors.length > 0 ? taskData.task_support_colors.join(',') : null,
+            pdf_final_report_path: pdfFinalReportPath || null,
+            pdf_final_report_url: pdfFinalReportUrl || null,
             job_status: taskData.jobStatus,
             created_by: currentUser?.id
           }
@@ -891,18 +971,15 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
             throw new Error("Save function not available")
           }
 
-        // After successfully saving task
-        if (result && result.id) {
-          console.log('📨 Task saved with ID:', result.id);
-          
-          // Send notifications if there are staff assigned
-          if (taskData.taskPicStaff || (taskData.taskSupportStaff && taskData.taskSupportStaff.length > 0)) {
-            console.log('📨 Sending task notifications...');
-            await sendTaskNotifications(taskData, result.id);
-          } else {
-            console.log('⚠️ No staff assigned, skipping notifications');
+          if (result && result.id) {
+            const action = selectedItem ? 'updated' : 'created'
+            if (taskData.task_pic_id || taskData.task_support_ids.length > 0) {
+              await sendTaskNotifications(taskData, result.id, action)
+            }
           }
-        }
+
+          if (jobOrderPreviewUrl) { URL.revokeObjectURL(jobOrderPreviewUrl); setJobOrderPreviewUrl(null) }
+          if (finalReportPreviewUrl) { URL.revokeObjectURL(finalReportPreviewUrl); setFinalReportPreviewUrl(null) }
 
           toast({
             title: "Success",
@@ -916,11 +993,7 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
         
       } catch (error: any) {
         console.error('Error saving:', error)
-        toast({
-          title: "Error",
-          description: error.message || "Failed to save",
-          variant: "destructive",
-        })
+        toast({ title: "Error", description: error.message || "Failed to save", variant: "destructive" })
       } finally {
         setIsSaving(false)
         setShowConfirmDialog(false)
@@ -928,103 +1001,59 @@ const sendTaskNotifications = async (taskData: any, taskId: string) => {
       }
     }
 
-    if (activeTab === 'task') {
+    // Show confirmation dialog for BOTH Task AND Event when staff are assigned
+    if (activeTab === 'task' && (taskData.task_pic_id || taskData.task_support_ids.length > 0)) {
+      setPendingSubmit(() => saveFunction)
+      setShowConfirmDialog(true)
+    } else if (activeTab === 'event' && (eventData.event_pic_id || eventData.event_support_ids.length > 0)) {
       setPendingSubmit(() => saveFunction)
       setShowConfirmDialog(true)
     } else {
-      saveFunction()
+      await saveFunction()
     }
   }
 
   const handleDelete = async () => {
     if (!selectedItem) return
     
-    const confirmDelete = window.confirm(`Are you sure you want to delete this ${selectedType}?`)
+    const confirmDelete = window.confirm(`Are you sure you want to delete this ${selectedType}? This will also delete all associated PDF files.`)
     if (!confirmDelete) return
     
     setIsSaving(true)
     
     try {
+      if (selectedType === 'task') {
+        if (selectedItem.pdf_job_order_path) {
+          try { await deletePDF(selectedItem.pdf_job_order_path) } catch (error) { console.error('Failed to delete job order PDF:', error) }
+        }
+        if (selectedItem.pdf_final_report_path) {
+          try { await deletePDF(selectedItem.pdf_final_report_path) } catch (error) { console.error('Failed to delete final report PDF:', error) }
+        }
+      }
+      
       if (onDelete) {
         await onDelete(selectedItem.id, activeTab)
       } else {
-        toast({
-          title: "Error",
-          description: "Delete function not available",
-          variant: "destructive",
-        })
+        toast({ title: "Error", description: "Delete function not available", variant: "destructive" })
         return
       }
       
-      toast({
-        title: "Success",
-        description: "Deleted successfully",
-      })
-      
+      toast({ title: "Success", description: "Deleted successfully" })
       resetForm()
       onClose()
       if (onSuccess) onSuccess()
       
     } catch (error: any) {
       console.error('Error deleting:', error)
-      toast({
-        title: "Error",
-        description: error.message || "Failed to delete",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: error.message || "Failed to delete", variant: "destructive" })
     } finally {
       setIsSaving(false)
     }
   }
 
-const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'JobOrder' | 'FinalReport') => {
-  if (e.target.files && e.target.files[0]) {
-    const file = e.target.files[0]
-    
-    if (file.type !== 'application/pdf') {
-      toast({
-        title: "Invalid File",
-        description: "Only PDF files are allowed",
-        variant: "destructive",
-      })
-      return
-    }
-    
-    if (file.size > 10 * 1024 * 1024) {
-      toast({
-        title: "File Too Large",
-        description: "File size cannot exceed 10MB",
-        variant: "destructive",
-      })
-      return
-    }
-    
-    if (field === 'JobOrder') {
-      setTaskData({ 
-        ...taskData, 
-        pdfJobOrder: file,
-        pdfJobOrderName: file.name
-        // pdfJobOrderPath dan pdfJobOrderUrl akan diisi selepas upload
-      })
-    } else {
-      setTaskData({ 
-        ...taskData, 
-        pdfFinalReport: file,
-        pdfFinalReportName: file.name
-        // pdfFinalReportPath dan pdfFinalReportUrl akan diisi selepas upload
-      })
-    }
-  }
-}
-
   const formatDate = (date: Date | null) => {
     if (!date) return ''
-    return date.toLocaleDateString('en-GB', { 
-      weekday: 'long', 
-      day: 'numeric', 
-      month: 'long', 
-      year: 'numeric' 
-    })
+    return date.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   }
 
   const ErrorMessage = ({ field }: { field: string }) => {
@@ -1037,1079 +1066,776 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'JobOrd
     )
   }
 
-  const getStaffName = (code: string) => {
-    const staff = staffList.find(s => s.code === code)
-    return staff ? `${staff.name} (${staff.code})` : code
+  // Get confirmation text based on active tab
+  const getConfirmTitle = () => {
+    return activeTab === 'event' ? 'Confirm Event Assignment' : 'Confirm Task Assignment'
   }
 
+  const getConfirmMessage = () => {
+    if (activeTab === 'event') {
+      return 'Are you sure you want to assign this event with the following staff?'
+    }
+    return 'Are you sure you want to assign this task with the following staff?'
+  }
+
+  const getStaffDetails = () => {
+    if (activeTab === 'event') {
+      return {
+        picName: eventData.event_pic_name,
+        picColor: eventData.event_pic_color || 'purple',
+        supportNames: eventData.event_support_names,
+        supportColors: eventData.event_support_colors,
+        typeLabel: 'event'
+      }
+    }
+    return {
+      picName: taskData.task_pic_name,
+      picColor: taskData.task_pic_color || 'blue',
+      supportNames: taskData.task_support_names,
+      supportColors: taskData.task_support_colors,
+      typeLabel: 'task'
+    }
+  }
+
+  const staffDetails = getStaffDetails()
+
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <Card className="border-0">
-          <CardHeader className="border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">
-                {selectedItem ? 'Edit' : 'Add New'} {activeTab === 'event' ? 'Event' : 'Job Task'}
-              </CardTitle>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={() => {
-                  resetForm()
-                  onClose()
-                }} 
-                type="button"
-                disabled={isSaving}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+    <>
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <Card className="border-0">
+            <CardHeader className="border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">
+                  {selectedItem ? 'Edit' : 'Add New'} {activeTab === 'event' ? 'Event' : 'Job Task'}
+                </CardTitle>
+                <Button variant="ghost" size="icon" onClick={() => { resetForm(); onClose() }} type="button" disabled={isSaving}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
 
-            <div className="flex items-center space-x-4 mt-2 border-b border-gray-200 pb-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('event')
-                  setErrors({})
-                  setTouched({})
-                }}
-                disabled={isSaving}
-                className={`pb-1 px-1 text-sm font-medium transition-colors relative flex items-center space-x-2 ${
-                  activeTab === 'event'
-                    ? 'text-purple-600 border-b-2 border-purple-600'
-                    : 'text-gray-500 hover:text-gray-700'
-                } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-              >
-                <CalendarCheck className="h-4 w-4" />
-                <span>Event</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('task')
-                  setErrors({})
-                  setTouched({})
-                }}
-                disabled={isSaving}
-                className={`pb-1 px-1 text-sm font-medium transition-colors relative flex items-center space-x-2 ${
-                  activeTab === 'task'
-                    ? 'text-blue-600 border-b-2 border-blue-600'
-                    : 'text-gray-500 hover:text-gray-700'
-                } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-              >
-                <Briefcase className="h-4 w-4" />
-                <span>Task</span>
-              </button>
-            </div>
-          </CardHeader>
+              <div className="flex items-center space-x-4 mt-2 border-b border-gray-200 pb-2">
+                <button type="button" onClick={() => { setActiveTab('event'); setErrors({}); setTouched({}) }} disabled={isSaving}
+                  className={`pb-1 px-1 text-sm font-medium transition-colors relative flex items-center space-x-2 ${
+                    activeTab === 'event' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500 hover:text-gray-700'
+                  } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                  <CalendarCheck className="h-4 w-4" />
+                  <span>Event</span>
+                </button>
+                <button type="button" onClick={() => { setActiveTab('task'); setErrors({}); setTouched({}) }} disabled={isSaving}
+                  className={`pb-1 px-1 text-sm font-medium transition-colors relative flex items-center space-x-2 ${
+                    activeTab === 'task' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'
+                  } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                  <Briefcase className="h-4 w-4" />
+                  <span>Task</span>
+                </button>
+              </div>
+            </CardHeader>
 
-          <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-4 pt-4">
-              {selectedDate && !selectedItem && (
-                <div className="flex items-center text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-                  <CalendarIcon className="h-4 w-4 mr-2 text-gray-500" />
-                  <span>{formatDate(selectedDate)}</span>
-                </div>
-              )}
+            <form onSubmit={handleSubmit}>
+              <CardContent className="space-y-4 pt-4">
+                {selectedDate && !selectedItem && (
+                  <div className="flex items-center text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+                    <CalendarIcon className="h-4 w-4 mr-2 text-gray-500" />
+                    <span>{formatDate(selectedDate)}</span>
+                  </div>
+                )}
 
-              {activeTab === 'task' && (
-                <>
-                  <div className="flex justify-end mb-2">
-                    <div className="w-48">
-                      <Select
-                        value={taskData.jobStatus}
-                        onValueChange={(value) => setTaskData({...taskData, jobStatus: value})}
-                        disabled={isSaving}
-                      >
-                        <SelectTrigger className="bg-white border-gray-300">
-                          <SelectValue>
-                            <div className="flex items-center">
-                              <span className={`w-2 h-2 rounded-full mr-2 ${
-                                taskData.jobStatus === 'in-progress' ? 'bg-yellow-500' :
-                                taskData.jobStatus === 'completed' ? 'bg-green-500' : 'bg-red-500'
-                              }`}></span>
-                              <span className="text-gray-900">
-                                {taskStatuses.find(s => s.value === taskData.jobStatus)?.label}
-                              </span>
-                            </div>
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                          {taskStatuses.map((status) => (
-                            <SelectItem 
-                              key={status.value} 
-                              value={status.value}
-                              className="hover:bg-gray-100 text-gray-900"
-                            >
+                {activeTab === 'task' && (
+                  <>
+                    <div className="flex justify-end mb-2">
+                      <div className="w-48">
+                        <Select value={taskData.jobStatus} onValueChange={(value) => setTaskData(prev => ({...prev, jobStatus: value}))} disabled={isSaving}>
+                          <SelectTrigger className="bg-white border-gray-300">
+                            <SelectValue>
                               <div className="flex items-center">
-                                <span className={`w-2 h-2 rounded-full mr-2 ${status.dot}`}></span>
-                                <span>{status.label}</span>
+                                <span className={`w-2 h-2 rounded-full mr-2 ${
+                                  taskData.jobStatus === 'in-progress' ? 'bg-yellow-500' :
+                                  taskData.jobStatus === 'completed' ? 'bg-green-500' : 'bg-red-500'
+                                }`} />
+                                <span className="text-gray-900">{taskStatuses.find(s => s.value === taskData.jobStatus)?.label}</span>
                               </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-gray-700 font-medium">
-                      Client Name <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      value={taskData.clientName}
-                      onChange={(e) => {
-                        setTaskData({...taskData, clientName: e.target.value})
-                        if (touched.clientName) {
-                          const error = validateTaskField('clientName', e.target.value)
-                          setErrors(prev => ({ ...prev, clientName: error }))
-                        }
-                      }}
-                      onBlur={() => handleBlur('clientName')}
-                      placeholder="Enter client name"
-                      className={`border-gray-300 bg-white ${
-                        touched.clientName && errors.clientName ? 'border-red-500' : ''
-                      }`}
-                      disabled={isSaving}
-                      autoFocus
-                    />
-                    <ErrorMessage field="clientName" />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-gray-700 font-medium">Running Number</Label>
-                    <Input
-                      value={taskData.runningNumber}
-                      placeholder="Loading..."
-                      className="border-gray-300 bg-gray-50 font-mono text-sm"
-                      disabled={true}
-                      readOnly
-                    />
-                    <p className="text-xs text-gray-500">
-                      Format: ICS + Year(2 digits) + Month(2 digits) + Number(001) - Resets every month
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-gray-700 font-medium">Job Task</Label>
-                    {loadingTasks ? (
-                      <div className="flex items-center space-x-2 border border-gray-300 rounded-md p-2">
-                        <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                        <span className="text-sm text-gray-500">Loading job tasks...</span>
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                            {taskStatuses.map((status) => (
+                              <SelectItem key={status.value} value={status.value} className="hover:bg-gray-100 text-gray-900">
+                                <div className="flex items-center">
+                                  <span className={`w-2 h-2 rounded-full mr-2 ${status.dot}`} />
+                                  <span>{status.label}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                    ) : (
-                      <Select
-                        value={taskData.jobTask || "none"}
-                        onValueChange={(value) => {
-                          if (value === "none") {
-                            setTaskData({...taskData, jobTask: ""})
-                          } else {
-                            setTaskData({...taskData, jobTask: value})
-                          }
-                          if (touched.jobTask) {
-                            const error = validateTaskField('jobTask', value)
-                            setErrors(prev => ({ ...prev, jobTask: error }))
-                          }
-                        }}
-                        onOpenChange={() => handleBlur('jobTask')}
-                        disabled={isSaving}
-                      >
-                        <SelectTrigger className={`bg-white border-gray-300 ${
-                          touched.jobTask && errors.jobTask ? 'border-red-500' : ''
-                        }`}>
-                          <SelectValue placeholder="Select job task" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
-                          <SelectItem value="none" className="hover:bg-gray-100 text-gray-900 italic">
-                            None
-                          </SelectItem>
-                          
-                          {jobTasks.map((task) => (
-                            <SelectItem 
-                              key={task.id} 
-                              value={task.name}
-                              className="hover:bg-gray-100 text-gray-900"
-                            >
-                              <div className="flex items-center">
-                                <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded mr-2">
-                                  {task.code}
-                                </span>
-                                <span>{task.name}</span>
-                              </div>
-                            </SelectItem>
-                          ))}
+                    </div>
 
-                          {jobTasks.length === 0 && (
-                            <div className="px-2 py-3 text-sm text-gray-500 text-center">
-                              No job tasks found. Please add in Settings first.
-                            </div>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    )}
-                    <ErrorMessage field="jobTask" />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label className="text-gray-700 font-medium">
-                        Date Start <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        type="date"
-                        value={taskData.dateStart}
-                        onChange={(e) => {
-                          setTaskData({...taskData, dateStart: e.target.value})
-                          if (touched.dateStart) {
-                            const error = validateTaskField('dateStart', e.target.value)
-                            setErrors(prev => ({ ...prev, dateStart: error }))
-                          }
-                          if (taskData.dateStop && touched.dateStop) {
-                            const stopError = validateTaskField('dateStop', taskData.dateStop)
-                            setErrors(prev => ({ ...prev, dateStop: stopError }))
-                          }
-                        }}
-                        onBlur={() => handleBlur('dateStart')}
-                        className={`border-gray-300 bg-white ${
-                          touched.dateStart && errors.dateStart ? 'border-red-500' : ''
-                        }`}
-                        disabled={isSaving}
+                      <Label className="text-gray-700 font-medium">Client Name <span className="text-red-500">*</span></Label>
+                      <Input 
+                        value={taskData.clientName} 
+                        onChange={(e) => { 
+                          setTaskData(prev => ({...prev, clientName: e.target.value}))
+                          if (touched.clientName) { 
+                            const error = validateTaskField('clientName', e.target.value)
+                            setErrors(prev => ({ ...prev, clientName: error }))
+                          } 
+                        }} 
+                        onBlur={() => handleBlur('clientName')} 
+                        placeholder="Enter client name" 
+                        className={`border-gray-300 bg-white ${touched.clientName && errors.clientName ? 'border-red-500' : ''}`} 
+                        disabled={isSaving} 
+                        autoFocus 
                       />
-                      <ErrorMessage field="dateStart" />
+                      <ErrorMessage field="clientName" />
                     </div>
+
                     <div className="space-y-2">
-                      <Label className="text-gray-700 font-medium">Date Stop (Optional)</Label>
-                      <Input
-                        type="date"
-                        value={taskData.dateStop}
-                        onChange={(e) => {
-                          setTaskData({...taskData, dateStop: e.target.value})
-                          if (touched.dateStop) {
-                            const error = validateTaskField('dateStop', e.target.value)
-                            setErrors(prev => ({ ...prev, dateStop: error }))
-                          }
-                        }}
-                        onBlur={() => handleBlur('dateStop')}
-                        className={`border-gray-300 bg-white ${
-                          touched.dateStop && errors.dateStop ? 'border-red-500' : ''
-                        }`}
-                        disabled={isSaving}
-                      />
-                      <ErrorMessage field="dateStop" />
+                      <Label className="text-gray-700 font-medium">Running Number</Label>
+                      <Input value={taskData.runningNumber} placeholder="Loading..." className="border-gray-300 bg-gray-50 font-mono text-sm" disabled={true} readOnly />
+                      <p className="text-xs text-gray-500">Format: ICS + Year(2 digits) + Month(2 digits) + Number(001) - Resets every month</p>
                     </div>
-                  </div>
-
-                  {!showTime ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowTime(true)}
-                      className="flex items-center text-sm text-blue-600 hover:text-blue-700"
-                      disabled={isSaving}
-                    >
-                      <Clock className="h-4 w-4 mr-2" />
-                      Add time
-                    </button>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label className="text-gray-700 font-medium">Time Start</Label>
-                        <Input
-                          type="time"
-                          value={taskData.timeStart}
-                          onChange={(e) => {
-                            setTaskData({...taskData, timeStart: e.target.value})
-                            if (touched.timeStop && taskData.timeStop) {
-                              const error = validateTaskField('timeStop', taskData.timeStop)
-                              setErrors(prev => ({ ...prev, timeStop: error }))
-                            }
-                          }}
-                          className="border-gray-300 bg-white"
-                          disabled={isSaving}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-gray-700 font-medium">Time Stop</Label>
-                        <Input
-                          type="time"
-                          value={taskData.timeStop}
-                          onChange={(e) => {
-                            setTaskData({...taskData, timeStop: e.target.value})
-                            if (touched.timeStop) {
-                              const error = validateTaskField('timeStop', e.target.value)
-                              setErrors(prev => ({ ...prev, timeStop: error }))
-                            }
-                          }}
-                          onBlur={() => handleBlur('timeStop')}
-                          className={`border-gray-300 bg-white ${
-                            touched.timeStop && errors.timeStop ? 'border-red-500' : ''
-                          }`}
-                          disabled={isSaving}
-                        />
-                        <ErrorMessage field="timeStop" />
-                      </div>
-                    </div>
-                  )}
-
-                  {!showDescription ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowDescription(true)}
-                      className="flex items-center text-sm text-gray-600 hover:text-gray-900"
-                      disabled={isSaving}
-                    >
-                      <FileText className="h-4 w-4 mr-2" />
-                      Add additional remark
-                    </button>
-                  ) : (
-                    <div className="space-y-2">
-                      <Label className="text-gray-700 font-medium">Additional Remark</Label>
-                      <Textarea
-                        value={taskData.additionalRemark}
-                        onChange={(e) => setTaskData({...taskData, additionalRemark: e.target.value})}
-                        placeholder="Enter any additional remarks..."
-                        className="border-gray-300 bg-white min-h-[80px]"
-                        disabled={isSaving}
-                      />
-                    </div>
-                  )}
-
-                  <div className="border-t border-gray-200 pt-4">
-                    <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center justify-between">
-                      <div className="flex items-center">
-                        <FileText className="h-4 w-4 mr-2 text-blue-600" />
-                        PDF File (Job Order)
-                      </div>
-                      {taskData.pdfJobOrderUrl && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => window.open(taskData.pdfJobOrderUrl, '_blank')}
-                          className="text-blue-600"
-                        >
-                          <FileText className="h-4 w-4 mr-1" />
-                          View PDF
-                        </Button>
-                      )}
-                    </h4>
                     
-                    {taskData.pdfJobOrderName && taskData.pdfJobOrderUrl && !taskData.pdfJobOrder && (
-                      <div className="mb-2 p-2 bg-blue-50 rounded border border-blue-200 text-sm">
-                        <p className="text-blue-700 flex items-center">
-                          <FileText className="h-4 w-4 mr-2" />
-                          Current: {taskData.pdfJobOrderName}
-                        </p>
-                      </div>
-                    )}
-                    
-                    <Input
-                      type="file"
-                      accept=".pdf"
-                      onChange={(e) => handleFileChange(e, 'JobOrder')}
-                      className="border-gray-300 bg-white"
-                      disabled={isSaving}
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      {taskData.pdfJobOrderName ? 'Upload new PDF to replace existing file' : 'Upload job order PDF (max 10MB)'}
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-gray-700 font-medium">
-                      PIC (Person In Charge) <span className="text-red-500">*</span>
-                    </Label>
-                    {loadingStaff ? (
-                      <div className="flex items-center space-x-2 border border-gray-300 rounded-md p-2">
-                        <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                        <span className="text-sm text-gray-500">Loading staff...</span>
-                      </div>
-                    ) : (
-                      <Select
-                        value={taskData.taskPicStaff}
-                        onValueChange={(value) => {
-                          const selectedStaff = staffList.find(s => s.code === value)
-                          setTaskData({
-                            ...taskData,
-                            taskPicStaff: value,
-                            task_pic_name: selectedStaff?.name || '',
-                            task_pic_color: selectedStaff?.color || 'blue'
-                          })
-                          if (touched.taskPicStaff) {
-                            const error = validateTaskField('taskPicStaff', value)
-                            setErrors(prev => ({ ...prev, taskPicStaff: error }))
-                          }
-                        }}
-                        onOpenChange={() => handleBlur('taskPicStaff')}
-                        disabled={isSaving}
-                      >
-                        <SelectTrigger className={`bg-white border-gray-300 ${
-                          touched.taskPicStaff && errors.taskPicStaff ? 'border-red-500' : ''
-                        }`}>
-                          <SelectValue placeholder="Select main PIC" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                          {staffList.map((staff) => (
-                            <SelectItem 
-                              key={staff.id} 
-                              value={staff.code}
-                              className="hover:bg-gray-100 text-gray-900"
-                            >
-                              <div className="flex items-center gap-2">
-                                <div 
-                                  className="w-3 h-3 rounded-full" 
-                                  style={{ backgroundColor: staff.color || '#3b82f6' }}
-                                ></div>
-                                <span>{staff.name} ({staff.code})</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                          {staffList.length === 0 && (
-                            <div className="px-2 py-3 text-sm text-gray-500 text-center">
-                              No staff found. Please add staff in Settings first.
-                            </div>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    )}
-                    <ErrorMessage field="taskPicStaff" />
-                    {taskData.task_pic_name && (
-                      <div className="mt-1 flex items-center gap-2 text-xs text-green-600">
-                        <div 
-                          className="w-2 h-2 rounded-full" 
-                          style={{ backgroundColor: taskData.task_pic_color || '#3b82f6' }}
-                        ></div>
-                        <span>Selected: {taskData.task_pic_name} ({taskData.taskPicStaff})</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {!showSupport ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowSupport(true)}
-                      className="flex items-center text-sm text-gray-600 hover:text-gray-900"
-                      disabled={isSaving}
-                    >
-                      <UserPlus className="h-4 w-4 mr-2" />
-                      Add Support Staff (Optional)
-                    </button>
-                  ) : (
-                    <div className="space-y-3 border rounded-lg p-4 bg-gray-50">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-gray-700 font-medium flex items-center">
-                          <Users className="h-4 w-4 mr-2" />
-                          Task Support Staff
-                        </Label>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowSupport(false)}
-                          className="h-6 w-6 p-0"
-                          disabled={isSaving}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <p className="text-xs text-gray-500">Select staff who will support this task:</p>
-                      {loadingStaff ? (
-                        <div className="flex items-center justify-center py-4">
-                          <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                    <div className="space-y-2">
+                      <Label className="text-gray-700 font-medium">Job Task</Label>
+                      {loadingTasks ? (
+                        <div className="flex items-center space-x-2 border border-gray-300 rounded-md p-2">
+                          <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                          <span className="text-sm text-gray-500">Loading job tasks...</span>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-2 gap-2">
-                          {staffList
-                            .filter(staff => staff.code !== taskData.taskPicStaff)
-                            .map((staff) => (
-                              <div key={staff.id} className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={`task-support-${staff.id}`}
-                                  checked={taskData.taskSupportStaff.includes(staff.code)}
-                                  onCheckedChange={() => handleTaskSupportToggle(staff.code)}
-                                  disabled={isSaving}
-                                />
-                                <label
-                                  htmlFor={`task-support-${staff.id}`}
-                                  className="text-sm cursor-pointer text-gray-700 flex items-center gap-1"
-                                >
-                                  <div 
-                                    className="w-2 h-2 rounded-full" 
-                                    style={{ backgroundColor: staff.color || '#3b82f6' }}
-                                  ></div>
-                                  {staff.name} ({staff.code})
-                                </label>
-                              </div>
+                        <Select 
+                          value={taskData.jobTask || "none"} 
+                          onValueChange={(value) => { 
+                            setTaskData(prev => ({...prev, jobTask: value === "none" ? "" : value}))
+                            if (touched.jobTask) { 
+                              const error = validateTaskField('jobTask', value)
+                              setErrors(prev => ({ ...prev, jobTask: error }))
+                            } 
+                          }} 
+                          onOpenChange={() => handleBlur('jobTask')} 
+                          disabled={isSaving}
+                        >
+                          <SelectTrigger className={`bg-white border-gray-300 ${touched.jobTask && errors.jobTask ? 'border-red-500' : ''}`}>
+                            <SelectValue placeholder="Select job task" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
+                            <SelectItem value="none" className="hover:bg-gray-100 text-gray-900 italic">None</SelectItem>
+                            {jobTasks.map((task) => (
+                              <SelectItem key={task.id} value={task.name} className="hover:bg-gray-100 text-gray-900">
+                                <span>{task.name}</span>
+                              </SelectItem>
                             ))}
-                        </div>
+                            {jobTasks.length === 0 && (
+                              <div className="px-2 py-3 text-sm text-gray-500 text-center">No job tasks found.</div>
+                            )}
+                          </SelectContent>
+                        </Select>
                       )}
-                      
-                      {taskData.taskSupportStaff.length > 0 && (
-                        <div className="mt-2 text-xs text-green-600 flex flex-wrap gap-2">
-                          {taskData.taskSupportStaff.map((code, index) => (
-                            <span key={code} className="inline-flex items-center gap-1">
-                              <div 
-                                className="w-2 h-2 rounded-full" 
-                                style={{ backgroundColor: taskData.task_support_colors?.[index] || '#3b82f6' }}
-                              ></div>
-                              {staffList.find(s => s.code === code)?.name || code}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                      <ErrorMessage field="jobTask" />
                     </div>
-                  )}
 
-                  {!showFinalReport ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowFinalReport(true)}
-                      className="flex items-center text-sm text-gray-600 hover:text-gray-900"
-                      disabled={isSaving}
-                    >
-                      <FileText className="h-4 w-4 mr-2" />
-                      Add PDF Final Report
-                    </button>
-                  ) : (
-                    <div className="space-y-4 border-t border-gray-200 pt-4">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-semibold text-gray-800 flex items-center">
-                          <FileText className="h-4 w-4 mr-2 text-green-600" />
-                          PDF File (Final Report)
-                        </h4>
-                        <div className="flex gap-2">
-                          {taskData.pdfFinalReportUrl && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => window.open(taskData.pdfFinalReportUrl, '_blank')}
-                              className="text-green-600"
-                            >
-                              <FileText className="h-4 w-4 mr-1" />
-                              View PDF
-                            </Button>
-                          )}
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setShowFinalReport(false)}
-                            className="h-6 w-6 p-0"
-                            disabled={isSaving}
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label className="text-gray-700 font-medium">Date Start <span className="text-red-500">*</span></Label>
+                        <Input 
+                          type="date" 
+                          value={taskData.dateStart} 
+                          onChange={(e) => { 
+                            setTaskData(prev => ({...prev, dateStart: e.target.value}))
+                            if (touched.dateStart) { 
+                              setErrors(prev => ({ ...prev, dateStart: validateTaskField('dateStart', e.target.value) }))
+                            } 
+                          }} 
+                          onBlur={() => handleBlur('dateStart')} 
+                          className={`border-gray-300 bg-white ${touched.dateStart && errors.dateStart ? 'border-red-500' : ''}`} 
+                          disabled={isSaving} 
+                        />
+                        <ErrorMessage field="dateStart" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-gray-700 font-medium">Date Stop (Optional)</Label>
+                        <Input 
+                          type="date" 
+                          value={taskData.dateStop} 
+                          onChange={(e) => { 
+                            setTaskData(prev => ({...prev, dateStop: e.target.value}))
+                            if (touched.dateStop) { 
+                              setErrors(prev => ({ ...prev, dateStop: validateTaskField('dateStop', e.target.value) }))
+                            } 
+                          }} 
+                          onBlur={() => handleBlur('dateStop')} 
+                          className={`border-gray-300 bg-white ${touched.dateStop && errors.dateStop ? 'border-red-500' : ''}`} 
+                          disabled={isSaving} 
+                        />
+                        <ErrorMessage field="dateStop" />
+                      </div>
+                    </div>
+
+                    {!showTime ? (
+                      <button type="button" onClick={() => setShowTime(true)} className="flex items-center text-sm text-blue-600 hover:text-blue-700" disabled={isSaving}>
+                        <Clock className="h-4 w-4 mr-2" /> Add time
+                      </button>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label className="text-gray-700 font-medium">Time Start</Label>
+                          <Input type="time" value={taskData.timeStart} onChange={(e) => setTaskData(prev => ({...prev, timeStart: e.target.value}))} className="border-gray-300 bg-white" disabled={isSaving} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-gray-700 font-medium">Time Stop</Label>
+                          <Input 
+                            type="time" 
+                            value={taskData.timeStop} 
+                            onChange={(e) => { 
+                              setTaskData(prev => ({...prev, timeStop: e.target.value}))
+                              if (touched.timeStop) { setErrors(prev => ({ ...prev, timeStop: validateTaskField('timeStop', e.target.value) })) }
+                            }} 
+                            onBlur={() => handleBlur('timeStop')} 
+                            className={`border-gray-300 bg-white ${touched.timeStop && errors.timeStop ? 'border-red-500' : ''}`} 
+                            disabled={isSaving} 
+                          />
+                          <ErrorMessage field="timeStop" />
                         </div>
                       </div>
+                    )}
+
+                    {!showDescription ? (
+                      <button type="button" onClick={() => setShowDescription(true)} className="flex items-center text-sm text-gray-600 hover:text-gray-900" disabled={isSaving}>
+                        <FileText className="h-4 w-4 mr-2" /> Add additional remark
+                      </button>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label className="text-gray-700 font-medium">Additional Remark</Label>
+                        <Textarea value={taskData.additionalRemark} onChange={(e) => setTaskData(prev => ({...prev, additionalRemark: e.target.value}))} placeholder="Enter any additional remarks..." className="border-gray-300 bg-white min-h-[80px]" disabled={isSaving} />
+                      </div>
+                    )}
+
+                    {/* PDF Job Order */}
+                    <div className="border-t border-gray-200 pt-4">
+                      <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center justify-between">
+                        <div className="flex items-center">
+                          <FileText className="h-4 w-4 mr-2 text-blue-600" />
+                          PDF File (Job Order)
+                        </div>
+                        {(taskData.pdfJobOrderUrl || jobOrderPreviewUrl) && (
+                          <div className="flex gap-2">
+                            <Button type="button" variant="ghost" size="sm" onClick={() => setShowJobOrderPreview(true)} className="text-blue-600">
+                              <Eye className="h-4 w-4 mr-1" /> Preview
+                            </Button>
+                            {taskData.pdfJobOrderUrl && !tempJobOrderFile && (
+                              <Button type="button" variant="ghost" size="sm" onClick={() => window.open(taskData.pdfJobOrderUrl, '_blank')} className="text-green-600">
+                                <ExternalLink className="h-4 w-4 mr-1" /> Open
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </h4>
                       
-                      {taskData.pdfFinalReportName && taskData.pdfFinalReportUrl && !taskData.pdfFinalReport && (
-                        <div className="p-2 bg-green-50 rounded border border-green-200 text-sm">
-                          <p className="text-green-700 flex items-center">
-                            <FileText className="h-4 w-4 mr-2" />
-                            Current: {taskData.pdfFinalReportName}
+                      {taskData.pdfJobOrderPath && taskData.pdfJobOrderUrl && !tempJobOrderFile && (
+                        <div className="mb-2 p-3 bg-blue-50 rounded border border-blue-200">
+                          <p className="text-blue-700 flex items-center justify-between">
+                            <span className="flex items-center"><FileText className="h-4 w-4 mr-2" />Current: PDF attached</span>
+                            <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveExistingFile('JobOrder')} className="text-red-600 hover:text-red-700 hover:bg-red-50" disabled={isSaving}>
+                              <X className="h-4 w-4 mr-1" /> Remove
+                            </Button>
                           </p>
                         </div>
                       )}
                       
-                      <Input
-                        type="file"
-                        accept=".pdf"
-                        onChange={(e) => handleFileChange(e, 'FinalReport')}
-                        className="border-gray-300 bg-white"
-                        disabled={isSaving}
-                      />
-                      <p className="text-xs text-gray-500">
-                        {taskData.pdfFinalReportName ? 'Upload new PDF to replace existing file' : 'Upload final report PDF (max 10MB)'}
-                      </p>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {activeTab === 'event' && (
-                <>
-                  <div className="space-y-2">
-                    <Label className="text-gray-700 font-medium">
-                      Title <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      value={eventData.title}
-                      onChange={(e) => {
-                        setEventData({...eventData, title: e.target.value})
-                        if (touched.title) {
-                          const error = validateEventField('title', e.target.value)
-                          setErrors(prev => ({ ...prev, title: error }))
-                        }
-                      }}
-                      onBlur={() => handleBlur('title')}
-                      placeholder="Enter event title"
-                      className={`border-gray-300 bg-white ${
-                        touched.title && errors.title ? 'border-red-500' : ''
-                      }`}
-                      disabled={isSaving}
-                      autoFocus
-                    />
-                    <ErrorMessage field="title" />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label className="text-gray-700 font-medium">
-                        Date Start <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        type="date"
-                        value={eventData.dateStart}
-                        onChange={(e) => {
-                          setEventData({...eventData, dateStart: e.target.value})
-                          if (touched.dateStart) {
-                            const error = validateEventField('dateStart', e.target.value)
-                            setErrors(prev => ({ ...prev, dateStart: error }))
-                          }
-                          if (eventData.dateStop && touched.dateStop) {
-                            const stopError = validateEventField('dateStop', eventData.dateStop)
-                            setErrors(prev => ({ ...prev, dateStop: stopError }))
-                          }
-                        }}
-                        onBlur={() => handleBlur('dateStart')}
-                        className={`border-gray-300 bg-white ${
-                          touched.dateStart && errors.dateStart ? 'border-red-500' : ''
-                        }`}
-                        disabled={isSaving}
-                      />
-                      <ErrorMessage field="dateStart" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-gray-700 font-medium">Date Stop (Optional)</Label>
-                      <Input
-                        type="date"
-                        value={eventData.dateStop}
-                        onChange={(e) => {
-                          setEventData({...eventData, dateStop: e.target.value})
-                          if (touched.dateStop) {
-                            const error = validateEventField('dateStop', e.target.value)
-                            setErrors(prev => ({ ...prev, dateStop: error }))
-                          }
-                        }}
-                        onBlur={() => handleBlur('dateStop')}
-                        className={`border-gray-300 bg-white ${
-                          touched.dateStop && errors.dateStop ? 'border-red-500' : ''
-                        }`}
-                        disabled={isSaving}
-                      />
-                      <ErrorMessage field="dateStop" />
-                    </div>
-                  </div>
-
-                  {!showTime ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowTime(true)}
-                      className="flex items-center text-sm text-blue-600 hover:text-blue-700"
-                      disabled={isSaving}
-                    >
-                      <Clock className="h-4 w-4 mr-2" />
-                      Add time
-                    </button>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label className="text-gray-700 font-medium">Time Start</Label>
-                        <Input
-                          type="time"
-                          value={eventData.timeStart}
-                          onChange={(e) => {
-                            setEventData({...eventData, timeStart: e.target.value})
-                            if (touched.timeStop && eventData.timeStop) {
-                              const error = validateEventField('timeStop', eventData.timeStop)
-                              setErrors(prev => ({ ...prev, timeStop: error }))
-                            }
-                          }}
-                          className="border-gray-300 bg-white"
-                          disabled={isSaving}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-gray-700 font-medium">Time Stop</Label>
-                        <Input
-                          type="time"
-                          value={eventData.timeStop}
-                          onChange={(e) => {
-                            setEventData({...eventData, timeStop: e.target.value})
-                            if (touched.timeStop) {
-                              const error = validateEventField('timeStop', e.target.value)
-                              setErrors(prev => ({ ...prev, timeStop: error }))
-                            }
-                          }}
-                          onBlur={() => handleBlur('timeStop')}
-                          className={`border-gray-300 bg-white ${
-                            touched.timeStop && errors.timeStop ? 'border-red-500' : ''
-                          }`}
-                          disabled={isSaving}
-                        />
-                        <ErrorMessage field="timeStop" />
-                      </div>
-                    </div>
-                  )}
-
-                  {!showLocation ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowLocation(true)}
-                      className="flex items-center text-sm text-gray-600 hover:text-gray-900"
-                      disabled={isSaving}
-                    >
-                      <Users className="h-4 w-4 mr-2" />
-                      Add location
-                    </button>
-                  ) : (
-                    <div className="space-y-2">
-                      <Label className="text-gray-700 font-medium">Location</Label>
-                      <Input
-                        value={eventData.location}
-                        onChange={(e) => setEventData({...eventData, location: e.target.value})}
-                        placeholder="Enter location"
-                        className="border-gray-300 bg-white"
-                        disabled={isSaving}
-                      />
-                    </div>
-                  )}
-
-                  {!showDescription ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowDescription(true)}
-                      className="flex items-center text-sm text-gray-600 hover:text-gray-900"
-                      disabled={isSaving}
-                    >
-                      <FileText className="h-4 w-4 mr-2" />
-                      Add description
-                    </button>
-                  ) : (
-                    <div className="space-y-2">
-                      <Label className="text-gray-700 font-medium">Description</Label>
-                      <Textarea
-                        value={eventData.description}
-                        onChange={(e) => setEventData({...eventData, description: e.target.value})}
-                        placeholder="Enter description"
-                        className="border-gray-300 bg-white min-h-[80px]"
-                        disabled={isSaving}
-                      />
-                    </div>
-                  )}
-
-                  {/* ===== EVENT PIC STAFF ===== */}
-                  {!showEventPic ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowEventPic(true)}
-                      className="flex items-center text-sm text-blue-600 hover:text-blue-700"
-                      disabled={isSaving}
-                    >
-                      <UserPlus className="h-4 w-4 mr-2" />
-                      Add PIC (Person In Charge)
-                    </button>
-                  ) : (
-                    <div className="space-y-2 border rounded-lg p-4 bg-gray-50">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-gray-700 font-medium flex items-center">
-                          <Users className="h-4 w-4 mr-2" />
-                          Event PIC
-                        </Label>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowEventPic(false)}
-                          className="h-6 w-6 p-0"
-                          disabled={isSaving}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
+                      {tempJobOrderFile && (
+                        <div className="mb-2 p-3 bg-yellow-50 rounded border border-yellow-200">
+                          <p className="text-yellow-700 flex items-center justify-between">
+                            <span className="flex items-center"><FileText className="h-4 w-4 mr-2" />New file ready: {tempJobOrderFile.name}</span>
+                            <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveTempFile('JobOrder')} className="text-red-600 hover:text-red-700 hover:bg-red-50" disabled={isSaving}>
+                              <X className="h-4 w-4 mr-1" /> Remove
+                            </Button>
+                          </p>
+                        </div>
+                      )}
                       
+                      <Input type="file" accept=".pdf" onChange={(e) => handleFileChange(e, 'JobOrder')} className="border-gray-300 bg-white" disabled={isSaving} />
+                      <p className="text-xs text-gray-500 mt-1">📎 Upload job order PDF (max 10MB, PDF only)</p>
+                    </div>
+
+                    {/* PIC */}
+                    <div className="space-y-2">
+                      <Label className="text-gray-700 font-medium">PIC (Person In Charge) <span className="text-red-500">*</span></Label>
                       {loadingStaff ? (
                         <div className="flex items-center space-x-2 border border-gray-300 rounded-md p-2">
                           <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
                           <span className="text-sm text-gray-500">Loading staff...</span>
                         </div>
                       ) : (
-                        <Select
-                          value={eventData.eventPicStaff}
-                          onValueChange={(value) => {
-                            const selectedStaff = staffList.find(s => s.code === value)
-                            setEventData({
-                              ...eventData,
-                              eventPicStaff: value,
-                              event_pic_name: selectedStaff?.name || '',
-                              event_pic_color: selectedStaff?.color || 'purple'
-                            })
-                          }}
+                        <Select 
+                          value={taskData.task_pic_id} 
+                          onValueChange={(value) => { 
+                            const selectedStaff = staffList.find(s => s.id === value)
+                            setTaskData(prev => ({ ...prev, task_pic_id: value, task_pic_name: selectedStaff?.name || '', task_pic_color: selectedStaff?.color || 'blue' }))
+                            if (touched.task_pic_id) { setErrors(prev => ({ ...prev, task_pic_id: validateTaskField('task_pic_id', value) })) }
+                          }} 
+                          onOpenChange={() => handleBlur('task_pic_id')} 
                           disabled={isSaving}
                         >
-                          <SelectTrigger className="bg-white border-gray-300">
-                            <SelectValue placeholder="Select PIC for this event" />
+                          <SelectTrigger className={`bg-white border-gray-300 ${touched.task_pic_id && errors.task_pic_id ? 'border-red-500' : ''}`}>
+                            <SelectValue placeholder="Select main PIC" />
                           </SelectTrigger>
                           <SelectContent className="bg-white border border-gray-200 shadow-lg">
                             {staffList.map((staff) => (
-                              <SelectItem 
-                                key={staff.id} 
-                                value={staff.code}
-                                className="hover:bg-gray-100 text-gray-900"
-                              >
+                              <SelectItem key={staff.id} value={staff.id} className="hover:bg-gray-100 text-gray-900">
                                 <div className="flex items-center gap-2">
-                                  <div 
-                                    className="w-3 h-3 rounded-full" 
-                                    style={{ backgroundColor: staff.color || '#8b5cf6' }}
-                                  ></div>
-                                  <span>{staff.name} ({staff.code})</span>
+                                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: staff.color || '#3b82f6' }} />
+                                  <span>{staff.name}</span>
                                 </div>
                               </SelectItem>
                             ))}
-                            {staffList.length === 0 && (
-                              <div className="px-2 py-3 text-sm text-gray-500 text-center">
-                                No staff found. Please add staff in Settings first.
-                              </div>
-                            )}
+                            {staffList.length === 0 && <div className="px-2 py-3 text-sm text-gray-500 text-center">No staff found.</div>}
                           </SelectContent>
                         </Select>
                       )}
-                      
-                      {eventData.event_pic_name && (
-                        <div className="mt-2 flex items-center gap-2 p-2 rounded bg-white border">
-                          <div 
-                            className="w-3 h-3 rounded-full" 
-                            style={{ backgroundColor: eventData.event_pic_color || '#8b5cf6' }}
-                          ></div>
-                          <span className="text-sm text-gray-700">
-                            Selected: {eventData.event_pic_name} ({eventData.eventPicStaff})
-                          </span>
+                      <ErrorMessage field="task_pic_id" />
+                      {taskData.task_pic_name && (
+                        <div className="mt-1 flex items-center gap-2 text-xs text-green-600">
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: taskData.task_pic_color || '#3b82f6' }} />
+                          <span>Selected: {taskData.task_pic_name}</span>
                         </div>
                       )}
                     </div>
-                  )}
 
-                  {/* ===== EVENT SUPPORT STAFF ===== */}
-                  {!showEventSupport ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowEventSupport(true)}
-                      className="flex items-center text-sm text-gray-600 hover:text-gray-900"
-                      disabled={isSaving}
-                    >
-                      <UserPlus className="h-4 w-4 mr-2" />
-                      Add Support Staff (Optional)
-                    </button>
-                  ) : (
-                    <div className="space-y-3 border rounded-lg p-4 bg-gray-50">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-gray-700 font-medium flex items-center">
-                          <Users className="h-4 w-4 mr-2" />
-                          Event Support Staff
-                        </Label>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowEventSupport(false)}
-                          className="h-6 w-6 p-0"
-                          disabled={isSaving}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <p className="text-xs text-gray-500">Select staff who will support this event:</p>
-                      {loadingStaff ? (
-                        <div className="flex items-center justify-center py-4">
-                          <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                    {/* Support Staff */}
+                    {!showSupport ? (
+                      <button type="button" onClick={() => setShowSupport(true)} className="flex items-center text-sm text-gray-600 hover:text-gray-900" disabled={isSaving}>
+                        <UserPlus className="h-4 w-4 mr-2" /> Add Support Staff (Optional)
+                      </button>
+                    ) : (
+                      <div className="space-y-3 border rounded-lg p-4 bg-gray-50">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-gray-700 font-medium flex items-center">
+                            <Users className="h-4 w-4 mr-2" />Task Support Staff
+                          </Label>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setShowSupport(false)} className="h-6 w-6 p-0" disabled={isSaving}>
+                            <X className="h-3 w-3" />
+                          </Button>
                         </div>
-                      ) : (
-                        <div className="grid grid-cols-2 gap-2">
-                          {staffList
-                            .filter(staff => staff.code !== eventData.eventPicStaff)
-                            .map((staff) => (
+                        {loadingStaff ? (
+                          <div className="flex items-center justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-blue-600" /></div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-2">
+                            {staffList.filter(staff => staff.id !== taskData.task_pic_id).map((staff) => (
                               <div key={staff.id} className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={`event-support-${staff.id}`}
-                                  checked={eventData.eventSupportStaff.includes(staff.code)}
-                                  onCheckedChange={() => handleEventSupportToggle(staff.code)}
-                                  disabled={isSaving}
-                                />
-                                <label
-                                  htmlFor={`event-support-${staff.id}`}
-                                  className="text-sm cursor-pointer text-gray-700 flex items-center gap-1"
-                                >
-                                  <div 
-                                    className="w-2 h-2 rounded-full" 
-                                    style={{ backgroundColor: staff.color || '#8b5cf6' }}
-                                  ></div>
-                                  {staff.name} ({staff.code})
+                                <Checkbox id={`task-support-${staff.id}`} checked={taskData.task_support_ids.includes(staff.id)} onCheckedChange={() => handleTaskSupportToggle(staff.id)} disabled={isSaving} />
+                                <label htmlFor={`task-support-${staff.id}`} className="text-sm cursor-pointer text-gray-700 flex items-center gap-1">
+                                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: staff.color || '#3b82f6' }} />
+                                  {staff.name}
                                 </label>
                               </div>
                             ))}
-                        </div>
-                      )}
-                      
-                      {eventData.eventSupportStaff.length > 0 && (
-                        <div className="mt-2 text-xs text-green-600 flex flex-wrap gap-2">
-                          {eventData.eventSupportStaff.map((code, index) => (
-                            <span key={code} className="inline-flex items-center gap-1">
-                              <div 
-                                className="w-2 h-2 rounded-full" 
-                                style={{ backgroundColor: eventData.event_support_colors?.[index] || '#8b5cf6' }}
-                              ></div>
-                              {staffList.find(s => s.code === code)?.name || code}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-            </CardContent>
+                          </div>
+                        )}
+                        {taskData.task_support_names && taskData.task_support_names.length > 0 && (
+                          <div className="mt-2 text-xs text-green-600 flex flex-wrap gap-2">
+                            {taskData.task_support_names.map((name, index) => (
+                              <span key={index} className="inline-flex items-center gap-1">
+                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: taskData.task_support_colors?.[index] || '#3b82f6' }} />
+                                {name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-            <CardFooter className="border-t border-gray-200 bg-gray-50 flex justify-between sticky bottom-0">
-              <div className="flex space-x-2">
-                {selectedItem && (
-                  <Button 
-                    type="button" 
-                    variant="destructive" 
-                    size="sm" 
-                    onClick={handleDelete}
-                    disabled={isSaving}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
+                    {/* PDF Final Report */}
+                    {!showFinalReport ? (
+                      <button type="button" onClick={() => setShowFinalReport(true)} className="flex items-center text-sm text-gray-600 hover:text-gray-900 mt-2" disabled={isSaving}>
+                        <FileText className="h-4 w-4 mr-2" /> Add PDF Final Report
+                      </button>
+                    ) : (
+                      <div className="space-y-4 border-t border-gray-200 pt-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-semibold text-gray-800 flex items-center">
+                            <FileText className="h-4 w-4 mr-2 text-green-600" />PDF File (Final Report)
+                          </h4>
+                          <div className="flex gap-2">
+                            {(taskData.pdfFinalReportUrl || finalReportPreviewUrl) && (
+                              <Button type="button" variant="ghost" size="sm" onClick={() => setShowFinalReportPreview(true)} className="text-blue-600">
+                                <Eye className="h-4 w-4 mr-1" /> Preview
+                              </Button>
+                            )}
+                            {taskData.pdfFinalReportUrl && !tempFinalReportFile && (
+                              <Button type="button" variant="ghost" size="sm" onClick={() => window.open(taskData.pdfFinalReportUrl, '_blank')} className="text-green-600">
+                                <ExternalLink className="h-4 w-4 mr-1" /> Open
+                              </Button>
+                            )}
+                            <Button type="button" variant="ghost" size="sm" onClick={() => setShowFinalReport(false)} className="h-6 w-6 p-0 text-gray-500" disabled={isSaving}>
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        {taskData.pdfFinalReportPath && taskData.pdfFinalReportUrl && !tempFinalReportFile && (
+                          <div className="p-3 bg-green-50 rounded border border-green-200">
+                            <p className="text-green-700 flex items-center justify-between">
+                              <span className="flex items-center"><FileText className="h-4 w-4 mr-2" />Current: Final Report PDF</span>
+                              <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveExistingFile('FinalReport')} className="text-red-600 hover:text-red-700 hover:bg-red-50" disabled={isSaving}>
+                                <X className="h-4 w-4 mr-1" /> Remove
+                              </Button>
+                            </p>
+                          </div>
+                        )}
+                        
+                        {tempFinalReportFile && (
+                          <div className="p-3 bg-yellow-50 rounded border border-yellow-200">
+                            <p className="text-yellow-700 flex items-center justify-between">
+                              <span className="flex items-center"><FileText className="h-4 w-4 mr-2" />New file ready: {tempFinalReportFile.name}</span>
+                              <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveTempFile('FinalReport')} className="text-red-600 hover:text-red-700 hover:bg-red-50" disabled={isSaving}>
+                                <X className="h-4 w-4 mr-1" /> Remove
+                              </Button>
+                            </p>
+                          </div>
+                        )}
+                        
+                        <Input type="file" accept=".pdf" onChange={(e) => handleFileChange(e, 'FinalReport')} className="border-gray-300 bg-white" disabled={isSaving} />
+                        <p className="text-xs text-gray-500">📎 Upload final report PDF (max 10MB, PDF only)</p>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {activeTab === 'event' && (
+                  <>
+                    <div className="space-y-2">
+                      <Label className="text-gray-700 font-medium">Title <span className="text-red-500">*</span></Label>
+                      <Input 
+                        value={eventData.title} 
+                        onChange={(e) => { 
+                          setEventData(prev => ({...prev, title: e.target.value}))
+                          if (touched.title) { setErrors(prev => ({ ...prev, title: validateEventField('title', e.target.value) })) }
+                        }} 
+                        onBlur={() => handleBlur('title')} 
+                        placeholder="Enter event title" 
+                        className={`border-gray-300 bg-white ${touched.title && errors.title ? 'border-red-500' : ''}`} 
+                        disabled={isSaving} 
+                        autoFocus 
+                      />
+                      <ErrorMessage field="title" />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label className="text-gray-700 font-medium">Date Start <span className="text-red-500">*</span></Label>
+                        <Input 
+                          type="date" 
+                          value={eventData.dateStart} 
+                          onChange={(e) => { 
+                            setEventData(prev => ({...prev, dateStart: e.target.value}))
+                            if (touched.dateStart) { setErrors(prev => ({ ...prev, dateStart: validateEventField('dateStart', e.target.value) })) }
+                          }} 
+                          onBlur={() => handleBlur('dateStart')} 
+                          className={`border-gray-300 bg-white ${touched.dateStart && errors.dateStart ? 'border-red-500' : ''}`} 
+                          disabled={isSaving} 
+                        />
+                        <ErrorMessage field="dateStart" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-gray-700 font-medium">Date Stop (Optional)</Label>
+                        <Input 
+                          type="date" 
+                          value={eventData.dateStop} 
+                          onChange={(e) => { 
+                            setEventData(prev => ({...prev, dateStop: e.target.value}))
+                            if (touched.dateStop) { setErrors(prev => ({ ...prev, dateStop: validateEventField('dateStop', e.target.value) })) }
+                          }} 
+                          onBlur={() => handleBlur('dateStop')} 
+                          className={`border-gray-300 bg-white ${touched.dateStop && errors.dateStop ? 'border-red-500' : ''}`} 
+                          disabled={isSaving} 
+                        />
+                        <ErrorMessage field="dateStop" />
+                      </div>
+                    </div>
+
+                    {!showTime ? (
+                      <button type="button" onClick={() => setShowTime(true)} className="flex items-center text-sm text-blue-600 hover:text-blue-700" disabled={isSaving}>
+                        <Clock className="h-4 w-4 mr-2" /> Add time
+                      </button>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label className="text-gray-700 font-medium">Time Start</Label>
+                          <Input type="time" value={eventData.timeStart} onChange={(e) => setEventData(prev => ({...prev, timeStart: e.target.value}))} className="border-gray-300 bg-white" disabled={isSaving} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-gray-700 font-medium">Time Stop</Label>
+                          <Input 
+                            type="time" 
+                            value={eventData.timeStop} 
+                            onChange={(e) => { 
+                              setEventData(prev => ({...prev, timeStop: e.target.value}))
+                              if (touched.timeStop) { setErrors(prev => ({ ...prev, timeStop: validateEventField('timeStop', e.target.value) })) }
+                            }} 
+                            onBlur={() => handleBlur('timeStop')} 
+                            className={`border-gray-300 bg-white ${touched.timeStop && errors.timeStop ? 'border-red-500' : ''}`} 
+                            disabled={isSaving} 
+                          />
+                          <ErrorMessage field="timeStop" />
+                        </div>
+                      </div>
+                    )}
+
+                    {!showLocation ? (
+                      <button type="button" onClick={() => setShowLocation(true)} className="flex items-center text-sm text-gray-600 hover:text-gray-900" disabled={isSaving}>
+                        <Users className="h-4 w-4 mr-2" /> Add location
+                      </button>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label className="text-gray-700 font-medium">Location</Label>
+                        <Input value={eventData.location} onChange={(e) => setEventData(prev => ({...prev, location: e.target.value}))} placeholder="Enter location" className="border-gray-300 bg-white" disabled={isSaving} />
+                      </div>
+                    )}
+
+                    {!showDescription ? (
+                      <button type="button" onClick={() => setShowDescription(true)} className="flex items-center text-sm text-gray-600 hover:text-gray-900" disabled={isSaving}>
+                        <FileText className="h-4 w-4 mr-2" /> Add description
+                      </button>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label className="text-gray-700 font-medium">Description</Label>
+                        <Textarea value={eventData.description} onChange={(e) => setEventData(prev => ({...prev, description: e.target.value}))} placeholder="Enter description" className="border-gray-300 bg-white min-h-[80px]" disabled={isSaving} />
+                      </div>
+                    )}
+                    
+                    {/* Event PIC */}
+                    {!showEventPic ? (
+                      <button type="button" onClick={() => setShowEventPic(true)} className="flex items-center text-sm text-blue-600 hover:text-blue-700" disabled={isSaving}>
+                        <UserPlus className="h-4 w-4 mr-2" /> Add PIC (Person In Charge) <span className="text-red-500 ml-1">*</span>
+                      </button>
+                    ) : (
+                      <div className="space-y-2 border rounded-lg p-4 bg-gray-50">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-gray-700 font-medium flex items-center">
+                            <Users className="h-4 w-4 mr-2" />Event PIC <span className="text-red-500 ml-1">*</span>
+                          </Label>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setShowEventPic(false)} className="h-6 w-6 p-0" disabled={isSaving}>
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        {loadingStaff ? (
+                          <div className="flex items-center space-x-2 border border-gray-300 rounded-md p-2">
+                            <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                            <span className="text-sm text-gray-500">Loading staff...</span>
+                          </div>
+                        ) : (
+                          <>
+                            <Select 
+                              value={eventData.event_pic_id} 
+                              onValueChange={(value) => { 
+                                const selectedStaff = staffList.find(s => s.id === value)
+                                setEventData(prev => ({ ...prev, event_pic_id: value, event_pic_name: selectedStaff?.name || '', event_pic_color: selectedStaff?.color || 'purple' }))
+                                if (touched.event_pic_id && errors.event_pic_id) {
+                                  setErrors(prev => ({ ...prev, event_pic_id: '' }))
+                                }
+                              }} 
+                              onOpenChange={() => handleBlur('event_pic_id')}
+                              disabled={isSaving}
+                            >
+                              <SelectTrigger className={`bg-white border-gray-300 ${touched.event_pic_id && errors.event_pic_id ? 'border-red-500' : ''}`}>
+                                <SelectValue placeholder="Select PIC for this event" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                                {staffList.map((staff) => (
+                                  <SelectItem key={staff.id} value={staff.id} className="hover:bg-gray-100 text-gray-900">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: staff.color || '#8b5cf6' }} />
+                                      <span>{staff.name}</span>
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                                {staffList.length === 0 && <div className="px-2 py-3 text-sm text-gray-500 text-center">No staff found.</div>}
+                              </SelectContent>
+                            </Select>
+                            <ErrorMessage field="event_pic_id" />
+                          </>
+                        )}
+                        {eventData.event_pic_name && (
+                          <div className="mt-2 flex items-center gap-2 p-2 rounded bg-white border">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: eventData.event_pic_color || '#8b5cf6' }} />
+                            <span className="text-sm text-gray-700">Selected: {eventData.event_pic_name}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Event Support Staff */}
+                    {!showEventSupport ? (
+                      <button type="button" onClick={() => setShowEventSupport(true)} className="flex items-center text-sm text-gray-600 hover:text-gray-900" disabled={isSaving}>
+                        <UserPlus className="h-4 w-4 mr-2" /> Add Support Staff (Optional)
+                      </button>
+                    ) : (
+                      <div className="space-y-3 border rounded-lg p-4 bg-gray-50">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-gray-700 font-medium flex items-center">
+                            <Users className="h-4 w-4 mr-2" />Event Support Staff
+                          </Label>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setShowEventSupport(false)} className="h-6 w-6 p-0" disabled={isSaving}>
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        {loadingStaff ? (
+                          <div className="flex items-center justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-blue-600" /></div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-2">
+                            {staffList.filter(staff => staff.id !== eventData.event_pic_id).map((staff) => (
+                              <div key={staff.id} className="flex items-center space-x-2">
+                                <Checkbox id={`event-support-${staff.id}`} checked={eventData.event_support_ids.includes(staff.id)} onCheckedChange={() => handleEventSupportToggle(staff.id)} disabled={isSaving} />
+                                <label htmlFor={`event-support-${staff.id}`} className="text-sm cursor-pointer text-gray-700 flex items-center gap-1">
+                                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: staff.color || '#8b5cf6' }} />
+                                  {staff.name}
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {eventData.event_support_names && eventData.event_support_names.length > 0 && (
+                          <div className="mt-2 text-xs text-green-600 flex flex-wrap gap-2">
+                            {eventData.event_support_names.map((name, index) => (
+                              <span key={index} className="inline-flex items-center gap-1">
+                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: eventData.event_support_colors?.[index] || '#8b5cf6' }} />
+                                {name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </CardContent>
+
+              <CardFooter className="border-t border-gray-200 bg-gray-50 flex justify-between sticky bottom-0">
+                <div className="flex space-x-2">
+                  {selectedItem && (
+                    <Button type="button" variant="destructive" size="sm" onClick={handleDelete} disabled={isSaving}>
+                      <Trash2 className="h-4 w-4 mr-2" />Delete
+                    </Button>
+                  )}
+                  <Button type="button" variant="outline" size="sm" onClick={() => { resetForm(); onClose() }} disabled={isSaving}>
+                    <X className="h-4 w-4 mr-2" />Cancel
                   </Button>
-                )}
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => {
-                    resetForm()
-                    onClose()
-                  }}
-                  disabled={isSaving}
-                >
-                  <X className="h-4 w-4 mr-2" />
-                  Cancel
+                </div>
+                <Button type="submit" size="sm" className={activeTab === 'event' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'} disabled={isSaving}>
+                  {isSaving ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</>) : (<><Save className="h-4 w-4 mr-2" />Save</>)}
                 </Button>
-              </div>
-              
-              <Button 
-                type="submit" 
-                size="sm" 
-                className={activeTab === 'event' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}
-                disabled={isSaving}
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4 mr-2" />
-                    Save
-                  </>
-                )}
-              </Button>
-            </CardFooter>
-          </form>
-        </Card>
+              </CardFooter>
+            </form>
+          </Card>
+        </div>
       </div>
 
-      {/* Confirmation Dialog */}
+      {/* PDF Preview - Job Order */}
+      {showJobOrderPreview && (
+        <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold">Preview: {tempJobOrderFile?.name || 'Job Order PDF'}</h3>
+              <Button variant="ghost" size="icon" onClick={() => setShowJobOrderPreview(false)}><X className="h-4 w-4" /></Button>
+            </div>
+            <div className="flex-1 p-4 overflow-auto bg-gray-100">
+              {(jobOrderPreviewUrl || taskData.pdfJobOrderUrl) ? (
+                <div className="w-full h-[70vh]">
+                  <embed src={jobOrderPreviewUrl || taskData.pdfJobOrderUrl} type="application/pdf" className="w-full h-full" />
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-[70vh] text-gray-500">
+                  <FileText className="h-16 w-16 mb-4" />
+                  <p>No PDF file to preview</p>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 p-4 border-t">
+              <Button variant="outline" onClick={() => setShowJobOrderPreview(false)}>Close</Button>
+              {jobOrderPreviewUrl && <Button onClick={() => window.open(jobOrderPreviewUrl, '_blank')}>Open in New Tab</Button>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PDF Preview - Final Report */}
+      {showFinalReportPreview && (
+        <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold">Preview: {tempFinalReportFile?.name || 'Final Report PDF'}</h3>
+              <Button variant="ghost" size="icon" onClick={() => setShowFinalReportPreview(false)}><X className="h-4 w-4" /></Button>
+            </div>
+            <div className="flex-1 p-4 overflow-auto bg-gray-100">
+              {(finalReportPreviewUrl || taskData.pdfFinalReportUrl) ? (
+                <div className="w-full h-[70vh]">
+                  <embed src={finalReportPreviewUrl || taskData.pdfFinalReportUrl} type="application/pdf" className="w-full h-full" />
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-[70vh] text-gray-500">
+                  <FileText className="h-16 w-16 mb-4" />
+                  <p>No PDF file to preview</p>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 p-4 border-t">
+              <Button variant="outline" onClick={() => setShowFinalReportPreview(false)}>Close</Button>
+              {finalReportPreviewUrl && <Button onClick={() => window.open(finalReportPreviewUrl, '_blank')}>Open in New Tab</Button>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Dialog - Works for BOTH Task AND Event */}
       {showConfirmDialog && (
-        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center">
               <Bell className="h-5 w-5 mr-2 text-blue-600" />
-              Confirm Task Assignment
+              {getConfirmTitle()}
             </h3>
-            <p className="text-gray-600 mb-4">
-              Are you sure you want to assign this task with the following staff?
-            </p>
-            
+            <p className="text-gray-600 mb-4">{getConfirmMessage()}</p>
             <div className="bg-gray-50 p-4 rounded-lg mb-4 space-y-3">
               <div className="text-sm">
                 <span className="font-medium text-gray-700">PIC (Main):</span>{' '}
                 <span className="text-gray-900 flex items-center gap-1">
-                  <div 
-                    className="w-2 h-2 rounded-full" 
-                    style={{ backgroundColor: taskData.task_pic_color || '#3b82f6' }}
-                  ></div>
-                  {getStaffName(taskData.taskPicStaff)}
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: staffDetails.picColor || (activeTab === 'event' ? '#8b5cf6' : '#3b82f6') }} />
+                  {staffDetails.picName || 'Not selected'}
                 </span>
               </div>
-              
-              {taskData.taskSupportStaff.length > 0 && (
+              {staffDetails.supportNames && staffDetails.supportNames.length > 0 && (
                 <div className="text-sm">
                   <span className="font-medium text-gray-700">Support Staff:</span>
                   <ul className="mt-1 ml-4 list-disc space-y-1">
-                    {taskData.taskSupportStaff.map((code, index) => (
-                      <li key={code} className="text-gray-900 flex items-center gap-1">
-                        <div 
-                          className="w-2 h-2 rounded-full" 
-                          style={{ backgroundColor: taskData.task_support_colors?.[index] || '#3b82f6' }}
-                        ></div>
-                        {getStaffName(code)}
+                    {staffDetails.supportNames.map((name: string, index: number) => (
+                      <li key={index} className="text-gray-900 flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: staffDetails.supportColors?.[index] || (activeTab === 'event' ? '#8b5cf6' : '#3b82f6') }} />
+                        {name}
                       </li>
                     ))}
                   </ul>
                 </div>
               )}
-
               <div className="text-sm bg-yellow-50 p-2 rounded border border-yellow-200 mt-2">
                 <p className="text-yellow-800 flex items-start">
                   <Bell className="h-4 w-4 mr-1 mt-0.5 flex-shrink-0" />
-                  <span>
-                    These staff members will receive notifications about this task assignment.
-                  </span>
+                  <span>These staff members will receive notifications about this {activeTab === 'event' ? 'event' : 'task'} assignment.</span>
                 </p>
               </div>
             </div>
-            
             <div className="flex justify-end space-x-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setShowConfirmDialog(false)
-                  setPendingSubmit(null)
-                }}
-                disabled={isSaving}
-              >
+              <Button type="button" variant="outline" onClick={() => { setShowConfirmDialog(false); setPendingSubmit(null) }} disabled={isSaving}>
                 Cancel
               </Button>
-              <Button
-                type="button"
-                onClick={async () => {
-                  if (pendingSubmit) {
-                    await pendingSubmit()
-                  }
-                }}
-                disabled={isSaving}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4 mr-2" />
-                    Confirm & Save
-                  </>
-                )}
+              <Button type="button" onClick={async () => { if (pendingSubmit) await pendingSubmit() }} disabled={isSaving} className={activeTab === 'event' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}>
+                {isSaving ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</>) : (<><Save className="h-4 w-4 mr-2" />Confirm & Save</>)}
               </Button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }

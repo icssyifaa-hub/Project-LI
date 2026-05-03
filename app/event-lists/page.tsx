@@ -41,7 +41,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 
-// ==================== TYPES FOR EVENT (MATCH DATABASE STRUCTURE) ====================
+// ==================== TYPES FOR EVENT (MATCH YOUR DATABASE STRUCTURE) ====================
 interface Event {
   id: string
   title: string
@@ -51,12 +51,12 @@ interface Event {
   time_start?: string
   time_stop?: string
   location?: string
-  event_pic_staff?: string
+  event_pic_id?: string
   event_pic_name?: string
   event_pic_color?: string
-  event_support_staff?: string
-  event_support_name?: string
-  event_support_color?: string
+  event_support_ids?: string[]
+  event_support_names?: string[]
+  event_support_colors?: string[]
   created_by?: string
   creator_name?: string
   creator_color?: string
@@ -64,8 +64,7 @@ interface Event {
   updated_at?: string
 }
 
-
-
+// ==================== HELPER FUNCTIONS ====================
 const formatDate = (dateString: string) => {
   const date = new Date(dateString)
   return date.toLocaleDateString('en-GB', { 
@@ -73,11 +72,6 @@ const formatDate = (dateString: string) => {
     month: '2-digit',
     year: 'numeric'
   })
-}
-
-const formatDateTime = (date: string, time?: string) => {
-  if (!time) return formatDate(date)
-  return `${formatDate(date)} ${time}`
 }
 
 const getEventStatus = (dateStart: string, dateStop: string) => {
@@ -108,15 +102,20 @@ const getEventStatus = (dateStart: string, dateStop: string) => {
   }
 }
 
-const getDurationType = (dateStart: string, dateStop: string) => {
-  if (dateStart === dateStop) {
-    return 'Single Day'
-  } else {
-    const start = new Date(dateStart)
-    const stop = new Date(dateStop)
-    const diffTime = Math.abs(stop.getTime() - start.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
-    return `${diffDays} Days`
+// Helper function to parse comma-separated text to array
+const parseTextArray = (textValue: string | null | undefined): string[] => {
+  if (!textValue) return []
+  
+  try {
+    // Check if it's a JSON array string
+    if (textValue.startsWith('[')) {
+      return JSON.parse(textValue)
+    }
+    // Otherwise treat as comma-separated
+    return textValue.split(',').map(item => item.trim()).filter(item => item)
+  } catch (e) {
+    console.error('Error parsing array:', e)
+    return []
   }
 }
 
@@ -161,23 +160,22 @@ export default function EventsPage() {
       // 1. First, get all users for names and colors
       const { data: usersData, error: usersError } = await supabase
         .from('users')
-        .select('id, name, user_id, color')
-        .not('color', 'is', null)
+        .select('id, name, color')
       
       if (usersError) throw usersError
       
-      // Create user color map
-      const userColorMap: {[key: string]: {name: string, color: string}} = {}
-      usersData?.forEach(user => {
-        if (user.user_id) {
-          userColorMap[user.user_id] = {
+      // Create user map
+      const userMap: {[key: string]: {name: string, color: string}} = {}
+      usersData?.forEach((user: {id: string; name:string; color?: string}) => {
+        if (user.id) {
+          userMap[user.id] = {
             name: user.name,
             color: user.color || 'purple'
           }
         }
       })
       
-      console.log('🎨 User colors loaded:', userColorMap)
+      console.log('👥 User map loaded:', userMap)
       
       // 2. Fetch ALL events
       const { data: eventsData, error: eventsError } = await supabase
@@ -189,15 +187,43 @@ export default function EventsPage() {
       
       console.log(`📊 Found ${eventsData?.length || 0} events in database`)
       
-      // 3. Format events with creator and staff info
       const formattedEvents: Event[] = (eventsData || []).map((event: any) => {
-        const creatorCode = event.created_by || ''
-        const picCode = event.event_pic_staff || ''
-        const supportCode = event.event_support_staff || ''
+        // Get creator info
+        const creatorId = event.created_by || ''
+        const creatorInfo = userMap[creatorId]
+        const picId = event.event_pic_id || ''
+        const picName = event.event_pic_name || ''
+        const picColor = event.event_pic_color || 'blue'
         
-        const creatorInfo = userColorMap[creatorCode]
-        const picInfo = userColorMap[picCode]
-        const supportInfo = supportCode ? userColorMap[supportCode] : null
+        // Parse support staff arrays from TEXT columns
+        const supportIds = parseTextArray(event.event_support_ids)
+        const supportNamesRaw = parseTextArray(event.event_support_names)
+        const supportColorsRaw = parseTextArray(event.event_support_colors || '')
+        
+        // Map support staff to their colors from userMap if available
+        const supportNames: string[] = []
+        const supportColors: string[] = []
+        
+        // Process support staff
+        for (let i = 0; i < supportIds.length; i++) {
+          const supportId = supportIds[i]
+          const supportInfo = userMap[supportId]
+          
+          if (supportInfo) {
+            supportNames.push(supportInfo.name)
+            supportColors.push(supportInfo.color)
+          } else if (supportNamesRaw[i]) {
+            // If we have name from database but no user found
+            supportNames.push(supportNamesRaw[i])
+            supportColors.push(supportColorsRaw[i] || 'blue')
+          }
+        }
+        
+        // If no support IDs but we have support names from database
+        if (supportIds.length === 0 && supportNamesRaw.length > 0) {
+          supportNames.push(...supportNamesRaw)
+          supportColors.push(...supportColorsRaw.map(c => c || 'blue'))
+        }
         
         return {
           id: event.id,
@@ -208,13 +234,13 @@ export default function EventsPage() {
           time_start: event.time_start,
           time_stop: event.time_stop,
           location: event.location,
-          event_pic_staff: picCode,
-          event_pic_name: picInfo?.name || picCode || null,
-          event_pic_color: picInfo?.color || 'blue',
-          event_support_staff: supportCode,
-          event_support_name: supportInfo?.name || supportCode || null,
-          event_support_color: supportInfo?.color || 'gray',
-          created_by: creatorCode,
+          event_pic_id: picId,
+          event_pic_name: picName || (picId ? userMap[picId]?.name : null),
+          event_pic_color: picColor || (picId ? userMap[picId]?.color : 'blue'),
+          event_support_ids: supportIds,
+          event_support_names: supportNames,
+          event_support_colors: supportColors,
+          created_by: creatorId,
           creator_name: creatorInfo?.name || 'Unknown Creator',
           creator_color: creatorInfo?.color || 'purple',
           created_at: event.created_at,
@@ -222,7 +248,7 @@ export default function EventsPage() {
         }
       })
       
-      // 4. Extract unique creator names for filter dropdown
+      // Extract unique creators and PICs for filters
       const creators = new Set<string>()
       const pics = new Set<string>()
       
@@ -255,7 +281,6 @@ export default function EventsPage() {
     }
   }
 
-  // Fetch on mount and when user changes
   useEffect(() => {
     if (user) {
       fetchEvents()
@@ -319,7 +344,6 @@ export default function EventsPage() {
 
   // ==================== EDIT EVENT ====================
   const handleEditEvent = (event: Event) => {
-    // Navigate to calendar with event ID for editing
     router.push(`/calendar?editEvent=${event.id}`)
   }
 
@@ -343,7 +367,6 @@ export default function EventsPage() {
       let aValue = a[sortField]
       let bValue = b[sortField]
       
-      // Handle undefined values
       if (aValue === undefined) aValue = ''
       if (bValue === undefined) bValue = ''
       
@@ -368,7 +391,7 @@ export default function EventsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 lg:p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="max-w-[95%] mx-auto space-y-6">
         {/* Delete Confirmation Dialog */}
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <AlertDialogContent>
@@ -401,35 +424,29 @@ export default function EventsPage() {
           </div>
           
           <div className="flex gap-2">
-            {/* Refresh Button */}
-            <Button 
-              variant="outline" 
-              onClick={fetchEvents}
-              disabled={loading}
-            >
+            <Button variant="outline" onClick={fetchEvents} disabled={loading}>
               {loading ? 'Loading...' : 'Refresh'}
             </Button>
             
-            {/* Export Button */}
             <Button 
               variant="outline" 
               className="border-gray-300"
               onClick={() => {
-                // Export logic
-                const headers = ['Title', 'Start Date', 'End Date', 'Time', 'Location', 'PIC', 'Support Staff', 'Created By', 'Status']
+                const headers = ['Title', 'Start Date', 'End Date', 'Start Time', 'End Time', 'Location', 'PIC', 'Support Staff', 'Status']
                 const csvRows = [headers]
                 
                 filteredAndSortedEvents.forEach(event => {
                   const status = getEventStatus(event.date_start, event.date_stop)
+                  const supportStaffText = event.event_support_names?.join(', ') || ''
                   const row = [
                     event.title,
                     formatDate(event.date_start),
                     formatDate(event.date_stop),
-                    event.time_start ? `${event.time_start}${event.time_stop ? ` - ${event.time_stop}` : ''}` : 'All day',
+                    event.time_start || '',
+                    event.time_stop || '',
                     event.location || '',
                     event.event_pic_name || '',
-                    event.event_support_name || '',
-                    event.creator_name || '',
+                    supportStaffText,
                     status.label
                   ]
                   csvRows.push(row.map(cell => `"${cell}"`))
@@ -448,23 +465,13 @@ export default function EventsPage() {
               }}
             >
               <Download className="h-4 w-4 mr-2" />
-              Export
-            </Button>
-
-            {/* Add Event Button */}
-            <Button 
-              onClick={() => router.push('/calendar?add=event')}
-              className="bg-purple-600 hover:bg-purple-700"
-            >
-              <Calendar className="h-4 w-4 mr-2" />
-              Add Event
+              Export Report
             </Button>
           </div>
         </div>
 
         {/* Filters Section */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Search */}
           <Input
             placeholder="Search by title, description, location..."
             value={searchTerm}
@@ -475,7 +482,6 @@ export default function EventsPage() {
             className="bg-white border-gray-300"
           />
 
-          {/* Filter by PIC */}
           <Select value={filterPIC} onValueChange={(value) => {
             setFilterPIC(value)
             setCurrentPage(1)
@@ -483,15 +489,14 @@ export default function EventsPage() {
             <SelectTrigger className="bg-white border-gray-300">
               <SelectValue placeholder="Filter by PIC" />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All PIC</SelectItem>
+            <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
+              <SelectItem value="all" className="hover:bg-gray-100 text-gray-900">All PIC</SelectItem>
               {picList.map(pic => (
                 <SelectItem key={pic} value={pic}>{pic}</SelectItem>
               ))}
             </SelectContent>
           </Select>
 
-          {/* Filter by Status */}
           <Select value={filterStatus} onValueChange={(value) => {
             setFilterStatus(value)
             setCurrentPage(1)
@@ -499,7 +504,7 @@ export default function EventsPage() {
             <SelectTrigger className="bg-white border-gray-300">
               <SelectValue placeholder="Filter by Status" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
               <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="upcoming">Upcoming</SelectItem>
               <SelectItem value="ongoing">Ongoing</SelectItem>
@@ -549,43 +554,33 @@ export default function EventsPage() {
         )}
 
         {/* Events Table */}
-        <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto shadow-sm">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-16">No</th>
-                
-                {/* Sortable Headers */}
-                {[
-                  { key: 'title', label: 'Event Title' },
-                  { key: 'date_start', label: 'Start Date' },
-                  { key: 'date_stop', label: 'End Date' },
-                  { key: 'time_start', label: 'Time' }
-                ].map(column => (
-                  <th 
-                    key={column.key}
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort(column.key as keyof Event)}
-                  >
-                    <div className="flex items-center space-x-1">
-                      <span>{column.label}</span>
-                      <ArrowUpDown className="h-3 w-3" />
-                    </div>
-                  </th>
-                ))}
-                
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">PIC</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Support Staff</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+        <div className="border-2 border-gray-300 rounded-lg overflow-x-auto shadow-sm bg-white">
+          <table className="w-full text-sm border-collapse">
+            <thead className="bg-gray-100">
+              <tr className="border-b-2 border-gray-300">
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase w-12">No</th>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-200" onClick={() => handleSort('title')}>
+                  <div className="flex items-center space-x-1">Event Title <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-200" onClick={() => handleSort('date_start')}>
+                  <div className="flex items-center space-x-1">Start Date <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-200" onClick={() => handleSort('date_stop')}>
+                  <div className="flex items-center space-x-1">End Date <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Start Time</th>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">End Time</th>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Location</th>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">PIC</th>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Support Staff</th>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={13} className="px-4 py-12 text-center">
+                  <td colSpan={11} className="px-4 py-12 text-center border-t border-gray-300">
                     <div className="flex flex-col items-center justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mb-2"></div>
                       <p className="text-sm text-gray-500">Loading events...</p>
@@ -594,7 +589,7 @@ export default function EventsPage() {
                 </tr>
               ) : paginatedEvents.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="px-4 py-12 text-center">
+                  <td colSpan={11} className="px-4 py-12 text-center border-t border-gray-300">
                     <div className="text-gray-400 text-4xl mb-2">📅</div>
                     <p className="text-gray-500">No events found</p>
                     <p className="text-xs text-gray-400 mt-1">
@@ -607,66 +602,49 @@ export default function EventsPage() {
               ) : (
                 paginatedEvents.map((event, index) => {
                   const status = getEventStatus(event.date_start, event.date_stop)
-                  const durationType = getDurationType(event.date_start, event.date_stop)
 
-                  
                   return (
-                    <tr 
-                      key={event.id} 
-                      className="hover:bg-gray-50 transition-colors group"
-                    >
-                      <td className="px-4 py-3 text-gray-600">
+                    <tr key={event.id} className="hover:bg-gray-50 transition-colors group border-b border-gray-200">
+                      <td className="border-r border-gray-200 px-4 py-3 text-gray-600">
                         {(currentPage - 1) * itemsPerPage + index + 1}
                       </td>
-                      
-                      <td className="px-4 py-3">
+                      <td className="border-r border-gray-200 px-4 py-3">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-gray-900">
                             {event.title}
                           </span>
-                          {event.description && (
-                            <span 
-                              className="text-gray-400 cursor-help text-xs" 
-                              title={event.description}
-                            >
-                              📝
-                            </span>
-                          )}
                         </div>
                       </td>
-                      
-                      <td className="px-4 py-3 text-gray-600">
+                      <td className="border-r border-gray-200 px-4 py-3 text-gray-600">
                         <div className="flex items-center">
                           <Calendar className="h-3 w-3 mr-1 text-gray-400" />
                           {formatDate(event.date_start)}
                         </div>
                       </td>
-                      
-                      <td className="px-4 py-3 text-gray-600">
+                      <td className="border-r border-gray-200 px-4 py-3 text-gray-600">
                         {formatDate(event.date_stop)}
                       </td>
-                      
-                      <td className="px-4 py-3">
+                      <td className="border-r border-gray-200 px-4 py-3">
                         {event.time_start ? (
                           <div className="flex items-center">
                             <Clock className="h-3 w-3 mr-1 text-gray-400" />
-                            <span>
-                              {event.time_start}
-                              {event.time_stop && ` - ${event.time_stop}`}
-                            </span>
+                            <span>{event.time_start}</span>
                           </div>
                         ) : (
-                          <span className="text-gray-400 text-xs">All day</span>
+                          <span className="text-gray-400 text-xs">-</span>
                         )}
                       </td>
-                      
-                      <td className="px-4 py-3">
-                        <span className="text-xs bg-gray-100 px-2 py-1 rounded-full">
-                          {durationType}
-                        </span>
+                      <td className="border-r border-gray-200 px-4 py-3">
+                        {event.time_stop ? (
+                          <div className="flex items-center">
+                            <Clock className="h-3 w-3 mr-1 text-gray-400" />
+                            <span>{event.time_stop}</span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-xs">-</span>
+                        )}
                       </td>
-                      
-                      <td className="px-4 py-3">
+                      <td className="border-r border-gray-200 px-4 py-3">
                         {event.location ? (
                           <div className="flex items-center text-gray-600">
                             <MapPin className="h-3 w-3 mr-1 text-gray-400" />
@@ -675,47 +653,46 @@ export default function EventsPage() {
                             </span>
                           </div>
                         ) : (
-                          <span className="text-gray-400 text-xs">No location</span>
+                          <span className="text-gray-400 text-xs">-</span>
                         )}
                       </td>
-                      
-                      <td className="px-4 py-3">
+                      <td className="border-r border-gray-200 px-4 py-3">
                         {event.event_pic_name ? (
                           <div className="flex items-center">
                             <span 
-                              className="w-2 h-2 rounded-full mr-2"
-                              style={{ backgroundColor: event.event_pic_color }}
+                              className="w-3 h-3 rounded-full mr-2 flex-shrink-0"
+                              style={{ backgroundColor: event.event_pic_color || 'blue' }}
                             ></span>
-                            <span className="text-sm">{event.event_pic_name}</span>
+                            <span className="text-sm font-medium">{event.event_pic_name}</span>
                           </div>
                         ) : (
                           <span className="text-gray-400 text-xs">Not assigned</span>
                         )}
                       </td>
-                      
-                      <td className="px-4 py-3">
-                        {event.event_support_name ? (
-                          <div className="flex items-center">
-                            <span 
-                              className="w-2 h-2 rounded-full mr-2"
-                              style={{ backgroundColor: event.event_support_color }}
-                            ></span>
-                            <span className="text-sm">{event.event_support_name}</span>
+                      <td className="border-r border-gray-200 px-4 py-3">
+                        {event.event_support_names && event.event_support_names.length > 0 ? (
+                          <div className="flex flex-col gap-1">
+                            {event.event_support_names.map((name, idx) => (
+                              <div key={idx} className="flex items-center">
+                                <span 
+                                  className="w-3 h-3 rounded-full mr-2 flex-shrink-0"
+                                  style={{ backgroundColor: event.event_support_colors?.[idx] || 'gray' }}
+                                ></span>
+                                <span className="text-sm">{name}</span>
+                              </div>
+                            ))}
                           </div>
                         ) : (
-                          <span className="text-gray-400 text-xs">-</span>
+                          <span className="text-gray-400 text-sm">No support staff</span>
                         )}
                       </td>
-                      
-                      <td className="px-4 py-3">
+                      <td className="border-r border-gray-200 px-4 py-3">
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${status.color}`}>
                           {status.label}
                         </span>
                       </td>
-                      
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
-                          {/* View in Calendar */}
                           <Button
                             variant="ghost"
                             size="icon"
@@ -726,7 +703,6 @@ export default function EventsPage() {
                             <Eye className="h-4 w-4" />
                           </Button>
                           
-                          {/* Edit */}
                           <Button
                             variant="ghost"
                             size="icon"
@@ -737,7 +713,6 @@ export default function EventsPage() {
                             <Edit2 className="h-4 w-4" />
                           </Button>
                           
-                          {/* Delete - Admin only */}
                           {isAdmin && (
                             <Button
                               variant="ghost"
@@ -813,72 +788,58 @@ export default function EventsPage() {
         )}
 
         {/* Info Section */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-white rounded-lg border border-gray-200">
-          {/* Status Info */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white rounded-lg border-2 border-gray-300">
           <div>
             <h4 className="text-sm font-semibold text-gray-700 mb-2">📊 Event Status:</h4>
             <div className="space-y-1 text-xs">
               <div className="flex items-center">
                 <span className="w-3 h-3 rounded-full bg-blue-500 mr-2"></span>
-                <span className="text-gray-600">Upcoming</span>
+                <span className="text-gray-600">Upcoming - Future events</span>
               </div>
               <div className="flex items-center">
                 <span className="w-3 h-3 rounded-full bg-green-500 mr-2"></span>
-                <span className="text-gray-600">Ongoing</span>
+                <span className="text-gray-600">Ongoing - Currently happening</span>
               </div>
               <div className="flex items-center">
                 <span className="w-3 h-3 rounded-full bg-gray-400 mr-2"></span>
-                <span className="text-gray-600">Past</span>
+                <span className="text-gray-600">Past - Completed events</span>
               </div>
             </div>
           </div>
 
-          {/* Duration Info */}
-          <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">⏱️ Duration Types:</h4>
-            <div className="space-y-1 text-xs">
-              <div className="flex items-center">
-                <Calendar className="h-3 w-3 mr-2 text-gray-500" />
-                <span className="text-gray-600">Single Day</span>
-              </div>
-              <div className="flex items-center">
-                <Calendar className="h-3 w-3 mr-2 text-purple-500" />
-                <span className="text-gray-600">Multi-Day</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Staff Info */}
           <div>
             <h4 className="text-sm font-semibold text-gray-700 mb-2">👥 Staff Roles:</h4>
             <div className="space-y-1 text-xs">
               <div className="flex items-center">
-                <User className="h-3 w-3 mr-2 text-green-600" />
-                <span className="text-gray-600">PIC (Person In Charge)</span>
+                <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: 'blue' }}></div>
+                <span className="text-gray-600"><strong>PIC</strong> (Person In Charge) - Single person responsible</span>
               </div>
               <div className="flex items-center">
-                <UserPlus className="h-3 w-3 mr-2 text-blue-600" />
-                <span className="text-gray-600">Support Staff</span>
+                <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: 'green' }}></div>
+                <span className="text-gray-600"><strong>Support Staff</strong> - Multiple people can be assigned</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: 'purple' }}></div>
+                <span className="text-gray-600"><strong>Creator</strong> - Person who created the event</span>
               </div>
             </div>
           </div>
 
-          {/* Actions Info */}
           <div>
             <h4 className="text-sm font-semibold text-gray-700 mb-2">🔧 Available Actions:</h4>
             <div className="space-y-1 text-xs">
               <div className="flex items-center">
                 <Eye className="h-3 w-3 mr-2 text-blue-600" />
-                <span className="text-gray-600">View in Calendar</span>
+                <span className="text-gray-600">View in Calendar - See event on calendar</span>
               </div>
               <div className="flex items-center">
                 <Edit2 className="h-3 w-3 mr-2 text-purple-600" />
-                <span className="text-gray-600">Edit Event</span>
+                <span className="text-gray-600">Edit Event - Modify event details</span>
               </div>
               {isAdmin && (
                 <div className="flex items-center">
                   <Trash2 className="h-3 w-3 mr-2 text-red-600" />
-                  <span className="text-gray-600">Delete Event (Admin only)</span>
+                  <span className="text-gray-600">Delete Event - Permanently remove (Admin only)</span>
                 </div>
               )}
             </div>

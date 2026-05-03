@@ -17,7 +17,7 @@ export function useJobTasks() {
       const { data, error } = await supabase
         .from('job_tasks')
         .select('*')
-        .order('code', { ascending: true })
+        .order('name', { ascending: true })
       
       if (error) throw error
       setJobTasks(data || [])
@@ -37,7 +37,6 @@ export function useJobTasks() {
       const { data, error } = await supabase
         .from('job_tasks')
         .insert([{
-          code: taskData.code,
           name: taskData.name,
           created_at: new Date().toISOString()
         }])
@@ -63,7 +62,6 @@ export function useJobTasks() {
       const { error } = await supabase
         .from('job_tasks')
         .update({
-          code: taskData.code,
           name: taskData.name
         })
         .eq('id', id)

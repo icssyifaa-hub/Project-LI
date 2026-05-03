@@ -40,18 +40,17 @@ interface JobOrder {
   task_pic_staff: string
   task_pic_name?: string
   task_pic_color?: string
-  task_support_staff?: string
   task_support_name?: string
   task_support_color?: string
+  task_support_names_array?: string[]
+  task_support_colors_array?: string[]
   pdf_final_report?: string
-  final_report_staff?: string
   job_status: 'in-progress' | 'completed' | 'incompleted'
   created_by?: string
   created_at?: string
   updated_at?: string
 }
 
-// ==================== HELPER FUNCTIONS ====================
 const getStatusColor = (status: string) => {
   switch(status) {
     case 'completed':
@@ -103,35 +102,41 @@ export default function JobOrdersPage() {
     }
   }, [router])
 
-  // ==================== FETCH REAL DATA FROM DATABASE ====================
   const fetchJobOrders = async () => {
     setLoading(true)
     try {
       console.log('📋 Fetching job orders from database...')
       
-      // 1. First, get all staff for colors and names
+      // Fetch ALL users (staff) with their details
       const { data: staffData, error: staffError } = await supabase
         .from('users')
-        .select('id, name, user_id, color')
-        .eq('role', 'staff')
-        .not('color', 'is', null)
+        .select('id, name, color, role')
       
       if (staffError) throw staffError
       
-      // Create staff color map
-      const staffColorMap: {[key: string]: {name: string, color: string}} = {}
-      staffData?.forEach(staff => {
-        if (staff.user_id) {
-          staffColorMap[staff.user_id] = {
+      // Create staff map for quick lookup
+      const staffMap: {[key: string]: {name: string, color: string, id: string}} = {}
+      staffData?.forEach((staff: { id: string; name: string; color?: string; role?: string }) => {
+        if (staff.id) {
+          staffMap[staff.id] = {
             name: staff.name,
-            color: staff.color || 'blue'
+            color: staff.color || 'blue',
+            id: staff.id
+          }
+          // Also map by name for fallback
+          if (staff.name) {
+            staffMap[staff.name] = {
+              name: staff.name,
+              color: staff.color || 'blue',
+              id: staff.id
+            }
           }
         }
       })
       
-      console.log('🎨 Staff colors loaded:', staffColorMap)
+      console.log('🎨 Staff map loaded:', Object.keys(staffMap).length, 'entries')
       
-      // 2. Fetch ALL tasks (no date filter - get everything)
+      // Fetch tasks
       const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
         .select('*')
@@ -141,13 +146,89 @@ export default function JobOrdersPage() {
       
       console.log(`📊 Found ${tasksData?.length || 0} tasks in database`)
       
-      // 3. Format tasks with staff info
+      // Properly map PIC and Support Staff with correct colors for multiple support staff
       const formattedTasks: JobOrder[] = (tasksData || []).map((task: any) => {
-        const picStaffCode = task.task_pic_staff || ''
-        const supportStaffCode = task.task_support_staff || ''
+        // Get PIC info - check both ID and name fields
+        let picInfo = null
+        const picId = task.task_pic_id
+        const picName = task.task_pic_name
         
-        const picInfo = staffColorMap[picStaffCode]
-        const supportInfo = supportStaffCode ? staffColorMap[supportStaffCode] : null
+        if (picId && staffMap[picId]) {
+          picInfo = staffMap[picId]
+        } else if (picName && staffMap[picName]) {
+          picInfo = staffMap[picName]
+        } else if (picId && staffMap[picId]) {
+          picInfo = staffMap[picId]
+        }
+        
+        // ========== FIX: Handle MULTIPLE Support Staff ==========
+        let supportNamesArray: string[] = []
+        let supportColorsArray: string[] = []
+        let supportDisplayName = ''
+        let supportDisplayColor = 'gray'
+        
+        // Parse support_ids (could be string or array)
+        let supportIdsArray: string[] = []
+        if (task.task_support_ids) {
+          if (typeof task.task_support_ids === 'string') {
+            supportIdsArray = task.task_support_ids.split(',').filter((s: string) => s && s.trim())
+          } else if (Array.isArray(task.task_support_ids)) {
+            supportIdsArray = task.task_support_ids
+          }
+        }
+        
+        // Parse support_names (could be string or array)
+        let supportNamesRaw: string[] = []
+        if (task.task_support_names) {
+          if (typeof task.task_support_names === 'string') {
+            supportNamesRaw = task.task_support_names.split(',').filter((s: string) => s && s.trim())
+          } else if (Array.isArray(task.task_support_names)) {
+            supportNamesRaw = task.task_support_names
+          }
+        }
+        
+        // Parse support_colors (could be string or array)
+        let supportColorsRaw: string[] = []
+        if (task.task_support_colors) {
+          if (typeof task.task_support_colors === 'string') {
+            supportColorsRaw = task.task_support_colors.split(',').filter((s: string) => s && s.trim())
+          } else if (Array.isArray(task.task_support_colors)) {
+            supportColorsRaw = task.task_support_colors
+          }
+        }
+        
+        // Process by IDs first
+        for (const sid of supportIdsArray) {
+          if (sid && staffMap[sid]) {
+            supportNamesArray.push(staffMap[sid].name)
+            supportColorsArray.push(staffMap[sid].color)
+          }
+        }
+        
+        // Process by names if we don't have enough from IDs
+        if (supportNamesArray.length === 0 && supportNamesRaw.length > 0) {
+          for (let i = 0; i < supportNamesRaw.length; i++) {
+            const sname = supportNamesRaw[i]
+            if (sname && staffMap[sname]) {
+              supportNamesArray.push(staffMap[sname].name)
+              supportColorsArray.push(staffMap[sname].color)
+            } else if (sname) {
+              supportNamesArray.push(sname)
+              // Try to get color from support_colors array
+              if (supportColorsRaw[i]) {
+                supportColorsArray.push(supportColorsRaw[i])
+              } else {
+                supportColorsArray.push('gray')
+              }
+            }
+          }
+        }
+        
+        // Format display string for support staff
+        if (supportNamesArray.length > 0) {
+          supportDisplayName = supportNamesArray.join(', ')
+          supportDisplayColor = supportColorsArray[0] || 'gray'
+        }
         
         return {
           id: task.id,
@@ -159,15 +240,15 @@ export default function JobOrdersPage() {
           time_start: task.time_start,
           time_stop: task.time_stop,
           additional_remark: task.additional_remark,
-          pdf_job_order: task.pdf_job_order,
-          task_pic_staff: picStaffCode,
-          task_pic_name: picInfo?.name || picStaffCode || 'Unknown',
-          task_pic_color: picInfo?.color || 'blue',
-          task_support_staff: supportStaffCode,
-          task_support_name: supportInfo?.name || supportStaffCode || null,
-          task_support_color: supportInfo?.color || null,
-          pdf_final_report: task.pdf_final_report,
-          final_report_staff: task.final_report_staff,
+          pdf_job_order: task.pdf_job_order_url || task.pdf_job_order,
+          task_pic_staff: picId || picName || '',
+          task_pic_name: picInfo?.name || picName || task.task_pic_name || 'Unassigned',
+          task_pic_color: picInfo?.color || task.task_pic_color || 'blue',
+          task_support_name: supportDisplayName || null,
+          task_support_color: supportDisplayColor || 'gray',
+          task_support_names_array: supportNamesArray,
+          task_support_colors_array: supportColorsArray,
+          pdf_final_report: task.pdf_final_report_url || task.pdf_final_report,
           job_status: task.job_status || 'in-progress',
           created_by: task.created_by,
           created_at: task.created_at,
@@ -175,15 +256,24 @@ export default function JobOrdersPage() {
         }
       })
       
-      // 4. Extract unique staff names for filter dropdown
+      // Extract unique staff names for filter dropdown (including all support staff names)
       const staffNames = new Set<string>()
       formattedTasks.forEach(task => {
-        if (task.task_pic_name) staffNames.add(task.task_pic_name)
-        if (task.task_support_name) staffNames.add(task.task_support_name)
+        if (task.task_pic_name && task.task_pic_name !== 'Unassigned') {
+          staffNames.add(task.task_pic_name)
+        }
+        if (task.task_support_names_array && task.task_support_names_array.length > 0) {
+          task.task_support_names_array.forEach(name => {
+            const trimmed = name.trim()
+            if (trimmed) staffNames.add(trimmed)
+          })
+        }
       })
       
       setStaffList(Array.from(staffNames).sort())
       setJobOrders(formattedTasks)
+      
+      console.log('✅ Formatted tasks with support staff:', formattedTasks.length)
       
       toast({
         title: "Success",
@@ -198,7 +288,6 @@ export default function JobOrdersPage() {
         variant: "destructive",
       })
       
-      // Fallback to empty array
       setJobOrders([])
       
     } finally {
@@ -222,42 +311,48 @@ export default function JobOrdersPage() {
     }
   }
 
-  // ==================== PULL FROM CALENDAR ====================
-  const handlePullFromCalendar = (date: string) => {
-    router.push(`/calendar?date=${date}`)
+  // GO TO CALENDAR WITH SPECIFIC DATE
+  const handleDateClick = (date: string) => {
+    // Format date to YYYY-MM-DD for calendar
+    const formattedDate = date.split('T')[0] // Just in case it has time
+    router.push(`/calendar?date=${formattedDate}&view=day`)
   }
 
-  // ==================== CALCULATE DUE DATE STATUS ====================
-  const getDueDateStatus = (dateStop: string, hasFinalReport: boolean) => {
+  const getReminderText = (dateStop: string, hasFinalReport: boolean): string | null => {
+    if (hasFinalReport) return null
+    
     const due = new Date(dateStop)
     const today = new Date()
-    const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    today.setHours(0, 0, 0, 0)
+    due.setHours(0, 0, 0, 0)
     
-    if (hasFinalReport) {
-      return {
-        color: 'text-green-600',
-        icon: CheckCircle,
-        text: 'Report Submitted'
-      }
-    } else if (diffDays < 0) {
-      return {
-        color: 'text-red-600',
-        icon: XCircle,
-        text: `Overdue by ${Math.abs(diffDays)} days`
-      }
-    } else if (diffDays <= 7) {
-      return {
-        color: 'text-orange-600',
-        icon: CalendarIcon,
-        text: `${diffDays} days left (Urgent)`
-      }
-    } else {
-      return {
-        color: 'text-yellow-600',
-        icon: CalendarIcon,
-        text: `${diffDays} days left`
-      }
-    }
+    const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    return `${diffDays}d`
+  }
+
+  const isOverdue = (dateStop: string, hasFinalReport: boolean) => {
+    if (hasFinalReport) return false
+    const due = new Date(dateStop)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    due.setHours(0, 0, 0, 0)
+    return due.getTime() < today.getTime()
+  }
+
+  // Helper function to check if task matches staff filter
+  const matchesStaffFilter = (job: JobOrder, filterStaffValue: string): boolean => {
+    if (filterStaffValue === 'all') return true
+    
+    // Check PIC
+    if (job.task_pic_name === filterStaffValue) return true
+    
+    // Check support staff array
+    if (job.task_support_names_array && job.task_support_names_array.includes(filterStaffValue)) return true
+    
+    // Also check the combined string as fallback
+    if (job.task_support_name && job.task_support_name.includes(filterStaffValue)) return true
+    
+    return false
   }
 
   // ==================== FILTER AND SORT ====================
@@ -268,10 +363,7 @@ export default function JobOrdersPage() {
         (job.running_number?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (job.job_task?.toLowerCase() || '').includes(searchTerm.toLowerCase())
       
-      const matchesStaff = filterStaff === 'all' || 
-        job.task_pic_name === filterStaff || 
-        job.task_support_name === filterStaff
-      
+      const matchesStaff = matchesStaffFilter(job, filterStaff)
       const matchesStatus = filterStatus === 'all' || job.job_status === filterStatus
       
       return matchesSearch && matchesStaff && matchesStatus
@@ -303,7 +395,7 @@ export default function JobOrdersPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 lg:p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="max-w-[95%] mx-auto space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -328,20 +420,23 @@ export default function JobOrdersPage() {
               variant="outline" 
               className="border-gray-300"
               onClick={() => {
-                // Export logic here
-                const headers = ['Running Number', 'Client Name', 'Job Task', 'Date Start', 'Date End', 'Status', 'PIC', 'Support Staff']
+                const headers = ['Running Number', 'Client Name', 'Job Task', 'Date Start', 'Date End', 'Start Time', 'End Time', 'Status', 'PIC', 'Support Staff', 'Reminder']
                 const csvRows = [headers]
                 
                 filteredAndSortedJobs.forEach(job => {
+                  const reminder = getReminderText(job.date_stop, !!job.pdf_final_report) || 'N/A'
                   const row = [
                     job.running_number,
                     job.client_name,
                     job.job_task,
                     new Date(job.date_start).toLocaleDateString('en-GB'),
                     new Date(job.date_stop).toLocaleDateString('en-GB'),
+                    job.time_start || '',
+                    job.time_stop || '',
                     getStatusText(job.job_status),
                     job.task_pic_name || '',
-                    job.task_support_name || ''
+                    job.task_support_name || '',
+                    reminder
                   ]
                   csvRows.push(row)
                 })
@@ -385,10 +480,12 @@ export default function JobOrdersPage() {
             <SelectTrigger className="bg-white border-gray-300">
               <SelectValue placeholder="Filter by Staff" />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Staff</SelectItem>
+            <SelectContent className='bg-white border border-gray-200 shadow-lg max-h-80'>
+              <SelectItem value="all" className="hover:bg-gray-100 text-gray-900">All Staff</SelectItem>
               {staffList.map(staff => (
-                <SelectItem key={staff} value={staff}>{staff}</SelectItem>
+                <SelectItem key={staff} value={staff} className="hover:bg-gray-100 text-gray-900">
+                  {staff}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -401,7 +498,7 @@ export default function JobOrdersPage() {
             <SelectTrigger className="bg-white border-gray-300">
               <SelectValue placeholder="Filter by Status" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className='bg-white border border-gray-200 shadow-lg max-h-80'>
               <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="completed">Completed</SelectItem>
               <SelectItem value="in-progress">In Progress</SelectItem>
@@ -409,7 +506,7 @@ export default function JobOrdersPage() {
             </SelectContent>
           </Select>
 
-          {/* Pull from Calendar Button */}
+          {/* Go to Calendar Button */}
           <Button 
             variant="outline" 
             className="border-gray-300"
@@ -455,44 +552,40 @@ export default function JobOrdersPage() {
         )}
 
         {/* Job Orders Table */}
-        <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto shadow-sm">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-16">No</th>
-                
-                {/* Sortable Headers */}
-                {[
-                  { key: 'running_number', label: 'Running Num' },
-                  { key: 'client_name', label: 'Client Name' },
-                  { key: 'job_task', label: 'Job Task' },
-                  { key: 'date_start', label: 'Date Start' },
-                  { key: 'date_stop', label: 'Date End' },
-                  { key: 'time_start', label: 'Time' }
-                ].map(column => (
-                  <th 
-                    key={column.key}
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort(column.key as keyof JobOrder)}
-                  >
-                    <div className="flex items-center space-x-1">
-                      <span>{column.label}</span>
-                      <ArrowUpDown className="h-3 w-3" />
-                    </div>
-                  </th>
-                ))}
-                
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">PIC</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Support Staff</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Job Order</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Final Report</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+        <div className="border-2 border-gray-300 rounded-lg overflow-x-auto shadow-sm bg-white">
+          <table className="w-full text-sm border-collapse">
+            <thead className="bg-gray-100">
+              <tr className="border-b-2 border-gray-300">
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase w-12">No</th>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-200" onClick={() => handleSort('running_number')}>
+                  <div className="flex items-center space-x-1">Running Num <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-200" onClick={() => handleSort('client_name')}>
+                  <div className="flex items-center space-x-1">Client Name <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-200" onClick={() => handleSort('job_task')}>
+                  <div className="flex items-center space-x-1">Job Task <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-200" onClick={() => handleSort('date_start')}>
+                  <div className="flex items-center space-x-1">Start Date <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-200" onClick={() => handleSort('date_stop')}>
+                  <div className="flex items-center space-x-1">End Date <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Reminder</th>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Start Time</th>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">End Time</th>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">PIC</th>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Support Staff</th>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Job Order</th>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Final Report</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={12} className="px-4 py-12 text-center">
+                  <td colSpan={14} className="px-4 py-12 text-center border-t border-gray-300">
                     <div className="flex flex-col items-center justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
                       <p className="text-sm text-gray-500">Loading job orders...</p>
@@ -501,7 +594,7 @@ export default function JobOrdersPage() {
                 </tr>
               ) : paginatedJobs.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-4 py-12 text-center">
+                  <td colSpan={14} className="px-4 py-12 text-center border-t border-gray-300">
                     <div className="text-gray-400 text-4xl mb-2">📋</div>
                     <p className="text-gray-500">No job orders found</p>
                     <p className="text-xs text-gray-400 mt-1">
@@ -513,133 +606,107 @@ export default function JobOrdersPage() {
                 </tr>
               ) : (
                 paginatedJobs.map((job, index) => {
-                  const dueStatus = getDueDateStatus(job.date_stop, !!job.pdf_final_report)
-                  const DueIcon = dueStatus.icon
+                  const reminderText = getReminderText(job.date_stop, !!job.pdf_final_report)
+                  const overdue = isOverdue(job.date_stop, !!job.pdf_final_report)
                   
                   return (
-                    <tr 
-                      key={job.id} 
-                      className="hover:bg-gray-50 transition-colors group"
-                    >
-                      <td className="px-4 py-3 text-gray-600">
+                    <tr key={job.id} className="hover:bg-gray-50 transition-colors group border-b border-gray-200">
+                      <td className="border-r border-gray-200 px-4 py-3 text-gray-600">
                         {(currentPage - 1) * itemsPerPage + index + 1}
                       </td>
-                      
-                      <td className="px-4 py-3 font-medium text-gray-900">
+                      <td className="border-r border-gray-200 px-4 py-3 font-medium text-gray-900">
                         {job.running_number}
                       </td>
-                      
-                      <td className="px-4 py-3">
+                      <td className="border-r border-gray-200 px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <span className="text-gray-600 max-w-xs truncate">
-                            {job.client_name}
-                          </span>
-                          <button 
-                            onClick={() => handlePullFromCalendar(job.date_start)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 hover:text-blue-700"
-                            title="View in calendar"
-                          >
+                          <span className="text-gray-600 max-w-xs truncate">{job.client_name}</span>
+                          <button onClick={() => handleDateClick(job.date_start)} className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 hover:text-blue-700" title={`Go to ${new Date(job.date_start).toLocaleDateString('en-GB')} in calendar`}>
                             <Calendar className="h-3 w-3" />
                           </button>
                         </div>
                       </td>
-                      
-                      <td className="px-4 py-3">
-                        <span className="bg-gray-100 px-2 py-1 rounded text-xs text-gray-700">
-                          {job.job_task}
-                        </span>
+                      <td className="border-r border-gray-200 px-4 py-3">
+                        <span className="bg-gray-100 px-2 py-1 rounded text-xs text-gray-700">{job.job_task}</span>
                       </td>
-                      
-                      <td className="px-4 py-3 text-gray-600">
-                        {new Date(job.date_start).toLocaleDateString('en-GB')}
+                      <td className="border-r border-gray-200 px-4 py-3">
+                        <button onClick={() => handleDateClick(job.date_start)} className="text-blue-600 hover:text-blue-800 hover:underline transition-colors">
+                          {new Date(job.date_start).toLocaleDateString('en-GB')}
+                        </button>
                       </td>
-                      
-                      <td className="px-4 py-3">
-                        <div className="text-gray-600">
+                      <td className="border-r border-gray-200 px-4 py-3">
+                        <button onClick={() => handleDateClick(job.date_stop)} className="text-blue-600 hover:text-blue-800 hover:underline transition-colors">
                           {new Date(job.date_stop).toLocaleDateString('en-GB')}
-                        </div>
-                        <div className="text-xs mt-1">
-                          <span className={`${dueStatus.color} flex items-center`}>
-                            <DueIcon className="h-3 w-3 mr-1" />
-                            {dueStatus.text}
+                        </button>
+                      </td>
+                      {/* REMINDER COLUMN */}
+                      <td className="border-r border-gray-200 px-4 py-3">
+                        {reminderText ? (
+                          <span className={overdue ? "text-red-600 font-medium" : "text-gray-600"}>
+                            {reminderText}
                           </span>
+                        ) : (
+                          <span className="text-gray-300">-</span>
+                        )}
+                      </td>
+                      {/* START TIME COLUMN */}
+                      <td className="border-r border-gray-200 px-4 py-3 text-gray-600">
+                        {job.time_start || '-'}
+                      </td>
+                      {/* END TIME COLUMN */}
+                      <td className="border-r border-gray-200 px-4 py-3 text-gray-600">
+                        {job.time_stop || '-'}
+                      </td>
+                      {/* PIC COLUMN */}
+                      <td className="border-r border-gray-200 px-4 py-3">
+                        <div className="flex items-center">
+                          <span className="w-3 h-3 rounded-full mr-2 flex-shrink-0" style={{ backgroundColor: job.task_pic_color || 'blue' }}></span>
+                          <span className="text-sm font-medium">{job.task_pic_name || 'Unassigned'}</span>
                         </div>
                       </td>
-                      
-                      <td className="px-4 py-3 text-gray-600">
-                        {job.time_start ? (job.time_start + (job.time_stop ? ` - ${job.time_stop}` : '')) : '-'}
-                      </td>
-                      
-                      <td className="px-4 py-3">
-                        <div className="space-y-1">
-                          {/* PIC Staff */}
-                          <div className="flex items-center">
-                            <span 
-                              className="w-2 h-2 rounded-full mr-1.5"
-                              style={{ backgroundColor: job.task_pic_color || 'blue' }}
-                            ></span>
-                            <span className="text-sm">{job.task_pic_name || 'Unassigned'}</span>
+                      {/* SUPPORT STAFF COLUMN - WITH MULTIPLE COLORS */}
+                      <td className="border-r border-gray-200 px-4 py-3">
+                        {job.task_support_names_array && job.task_support_names_array.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {job.task_support_names_array.map((name, idx) => (
+                              <div key={idx} className="flex items-center">
+                                <span 
+                                  className="w-3 h-3 rounded-full mr-1 flex-shrink-0" 
+                                  style={{ backgroundColor: job.task_support_colors_array?.[idx] || 'gray' }}
+                                ></span>
+                                <span className="text-sm">{name}</span>
+                              </div>
+                            ))}
                           </div>
-                        </div>
+                        ) : (
+                          <span className="text-gray-400 text-sm">-</span>
+                        )}
                       </td>
-
-                      <td className="px-4 py-3">
-                        <div className="space-y-1">
-                          {/* Support Staff if exists */}
-                          {job.task_support_name && (
-                            <div className="flex items-center text-gray-500 text-xs">
-                              <span 
-                                className="w-2 h-2 rounded-full mr-1.5"
-                                style={{ backgroundColor: job.task_support_color || 'gray' }}
-                              ></span>
-                              <span>{job.task_support_name}</span>
-                            </div>
-                          )}
-                          {!job.task_support_name && (
-                            <span className="text-gray-400 text-xs">-</span>
-                          )}
-                        </div>
-                      </td>
-                      
-                      <td className="px-4 py-3">
+                      {/* JOB ORDER PDF COLUMN */}
+                      <td className="border-r border-gray-200 px-4 py-3">
                         {job.pdf_job_order ? (
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="text-green-600 hover:text-green-700"
-                            title="View Job Order PDF"
-                            onClick={() => window.open(job.pdf_job_order, '_blank')}
-                          >
+                          <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" title="View Job Order PDF" onClick={() => window.open(job.pdf_job_order, '_blank')}>
                             <FileText className="h-4 w-4" />
                           </Button>
                         ) : (
-                          <span className="text-gray-300" title="No PDF">-</span>
+                          <span className="text-gray-300">-</span>
                         )}
                       </td>
-                      
-                      <td className="px-4 py-3">
+                      {/* FINAL REPORT PDF COLUMN */}
+                      <td className="border-r border-gray-200 px-4 py-3">
                         {job.pdf_final_report ? (
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="text-green-600 hover:text-green-700"
-                            title="View Final Report"
-                            onClick={() => window.open(job.pdf_final_report, '_blank')}
-                          >
+                          <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" title="View Final Report" onClick={() => window.open(job.pdf_final_report, '_blank')}>
                             <FileText className="h-4 w-4" />
                           </Button>
                         ) : (
-                          <span className="text-gray-300" title="No Final Report">-</span>
+                          <span className="text-gray-300">-</span>
                         )}
                       </td>
-                      
+                      {/* STATUS COLUMN */}
                       <td className="px-4 py-3">
                         <div className="space-y-1">
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(job.job_status)}`}>
                             {getStatusText(job.job_status)}
                           </span>
-                          
-                          {/* Show remark if exists */}
                           {job.additional_remark && (
                             <div className="text-xs text-gray-400 truncate max-w-[100px]" title={job.additional_remark}>
                               📝 {job.additional_remark.substring(0, 15)}...
@@ -662,12 +729,7 @@ export default function JobOrdersPage() {
               Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredAndSortedJobs.length)} of {filteredAndSortedJobs.length} entries
             </p>
             <div className="flex space-x-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-              >
+              <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <div className="flex items-center space-x-1">
@@ -684,24 +746,13 @@ export default function JobOrdersPage() {
                   }
                   
                   return (
-                    <Button
-                      key={pageNum}
-                      variant={currentPage === pageNum ? 'default' : 'outline'}
-                      size="sm"
-                      className="w-8 h-8"
-                      onClick={() => setCurrentPage(pageNum)}
-                    >
+                    <Button key={pageNum} variant={currentPage === pageNum ? 'default' : 'outline'} size="sm" className="w-8 h-8" onClick={() => setCurrentPage(pageNum)}>
                       {pageNum}
                     </Button>
                   )
                 })}
               </div>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-              >
+              <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -709,61 +760,28 @@ export default function JobOrdersPage() {
         )}
 
         {/* Info Section */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white rounded-lg border border-gray-200">
-          {/* PDF Info */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white rounded-lg border-2 border-gray-300">
           <div>
             <h4 className="text-sm font-semibold text-gray-700 mb-2">📄 PDF Indicators:</h4>
             <div className="space-y-1 text-xs">
-              <div className="flex items-center">
-                <FileText className="h-4 w-4 text-green-600 mr-2" />
-                <span className="text-gray-600">= PDF Available (click to view)</span>
-              </div>
-              <div className="flex items-center">
-                <span className="w-4 h-4 mr-2 text-gray-300">-</span>
-                <span className="text-gray-600">= No PDF / Not Uploaded</span>
-              </div>
+              <div className="flex items-center"><FileText className="h-4 w-4 text-green-600 mr-2" /><span className="text-gray-600">= PDF Available (click to view)</span></div>
+              <div className="flex items-center"><span className="w-4 h-4 mr-2 text-gray-300">-</span><span className="text-gray-600">= No PDF / Not Uploaded</span></div>
             </div>
           </div>
-
-          {/* Status Info */}
           <div>
             <h4 className="text-sm font-semibold text-gray-700 mb-2">📊 Status Legend:</h4>
             <div className="space-y-1 text-xs">
-              <div className="flex items-center">
-                <span className="w-3 h-3 rounded-full bg-green-500 mr-2"></span>
-                <span className="text-gray-600">Completed</span>
-              </div>
-              <div className="flex items-center">
-                <span className="w-3 h-3 rounded-full bg-yellow-500 mr-2"></span>
-                <span className="text-gray-600">In Progress</span>
-              </div>
-              <div className="flex items-center">
-                <span className="w-3 h-3 rounded-full bg-red-500 mr-2"></span>
-                <span className="text-gray-600">Incompleted</span>
-              </div>
+              <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-green-500 mr-2"></span><span className="text-gray-600">Completed</span></div>
+              <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-yellow-500 mr-2"></span><span className="text-gray-600">In Progress</span></div>
+              <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-red-500 mr-2"></span><span className="text-gray-600">Incompleted</span></div>
             </div>
           </div>
-
-          {/* Due Date Info */}
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">⏰ Due Date Status:</h4>
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">⏰ Reminder Format:</h4>
             <div className="space-y-1 text-xs">
-              <div className="flex items-center text-green-600">
-                <CheckCircle className="h-4 w-4 mr-2" />
-                <span>Report Submitted</span>
-              </div>
-              <div className="flex items-center text-red-600">
-                <XCircle className="h-4 w-4 mr-2" />
-                <span>Overdue</span>
-              </div>
-              <div className="flex items-center text-orange-600">
-                <CalendarIcon className="h-4 w-4 mr-2" />
-                <span>Urgent (≤ 7 days)</span>
-              </div>
-              <div className="flex items-center text-yellow-600">
-                <CalendarIcon className="h-4 w-4 mr-2" />
-                <span>Upcoming</span>
-              </div>
+              <div className="flex items-center"><span className="text-green-600 mr-2">14d</span><span className="text-gray-600">= 14 days left</span></div>
+              <div className="flex items-center"><span className="text-red-600 font-medium mr-2">-4d</span><span className="text-gray-600">= Overdue by 4 days</span></div>
+              <div className="flex items-center"><span className="text-gray-300 mr-2">-</span><span className="text-gray-600">= Report submitted</span></div>
             </div>
           </div>
         </div>

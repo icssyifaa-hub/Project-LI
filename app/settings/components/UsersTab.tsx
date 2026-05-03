@@ -34,38 +34,26 @@ import { Plus, Edit, Trash2, Eye, EyeOff, Loader2, Save } from 'lucide-react'
 export function UsersTab() {
   const { users, loading, addUser, updateUser, deleteUser } = useUsers()
   const { toast } = useToast()
-  
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [saving, setSaving] = useState(false)
   const [showPassword, setShowPassword] = useState<{[key: string]: boolean}>({})
   const [formData, setFormData] = useState({
-    user_id: '',
     name: '',
     email: '',
     password: '',
     role: 'staff' as 'admin' | 'staff'
   })
 
-  const generateUserId = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-    let result = ''
-    for (let i = 0; i < 3; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length))
-    }
-    setFormData({ ...formData, user_id: result })
-  }
-
   const handleAdd = () => {
     setEditingUser(null)
-    setFormData({ user_id: '', name: '', email: '', password: '', role: 'staff' })
+    setFormData({ name: '', email: '', password: '', role: 'staff' })
     setIsDialogOpen(true)
   }
 
   const handleEdit = (user: User) => {
     setEditingUser(user)
     setFormData({
-      user_id: user.user_id,
       name: user.name,
       email: user.email,
       password: user.password,
@@ -75,7 +63,7 @@ export function UsersTab() {
   }
 
   const handleSave = async () => {
-    if (!formData.user_id || !formData.name || !formData.email || !formData.password) {
+    if (!formData.name || !formData.email || !formData.password) {
       toast({ 
         title: "Error", 
         description: "All fields are required", 
@@ -93,7 +81,6 @@ export function UsersTab() {
       }
       setIsDialogOpen(false)
     } catch (error) {
-      // Error already handled in hook
     } finally {
       setSaving(false)
     }
@@ -101,8 +88,6 @@ export function UsersTab() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this user?')) return
-    
-    // Prevent deleting last admin
     const user = users.find(u => u.id === id)
     if (user?.role === 'admin' && users.filter(u => u.role === 'admin').length === 1) {
       toast({ 
@@ -116,7 +101,6 @@ export function UsersTab() {
     try {
       await deleteUser(id)
     } catch (error) {
-      // Error already handled in hook
     }
   }
 
@@ -156,7 +140,6 @@ export function UsersTab() {
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-16">No</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Password</th>
@@ -167,7 +150,7 @@ export function UsersTab() {
               <tbody className="divide-y divide-gray-200">
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                       No users found
                     </td>
                   </tr>
@@ -175,8 +158,7 @@ export function UsersTab() {
                   users.map((user, index) => (
                     <tr key={user.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-600">{index + 1}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{user.user_id}</td>
-                      <td className="px-4 py-3 text-gray-900">{user.name}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{user.name}</td>
                       <td className="px-4 py-3 text-gray-600">{user.email}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center space-x-2">
@@ -248,23 +230,7 @@ export function UsersTab() {
 
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="user_id" className="text-gray-700">User ID</Label>
-              <div className="flex space-x-2">
-                <Input
-                  id="user_id"
-                  value={formData.user_id}
-                  onChange={(e) => setFormData({...formData, user_id: e.target.value})}
-                  placeholder="e.g., MAMJ"
-                  className="flex-1 border-gray-300"
-                  required
-                />
-                <Button type="button" variant="outline" onClick={generateUserId}>
-                  Generate
-                </Button>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="name" className="text-gray-700">Full Name</Label>
+              <Label htmlFor="name" className="text-gray-700">Full Name *</Label>
               <Input
                 id="name"
                 value={formData.name}
@@ -275,7 +241,7 @@ export function UsersTab() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-gray-700">Email</Label>
+              <Label htmlFor="email" className="text-gray-700">Email *</Label>
               <Input
                 id="email"
                 type="email"
@@ -287,7 +253,7 @@ export function UsersTab() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-gray-700">Password</Label>
+              <Label htmlFor="password" className="text-gray-700">Password *</Label>
               <Input
                 id="password"
                 type="text"
@@ -299,7 +265,7 @@ export function UsersTab() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="role" className="text-gray-700">Role</Label>
+              <Label htmlFor="role" className="text-gray-700">Role *</Label>
               <Select
                 value={formData.role}
                 onValueChange={(value: 'admin' | 'staff') => setFormData({...formData, role: value})}

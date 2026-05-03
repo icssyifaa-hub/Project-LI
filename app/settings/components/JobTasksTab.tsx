@@ -39,30 +39,28 @@ export function JobTasksTab() {
   const [editingTask, setEditingTask] = useState<JobTask | null>(null)
   const [saving, setSaving] = useState(false)
   const [formData, setFormData] = useState({
-    code: '',
     name: ''
   })
 
   const handleAdd = () => {
     setEditingTask(null)
-    setFormData({ code: '', name: '' })
+    setFormData({ name: '' })
     setIsDialogOpen(true)
   }
 
   const handleEdit = (task: JobTask) => {
     setEditingTask(task)
     setFormData({
-      code: task.code,
       name: task.name
     })
     setIsDialogOpen(true)
   }
 
   const handleSave = async () => {
-    if (!formData.code || !formData.name) {
+    if (!formData.name) {
       toast({ 
         title: "Error", 
-        description: "Code and name are required", 
+        description: "Task name is required", 
         variant: "destructive" 
       })
       return
@@ -77,7 +75,6 @@ export function JobTasksTab() {
       }
       setIsDialogOpen(false)
     } catch (error) {
-      // Error already handled in hook
     } finally {
       setSaving(false)
     }
@@ -122,15 +119,14 @@ export function JobTasksTab() {
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-16">No</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-24">Code</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Task Name</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-24">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {jobTasks.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                    <td colSpan={3} className="px-4 py-8 text-center text-gray-500">
                       No job tasks found
                     </td>
                   </tr>
@@ -138,7 +134,6 @@ export function JobTasksTab() {
                   jobTasks.map((task, index) => (
                     <tr key={task.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-600">{index + 1}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{task.code}</td>
                       <td className="px-4 py-3 text-gray-900">{task.name}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center space-x-2">
@@ -189,27 +184,12 @@ export function JobTasksTab() {
 
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="code" className="text-gray-700">Task Code *</Label>
-              <div className="flex space-x-2">
-                <Input
-                  id="code"
-                  value={formData.code}
-                  onChange={(e) => setFormData({...formData, code: e.target.value.toUpperCase()})}
-                  placeholder="e.g., CHRA"
-                  className="flex-1 border-gray-300 uppercase"
-                  maxLength={10}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="name" className="text-gray-700">Task Name *</Label>
               <Input
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData({...formData, name: e.target.value})}
-                placeholder="e.g., Chemical Health Risk Assessment"
+                placeholder="e.g., CHRA"
                 className="border-gray-300"
                 required
               />

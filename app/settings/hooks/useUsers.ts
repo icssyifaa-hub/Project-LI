@@ -32,9 +32,11 @@ export function useUsers() {
 
   const addUser = async (userData: UserFormData) => {
     try {
-      // Ensure color is included if provided
       const newUser = {
-        ...userData,
+        name: userData.name,
+        email: userData.email,
+        password: userData.password,
+        role: userData.role,
         created_at: new Date().toISOString()
       }
       
@@ -63,14 +65,16 @@ export function useUsers() {
       const { error } = await supabase
         .from('users')
         .update({
-          ...userData,
+          name: userData.name,
+          email: userData.email,
+          password: userData.password,
+          role: userData.role,
           updated_at: new Date().toISOString()
         })
         .eq('id', id)
 
       if (error) throw error
       
-      // Update local state - important untuk color updates
       setUsers(users.map(u => u.id === id ? { ...u, ...userData } : u))
       
       toast({ title: "User updated successfully" })
@@ -104,12 +108,25 @@ export function useUsers() {
     }
   }
 
-  // Optional: Function to get user by ID
+  const getUserByEmail = async (email: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single()
+      
+      if (error) throw error
+      return data
+    } catch (error) {
+      return null
+    }
+  }
+
   const getUserById = (id: string) => {
     return users.find(u => u.id === id)
   }
 
-  // Optional: Function to get users by role
   const getUsersByRole = (role: 'admin' | 'staff') => {
     return users.filter(u => u.role === role)
   }
@@ -126,6 +143,7 @@ export function useUsers() {
     deleteUser,
     getUserById,
     getUsersByRole,
+    getUserByEmail,
     refresh: fetchUsers
   }
 }

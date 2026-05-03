@@ -1,8 +1,7 @@
-// /types/index.ts
 
 export type User = {
+  color: string
   id: string
-  user_id: string
   name: string
   email: string
   password: string
@@ -19,13 +18,11 @@ export type Staff = {
 
 export type JobTask = {
   id: string
-  code: string
   name: string
   created_at: string
 }
 
 export type JobTaskFormData = {
-  code: string
   name: string
 }
 
@@ -53,7 +50,6 @@ export type HolidayFormData = {
 }
 
 export type UserFormData = {
-  user_id: string
   name: string
   email: string
   password: string

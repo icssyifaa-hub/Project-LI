@@ -1,3 +1,13 @@
+export type User = {
+  color: string
+  id: string
+  name: string
+  email: string
+  password: string
+  role: 'admin' | 'staff'
+  created_at: string
+}
+
 export interface Task {
   id: string
   clientName: string
@@ -81,15 +91,6 @@ export interface UnscheduledTask {
  
 export type ViewType = 'day' | 'week' | 'month' | 'year' | 'schedule'
 
-export type User = {
-  color: string
-  id: string
-  name: string
-  email: string
-  password: string
-  role: 'admin' | 'staff'
-  created_at: string
-}
 
 export interface StaffOption {
   id: string    

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { StaffInfo, Holiday } from '@/app/calendar/types/calendar'
+import type { StaffInfo as User, Holiday } from '@/app/calendar/types/calendar'
 import { staffColorMap } from '@/lib/colors'
 
 interface StaffFilters {
@@ -56,7 +57,16 @@ export default function CalendarFilter({
   const hasExternalFilters = Object.keys(externalFilters).length > 0
   const staffFilters = hasExternalFilters ? externalFilters : internalFilters
   
+<<<<<<< HEAD
 const staffList = users.filter((staff) => staff.role === 'staff')
+=======
+  // Filter only staff users (role === 'staff')
+ // In CalendarFilter.tsx, change line 60-63 to:
+const staffList = users as any[]
+const filteredStaff = staffList.filter(staff => 
+  staff.name && staff.name.toLowerCase().includes(staffSearch.toLowerCase())
+)
+>>>>>>> 9a6e80d (update latest changes)
 
 const filteredStaff = staffList.filter((staff) =>
   staff.name?.toLowerCase().includes(staffSearch.toLowerCase())

@@ -243,7 +243,7 @@ export default function JobOrdersPage() {
           task_pic_staff: picId || picName || '',
           task_pic_name: picInfo?.name || picName || task.task_pic_name || 'Unassigned',
           task_pic_color: picInfo?.color || task.task_pic_color || 'blue',
-          task_support_name: supportDisplayName || null,
+          task_support_name: supportDisplayName || undefined,
           task_support_color: supportDisplayColor || 'gray',
           task_support_names_array: supportNamesArray,
           task_support_colors_array: supportColorsArray,

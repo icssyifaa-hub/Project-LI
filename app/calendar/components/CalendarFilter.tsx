@@ -17,7 +17,7 @@ import {
   UserRound
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { User, Holiday } from '@/types'
+import type { User, Holiday } from '@/app/calendar/types/calendar'
 import { staffColorMap } from '@/lib/colors'
 
 interface StaffFilters {

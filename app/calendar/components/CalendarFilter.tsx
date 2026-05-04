@@ -17,7 +17,7 @@ import {
   UserRound
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { User, Holiday } from '@/app/calendar/types/calendar'
+import type { StaffInfo, Holiday } from '@/app/calendar/types/calendar'
 import { staffColorMap } from '@/lib/colors'
 
 interface StaffFilters {
@@ -28,7 +28,7 @@ interface StaffFilters {
 }
 
 interface CalendarFilterProps {
-  users: User[]
+  users: StaffInfo[]
   holidays: Holiday[]
   showHolidays: boolean
   onHolidaysToggle: () => void
@@ -56,13 +56,13 @@ export default function CalendarFilter({
   const hasExternalFilters = Object.keys(externalFilters).length > 0
   const staffFilters = hasExternalFilters ? externalFilters : internalFilters
   
-  // Filter only staff users (role === 'staff')
-  const staffList = users
-  const filteredStaff = staffList.filter(staff => 
-    staff.name.toLowerCase().includes(staffSearch.toLowerCase())
-  )
+const staffList = users.filter((staff) => staff.role === 'staff')
 
-  const getUserColorClasses = (user: User) => {
+const filteredStaff = staffList.filter((staff) =>
+  staff.name?.toLowerCase().includes(staffSearch.toLowerCase())
+)
+
+  const getUserColorClasses = (user: StaffInfo) => {
     const colorKey = user.color || 'blue'
     return staffColorMap[colorKey] || staffColorMap['blue']
   }

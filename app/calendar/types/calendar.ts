@@ -1,4 +1,4 @@
-export type User = {
+export interface User = {
   color: string
   id: string
   name: string

@@ -1,9 +1,9 @@
-export interface User = {
-  color: string
+
+export type User {
   id: string
   name: string
   email: string
-  password: string
+  color: string
   role: 'admin' | 'staff'
   created_at: string
 }

@@ -57,7 +57,7 @@ export default function CalendarFilter({
   const staffFilters = hasExternalFilters ? externalFilters : internalFilters
   
   // Filter only staff users (role === 'staff')
-  const staffList = users.filter(user => user.role === 'staff')
+  const staffList = users
   const filteredStaff = staffList.filter(staff => 
     staff.name.toLowerCase().includes(staffSearch.toLowerCase())
   )

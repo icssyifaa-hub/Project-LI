@@ -1,14 +1,16 @@
+// app/settings/page.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Users, Calendar, FileText, Briefcase, UserCog, Settings as SettingsIcon } from 'lucide-react'
+import { Users, Calendar, FileText, Briefcase, UserCog, Settings as SettingsIcon, LogOut } from 'lucide-react'
 import { UsersTab } from './components/UsersTab'
 import { HolidaysTab } from './components/HolidaysTab'
 import { PDFTab } from './components/PDFTab'
 import { JobTasksTab } from './components/JobTasksTab'
 import { StaffTab } from './components/StaffTab'
+import { Button } from '@/components/ui/button'
 
 export default function SettingsPage() {
   const [user, setUser] = useState<any>(null)
@@ -59,6 +61,7 @@ export default function SettingsPage() {
     window.location.hash = value
   }
 
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -84,12 +87,14 @@ export default function SettingsPage() {
               <SettingsIcon className="h-6 w-6 text-gray-600" />
               <h1 className="text-xl font-semibold text-gray-900">Settings</h1>
             </div>
-            <div className="flex items-center space-x-3 text-sm">
-              <span className="text-gray-500">Logged in as:</span>
-              <span className="font-medium text-gray-900">{user.name}</span>
-              <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs">
-                {user.role}
-              </span>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-3 text-sm">
+                <span className="text-gray-500">Logged in as:</span>
+                <span className="font-medium text-gray-900">{user.name}</span>
+                <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs">
+                  {user.role}
+                </span>
+              </div>
             </div>
           </div>
         </div>

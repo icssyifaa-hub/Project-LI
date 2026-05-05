@@ -1,12 +1,16 @@
 
 export type User = {
-  color: string
   id: string
   name: string
   email: string
   password: string
   role: 'admin' | 'staff'
+  is_active: boolean
   created_at: string
+  updated_at?: string
+  phone?: string
+  color?: string
+  notification_settings?: any
 }
 
 export type Staff = {
@@ -54,6 +58,7 @@ export type UserFormData = {
   email: string
   password: string
   role: 'admin' | 'staff'
+  is_active?: boolean
 }
 
 export type StaffFormData = {

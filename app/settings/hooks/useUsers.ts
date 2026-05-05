@@ -1,3 +1,4 @@
+// app/hooks/useUsers.ts
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { User, UserFormData } from '../types'
@@ -8,6 +9,16 @@ export function useUsers() {
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
   const supabase = createClient()
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
+  // Get current logged in user
+  useEffect(() => {
+    const userData = localStorage.getItem('user')
+    if (userData) {
+      const user = JSON.parse(userData)
+      setCurrentUserId(user.id)
+    }
+  }, [])
 
   const fetchUsers = async () => {
     setLoading(true)
@@ -37,6 +48,7 @@ export function useUsers() {
         email: userData.email,
         password: userData.password,
         role: userData.role,
+        is_active: true,
         created_at: new Date().toISOString()
       }
       
@@ -50,10 +62,10 @@ export function useUsers() {
       setUsers([data, ...users])
       toast({ title: "User added successfully" })
       return data
-    } catch (error) {
+    } catch (error: any) {
       toast({ 
         title: "Error", 
-        description: "Failed to add user", 
+        description: error.message || "Failed to add user", 
         variant: "destructive" 
       })
       throw error
@@ -62,46 +74,61 @@ export function useUsers() {
 
   const updateUser = async (id: string, userData: Partial<UserFormData>) => {
     try {
+      const updateData: any = {
+        name: userData.name,
+        email: userData.email,
+        role: userData.role,
+        updated_at: new Date().toISOString()
+      }
+      
+      // Only update password if provided
+      if (userData.password && userData.password.trim() !== '') {
+        updateData.password = userData.password
+      }
+      
       const { error } = await supabase
         .from('users')
-        .update({
-          name: userData.name,
-          email: userData.email,
-          password: userData.password,
-          role: userData.role,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', id)
 
       if (error) throw error
       
-      setUsers(users.map(u => u.id === id ? { ...u, ...userData } : u))
+      setUsers(users.map(u => u.id === id ? { ...u, ...updateData } : u))
       
       toast({ title: "User updated successfully" })
-    } catch (error) {
+    } catch (error: any) {
       toast({ 
         title: "Error", 
-        description: "Failed to update user", 
+        description: error.message || "Failed to update user", 
         variant: "destructive" 
       })
       throw error
     }
   }
 
-  const deleteUser = async (id: string) => {
+  // Toggle user active status
+  const toggleUserStatus = async (id: string, currentStatus: boolean) => {
     try {
       const { error } = await supabase
         .from('users')
-        .delete()
+        .update({ 
+          is_active: !currentStatus,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', id)
 
       if (error) throw error
-      setUsers(users.filter(u => u.id !== id))
-      toast({ title: "User deleted successfully" })
-    } catch (error) {
+      
+      setUsers(users.map(u => u.id === id ? { ...u, is_active: !currentStatus } : u))
+      
+      toast({ 
+        title: "Success", 
+        description: `User ${!currentStatus ? 'activated' : 'deactivated'} successfully` 
+      })
+    } catch (error: any) {
       toast({ 
         title: "Error", 
-        description: "Failed to delete user", 
+        description: error.message || "Failed to update user status", 
         variant: "destructive" 
       })
       throw error
@@ -140,10 +167,11 @@ export function useUsers() {
     loading,
     addUser,
     updateUser,
-    deleteUser,
+    toggleUserStatus,
     getUserById,
     getUsersByRole,
     getUserByEmail,
-    refresh: fetchUsers
+    refresh: fetchUsers,
+    currentUserId
   }
 }

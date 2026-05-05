@@ -12,6 +12,36 @@ import { uploadPDF, deletePDF } from '@/lib/pdf-service'
 import { notifyStaffForTask, notifyStaffForEvent } from '@/lib/supabase/notifications'
 import type { Task, Event, Holiday, ViewType, StaffInfo } from '@/app/calendar/types/calendar'
 
+// ========== AUTO-COMPUTE TASK STATUS ==========
+const computeTaskStatus = (data: {
+  dateStart: string | null
+  dateStop: string | null
+  pdfJobOrderPath: string | null
+  pdfFinalReportPath: string | null
+}) => {
+  // ONHOLD: No date assigned (task in inbox)
+  if (!data.dateStart) return 'onhold'
+  
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  
+  const dueDate = data.dateStop ? new Date(data.dateStop) : new Date(data.dateStart)
+  dueDate.setHours(0, 0, 0, 0)
+  
+  const isDueDatePassed = dueDate < today
+  const hasJobOrder = !!data.pdfJobOrderPath
+  const hasFinalReport = !!data.pdfFinalReportPath
+  
+  // COMPLETED: Both Job Order AND Final Report uploaded
+  if (hasJobOrder && hasFinalReport) return 'completed'
+  
+  // INCOMPLETE: Due date passed AND files not complete
+  if (isDueDatePassed && (!hasJobOrder || !hasFinalReport)) return 'incomplete'
+  
+  // IN-PROGRESS: Has date, not overdue, files may be partial
+  return 'in-progress'
+}
+
 export function useCalendarData(currentDate: Date, view: ViewType) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [events, setEvents] = useState<Event[]>([])
@@ -60,28 +90,28 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, name, color, role, email')
+        .select('id, name, color, role, email, is_active')
+        .eq('is_active', true)
         .order('name')
       
       if (error) throw error
       
       const staffMapping: {[key: string]: StaffInfo} = {}
       
-    data?.forEach((user: { id: string; name: string; color?: string; role?: string; email?: string }) => {
-      if (user.id && user.name) {
-        const validRole = user.role === 'admin' ? 'admin' : 'staff' 
-
-        const staffInfo: StaffInfo = {
-          id: user.id,
-          name: user.name,
-          color: user.color || getDefaultColor(user.role || 'staff'),
-          role: user.role,
-          email: user.email
+      data?.forEach((user: { id: string; name: string; color?: string; role?: string; email?: string }) => {
+        if (user.id && user.name) {
+          const validRole = user.role === 'admin' ? 'admin' : 'staff'
+          const staffInfo: StaffInfo = {
+            id: user.id,
+            name: user.name,
+            color: user.color || getDefaultColor(user.role || 'staff'),
+            role: user.role,
+            email: user.email
+          }
+          staffMapping[user.id] = staffInfo
+          staffMapping[user.name] = staffInfo
         }
-        staffMapping[user.id] = staffInfo
-        staffMapping[user.name] = staffInfo
-      }
-    })
+      })
       
       console.log('👥 Staff loaded:', Object.keys(staffMapping).length, 'entries')
       setStaffMap(staffMapping)
@@ -164,19 +194,40 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
       lastFetchRef.current = now
       
       const staffData = await fetchAllStaff()
-      const [tasksData, eventsData, holidaysData] = await Promise.all([
-        getTasks(start, end),
-        getEvents(start, end),
-        getHolidays(start, end)
-      ])
+      
+      // Fetch ALL tasks (including those with null date_start for inbox)
+      // But for calendar display, we'll filter tasks with date_start in range
+      const { data: tasksData, error: tasksError } = await supabase
+        .from('tasks')
+        .select('*')
+        .order('created_at', { ascending: false })
+      
+      if (tasksError) throw tasksError
+      
+      const { data: eventsData, error: eventsError } = await supabase
+        .from('events')
+        .select('*')
+        .gte('date_start', start)
+        .lte('date_start', end)
+        .order('date_start', { ascending: true })
+      
+      if (eventsError) throw eventsError
+      
+      const  holidaysData = await getHolidays (start, end)
+
+      // Filter tasks that have date_start within range OR null (for inbox)
+      // For calendar display, only show tasks with date_start in range
+      const tasksInRange = tasksData?.filter((task: any) => 
+        task.date_start && task.date_start >= start && task.date_start <= end
+      ) || []
 
       console.log('📊 Data received:', {
-        tasks: tasksData.length,
-        events: eventsData.length,
-        holidays: holidaysData.length
+        tasks: tasksInRange.length,
+        events: eventsData?.length || 0,
+        holidays: holidaysData?.length || 0
       })
 
-      const formattedTasks: Task[] = tasksData.map((task: any) => {
+      const formattedTasks: Task[] = tasksInRange.map((task: any) => {
         const supportIds = task.task_support_ids 
           ? (typeof task.task_support_ids === 'string' ? task.task_support_ids.split(',') : task.task_support_ids)
           : []
@@ -193,6 +244,14 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
         } else if (task.task_pic_name) {
           picInfo = staffData[task.task_pic_name]
         }
+        
+        // Auto-compute status
+        const computedStatus = computeTaskStatus({
+          dateStart: task.date_start,
+          dateStop: task.date_stop,
+          pdfJobOrderPath: task.pdf_job_order_path,
+          pdfFinalReportPath: task.pdf_final_report_path,
+        })
         
         return {
           id: task.id,
@@ -214,14 +273,14 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
           task_support_colors: supportColors,
           pdfFinalReportPath: task.pdf_final_report_path || '',
           pdfFinalReportUrl: task.pdf_final_report_url || '',
-          jobStatus: task.job_status || 'in-progress',
+          jobStatus: computedStatus,
           createdby: task.created_by,
           createdAt: task.created_at,
           updatedAt: task.updated_at
         }
       })
 
-      const formattedEvents: Event[] = eventsData.map((event: any) => {
+      const formattedEvents: Event[] = eventsData?.map((event: any) => {
         const supportIds = event.event_support_ids 
           ? (typeof event.event_support_ids === 'string' ? event.event_support_ids.split(',') : event.event_support_ids)
           : []
@@ -258,11 +317,11 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
           createdAt: event.created_at,
           updatedAt: event.updated_at
         }
-      })
+      }) || []
 
       setTasks(formattedTasks)
       setEvents(formattedEvents)
-      setHolidays(holidaysData)
+      setHolidays(holidaysData || [])
       
     } catch (error: any) {
       console.error('Error fetching data:', error)
@@ -275,7 +334,7 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
       setLoading(false)
       isFetchingRef.current = false
     }
-  }, [getDateRange, toast, fetchAllStaff])
+  }, [getDateRange, toast, fetchAllStaff, supabase])
 
   useEffect(() => {
     fetchData()
@@ -284,7 +343,7 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
   const generateRunningNumber = useCallback(async (date: Date) => {
     const year = date.getFullYear().toString().slice(-2)
     const month = (date.getMonth() + 1).toString().padStart(2, '0')
-    const prefix = `ICS${year}${month}`
+    const prefix = `JOB${year}${month}`
     
     try {
       const { data, error } = await supabase
@@ -318,11 +377,16 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
     try {
       console.log('💾 Saving task:', taskData)
       
-      const startDate = taskData.date_start || taskData.dateStart
-      if (!startDate) throw new Error('Start date is required')
+      // Date is now OPTIONAL - can be null
+      const startDate = taskData.date_start || taskData.dateStart || null
 
       let runningNumber = taskData.running_number || taskData.runningNumber
-      if (!runningNumber) runningNumber = await generateRunningNumber(new Date(startDate))
+      if (!runningNumber && startDate) {
+        runningNumber = await generateRunningNumber(new Date(startDate))
+      } else if (!runningNumber) {
+        // If no date, use current date for running number generation
+        runningNumber = await generateRunningNumber(new Date())
+      }
 
       let pdfJobOrderPath = taskData.pdf_job_order_path || taskData.pdfJobOrderPath || null
       let pdfJobOrderUrl = taskData.pdf_job_order_url || taskData.pdfJobOrderUrl || null
@@ -358,12 +422,20 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
         ? (Array.isArray(taskData.task_support_colors) ? taskData.task_support_colors.join(',') : taskData.task_support_colors)
         : null
 
+      // Auto-compute status (handles null date = onhold)
+      const computedStatus = computeTaskStatus({
+        dateStart: startDate,
+        dateStop: taskData.date_stop || taskData.dateStop || null,
+        pdfJobOrderPath: pdfJobOrderPath,
+        pdfFinalReportPath: taskData.pdf_final_report_path || taskData.pdfFinalReportPath || null,
+      })
+
       const data = {
         client_name: taskData.client_name || taskData.clientName,
         running_number: runningNumber,
         job_task: taskData.job_task || taskData.jobTask || 'General Task',
         date_start: startDate,
-        date_stop: taskData.date_stop || taskData.dateStop || startDate,
+        date_stop: taskData.date_stop || taskData.dateStop || null,
         time_start: taskData.time_start || taskData.timeStart || null,
         time_stop: taskData.time_stop || taskData.timeStop || null,
         additional_remark: taskData.additional_remark || taskData.additionalRemark || null,
@@ -377,7 +449,7 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
         task_support_colors: supportColors,
         pdf_final_report_path: taskData.pdf_final_report_path || taskData.pdfFinalReportPath || null,
         pdf_final_report_url: taskData.pdf_final_report_url || taskData.pdfFinalReportUrl || null,
-        job_status: taskData.job_status || taskData.jobStatus || 'in-progress',
+        job_status: computedStatus,
         created_by: user?.id,
         updated_at: new Date().toISOString()
       }
@@ -395,8 +467,8 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
 
       console.log('✅ TASK SAVED RESULT:', result)
       
-      // 🔔 SEND NOTIFICATIONS
-      if (result && result.id) {
+      // Send notifications only if there's a date and staff assigned
+      if (result && result.id && startDate) {
         const assignedByName = user?.name || user?.email || 'Someone'
         
         const taskForNotification = {
@@ -433,7 +505,7 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
       })
       throw error
     }
-  }, [user, generateRunningNumber, fetchData, toast])
+  }, [user, generateRunningNumber, fetchData, toast, supabase])
 
   const deleteTask = useCallback(async (id: string, pdfPath?: string) => {
     try {
@@ -464,7 +536,7 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
       if (!user?.id) throw new Error('User not logged in')
 
       const startDate = eventData.date_start || eventData.dateStart
-      if (!startDate) throw new Error('Start date is required')
+      if (!startDate) throw new Error('Start date is required for events')
 
       const supportIds = eventData.event_support_ids 
         ? (Array.isArray(eventData.event_support_ids) ? eventData.event_support_ids.join(',') : eventData.event_support_ids)
@@ -507,7 +579,6 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
 
       console.log('✅ EVENT SAVED RESULT:', result)
 
-      // 🔔 SEND NOTIFICATIONS
       if (result && result.id) {
         const assignedByName = user?.name || user?.email || 'Someone'
         

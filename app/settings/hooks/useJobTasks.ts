@@ -21,10 +21,11 @@ export function useJobTasks() {
       
       if (error) throw error
       setJobTasks(data || [])
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Fetch error:', error)
       toast({ 
         title: "Error", 
-        description: "Failed to fetch job tasks", 
+        description: error.message || "Failed to fetch job tasks", 
         variant: "destructive" 
       })
     } finally {
@@ -37,23 +38,31 @@ export function useJobTasks() {
       const { data, error } = await supabase
         .from('job_tasks')
         .insert([{
-          name: taskData.name,
+          name: taskData.name.trim(),
           created_at: new Date().toISOString()
         }])
         .select()
         .single()
 
       if (error) throw error
-      setJobTasks([...jobTasks, data].sort((a, b) => a.code.localeCompare(b.code)))
-      toast({ title: "Job task added successfully" })
+      
+      // Update state with new task
+      setJobTasks(prevTasks => [...prevTasks, data].sort((a, b) => a.name.localeCompare(b.name)))
+      
+      toast({ 
+        title: "Success", 
+        description: "Job task added successfully" 
+      })
+      
       return data
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Add error:', error)
       toast({ 
         title: "Error", 
-        description: "Failed to add job task", 
+        description: error.message || "Failed to add job task", 
         variant: "destructive" 
       })
-      throw error
+      throw error // Important: Re-throw so component knows it failed
     }
   }
 
@@ -62,20 +71,31 @@ export function useJobTasks() {
       const { error } = await supabase
         .from('job_tasks')
         .update({
-          name: taskData.name
+          name: taskData.name.trim()
         })
         .eq('id', id)
 
       if (error) throw error
-      setJobTasks(jobTasks.map(t => t.id === id ? { ...t, ...taskData } : t))
-      toast({ title: "Job task updated successfully" })
-    } catch (error) {
+      
+      // Update state
+      setJobTasks(prevTasks => 
+        prevTasks.map(t => t.id === id ? { ...t, name: taskData.name.trim() } : t)
+          .sort((a, b) => a.name.localeCompare(b.name))
+      )
+      
+      toast({ 
+        title: "Success", 
+        description: "Job task updated successfully" 
+      })
+      
+    } catch (error: any) {
+      console.error('Update error:', error)
       toast({ 
         title: "Error", 
-        description: "Failed to update job task", 
+        description: error.message || "Failed to update job task", 
         variant: "destructive" 
       })
-      throw error
+      throw error // Important: Re-throw so component knows it failed
     }
   }
 
@@ -87,15 +107,23 @@ export function useJobTasks() {
         .eq('id', id)
 
       if (error) throw error
-      setJobTasks(jobTasks.filter(t => t.id !== id))
-      toast({ title: "Job task deleted successfully" })
-    } catch (error) {
+      
+      // Update state
+      setJobTasks(prevTasks => prevTasks.filter(t => t.id !== id))
+      
+      toast({ 
+        title: "Success", 
+        description: "Job task deleted successfully" 
+      })
+      
+    } catch (error: any) {
+      console.error('Delete error:', error)
       toast({ 
         title: "Error", 
-        description: "Failed to delete job task", 
+        description: error.message || "Failed to delete job task", 
         variant: "destructive" 
       })
-      throw error
+      throw error // Important: Re-throw so component knows it failed
     }
   }
 

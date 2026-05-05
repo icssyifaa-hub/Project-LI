@@ -94,8 +94,7 @@ export default function CalendarPage() {
 
   const { users: allUsers, loading: loadingUsers } = useUsers()
   const { holidays: allHolidays, loading: loadingHolidays } = useHolidays()
-
-  // ========== LOAD BADGE COUNTS FROM LOCALSTORAGE (KEKAL WALAUPUN REFRESH) ==========
+  
   useEffect(() => {
     try {
       const savedNotificationCount = localStorage.getItem(STORAGE_KEYS.NOTIFICATION_BADGE_COUNT)

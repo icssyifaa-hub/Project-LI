@@ -18,7 +18,6 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { StaffInfo, Holiday } from '@/app/calendar/types/calendar'
-import type { StaffInfo as User, Holiday } from '@/app/calendar/types/calendar'
 import { staffColorMap } from '@/lib/colors'
 
 interface StaffFilters {
@@ -57,16 +56,7 @@ export default function CalendarFilter({
   const hasExternalFilters = Object.keys(externalFilters).length > 0
   const staffFilters = hasExternalFilters ? externalFilters : internalFilters
   
-<<<<<<< HEAD
 const staffList = users.filter((staff) => staff.role === 'staff')
-=======
-  // Filter only staff users (role === 'staff')
- // In CalendarFilter.tsx, change line 60-63 to:
-const staffList = users as any[]
-const filteredStaff = staffList.filter(staff => 
-  staff.name && staff.name.toLowerCase().includes(staffSearch.toLowerCase())
-)
->>>>>>> 9a6e80d (update latest changes)
 
 const filteredStaff = staffList.filter((staff) =>
   staff.name?.toLowerCase().includes(staffSearch.toLowerCase())
@@ -86,7 +76,7 @@ const filteredStaff = staffList.filter((staff) =>
     return staffFilters[staffId]?.events || false
   }
 
-  // Handler for task toggle
+
   const handleStaffTaskToggle = (staffId: string, value: boolean) => {
     if (hasExternalHandlers && externalTaskToggle) {
       externalTaskToggle(staffId, value)
@@ -134,7 +124,6 @@ const filteredStaff = staffList.filter((staff) =>
     })
   }
 
-  // Toggle ALL Events for filtered staff
   const handleToggleAllEvents = () => {
     if (filteredStaff.length === 0) return
     
@@ -304,7 +293,7 @@ const filteredStaff = staffList.filter((staff) =>
                             onCheckedChange={(checked) => {
                               handleStaffTaskToggle(staffId, checked === true)
                             }}
-                            className="border-blue-400 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
+                            className="border-blue-300 data-[state=checked]:bg-blue-300 data-[state=checked]:border-blue-300"
                           />
                         </div>
 
@@ -316,15 +305,8 @@ const filteredStaff = staffList.filter((staff) =>
                             onCheckedChange={(checked) => {
                               handleStaffEventToggle(staffId, checked === true)
                             }}
-                            className="border-purple-400 data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500"
+                            className="border-purple-300 data-[state=checked]:bg-purple-300 data-[state=checked]:border-purple-300"
                           />
-                        </div>
-
-                        {/* Status Indicator - Green dot when selected */}
-                        <div className="col-span-1 flex justify-center">
-                          {(showStaffTasks || showStaffEvents) && (
-                            <div className="w-2 h-2 rounded-full bg-green-500" />
-                          )}
                         </div>
                       </div>
                     )

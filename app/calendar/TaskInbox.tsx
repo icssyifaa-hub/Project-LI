@@ -68,7 +68,7 @@ interface TaskInboxProps {
   onDragEnd: (taskId: string, date: Date | null) => void
   onTaskClick?: (task: UnscheduledTask) => void
   onTaskSaved?: () => void
-  onUnreadCountChange?: (count: number) => void  // ← TAMBAH INI
+  onUnreadCountChange?: (count: number) => void
 }
 
 interface JobTask {
@@ -304,7 +304,7 @@ function AddTaskModal({
   const generateRunningNumber = async (date: Date) => {
     const year = date.getFullYear().toString().slice(-2)
     const month = (date.getMonth() + 1).toString().padStart(2, '0')
-    const prefix = `ICS${year}${month}`
+    const prefix = `JOB${year}${month}`
     
     try {
       const { data, error } = await supabase
@@ -486,7 +486,7 @@ function AddTaskModal({
           </div>
 
           <div className="flex gap-2 pt-2">
-            <Button type="submit" disabled={saving} className="flex-1 bg-blue-600 hover:bg-blue-700">
+            <Button type="submit" disabled={saving} className="flex-1 bg-blue-300 hover:bg-blue-300">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Create Task
             </Button>
@@ -713,7 +713,7 @@ function EditTaskModal({
           </div>
 
           <div className="flex gap-2 pt-2">
-            <Button type="submit" disabled={saving} className="flex-1 bg-blue-600 hover:bg-blue-700">
+            <Button type="submit" disabled={saving} className="flex-1 bg-blue-300 hover:bg-blue-300">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Save Changes
             </Button>
@@ -748,7 +748,8 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
       
       const { data: staffData, error: staffError } = await supabase
         .from('users')
-        .select('id, name, color')
+        .select('id, name, color, is_active')
+        .eq('is_active', true) 
         .order('name')
       
       if (staffError) throw staffError
@@ -886,9 +887,9 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
     try {
       const result = await uploadPDF(file, taskId, 'job_order')
 
-       if (!result) {
-      console.error('Upload failed: result is null')
-      return null
+      if (!result) {
+        console.error('Upload failed: result is null')
+        return null
       }
 
       return {
@@ -903,12 +904,11 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
 
   const saveTaskToDatabase = async (taskData: UnscheduledTask, isNew: boolean = true, pdfFile?: File | null) => {
     console.log('💾 saveTaskToDatabase called:', { taskData, isNew })
-    
     const userData = localStorage.getItem('user')
     const currentUser = userData ? JSON.parse(userData) : null
-    
     const selectedStaff = staffList.find(s => s.id === taskData.task_pic_id)
 
+    // ========== UNSCHEDULED TASKS = 'onhold' ==========
     const baseData = {
       client_name: taskData.clientName,
       running_number: taskData.runningNumber,
@@ -920,7 +920,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
       pdf_job_order_url: taskData.pdfJobOrderUrl || null,
       pdf_final_report_path: taskData.pdfFinalReportPath || null,
       pdf_final_report_url: taskData.pdfFinalReportUrl || null,
-      job_status: 'in-progress',
+      job_status: 'onhold',  // ← Unscheduled tasks are ONHOLD
       date_start: null,
       date_stop: null,
       created_by: currentUser?.id || null,

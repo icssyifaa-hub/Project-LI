@@ -448,7 +448,7 @@ const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, onClose, 
               onEdit()
               onClose()
             }}
-            className={type === 'event' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}
+            className={type === 'event' ? 'bg-purple-300 hover:bg-purple-300' : 'bg-blue-300 hover:bg-blue-300'}
           >
             <Edit2 className="h-4 w-4 mr-2" />
             Edit
@@ -1037,7 +1037,7 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
               const totalTasksInMonth = monthItems.reduce((sum, day) => sum + day.items.filter(i => i.type === 'task').length, 0)
               const totalEventsInMonth = monthItems.reduce((sum, day) => sum + day.items.filter(i => i.type === 'event').length, 0)
               const totalHolidaysInMonth = monthHolidays.length
-              
+
               const daysWithItems = monthItems.filter(day => day.items.length > 0 || day.holidays.length > 0).slice(0, 3)
 
               const firstDayOfMonth = new Date(currentDate.getFullYear(), index, 1).getDay()
@@ -1571,15 +1571,15 @@ const MoreItemsPopup: React.FC<MoreItemsPopupProps> = ({
         <div className="border-t px-4 py-3 bg-gray-50 flex justify-between items-center rounded-b-xl">
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-500 flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+              <span className="w-2 h-2 rounded-full bg-blue-300"></span>
               Task
             </span>
             <span className="text-xs text-gray-500 flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+              <span className="w-2 h-2 rounded-full bg-purple-300"></span>
               Event
             </span>
             <span className="text-xs text-gray-500 flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-green-500"></span>
+              <span className="w-2 h-2 rounded-full bg-green-300"></span>
               Holiday
             </span>
           </div>

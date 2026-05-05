@@ -14,8 +14,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar as CalendarIcon,
-  CheckCircle,
-  XCircle,
 } from 'lucide-react'
 import {
   Select,
@@ -44,20 +42,23 @@ interface JobOrder {
   task_support_names_array?: string[]
   task_support_colors_array?: string[]
   pdf_final_report?: string
-  job_status: 'in-progress' | 'completed' | 'incompleted'
+  job_status: 'completed' | 'in-progress' | 'incomplete' | 'onhold'
   created_by?: string
   created_at?: string
   updated_at?: string
 }
 
+// ========== STATUS HELPER FUNCTIONS ==========
 const getStatusColor = (status: string) => {
   switch(status) {
     case 'completed':
       return 'bg-green-100 text-green-700'
     case 'in-progress':
       return 'bg-yellow-100 text-yellow-700'
-    case 'incompleted':
+    case 'incomplete':
       return 'bg-red-100 text-red-700'
+    case 'onhold':
+      return 'bg-gray-100 text-gray-600'
     default:
       return 'bg-gray-100 text-gray-700'
   }
@@ -69,11 +70,36 @@ const getStatusText = (status: string) => {
       return 'Completed'
     case 'in-progress':
       return 'In Progress'
-    case 'incompleted':
-      return 'Incompleted'
+    case 'incomplete':
+      return 'Incomplete'
+    case 'onhold':
+      return 'On Hold'
     default:
       return status
   }
+}
+
+// ========== AUTO-COMPUTE STATUS FALLBACK ==========
+const computeTaskStatus = (data: {
+  date_start: string | null
+  date_stop: string | null
+  pdf_job_order_path: string | null
+  pdf_final_report_path: string | null
+}) => {
+  if (!data.date_start) return 'onhold'
+  
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const dueDate = data.date_stop ? new Date(data.date_stop) : new Date(data.date_start)
+  dueDate.setHours(0, 0, 0, 0)
+  
+  const isDueDatePassed = dueDate < today
+  const hasJobOrder = !!data.pdf_job_order_path
+  const hasFinalReport = !!data.pdf_final_report_path
+  
+  if (hasJobOrder && hasFinalReport) return 'completed'
+  if (isDueDatePassed && (!hasJobOrder || !hasFinalReport)) return 'incomplete'
+  return 'in-progress'
 }
 
 export default function JobOrdersPage() {
@@ -106,14 +132,12 @@ export default function JobOrdersPage() {
     try {
       console.log('📋 Fetching job orders from database...')
       
-      // Fetch ALL users (staff) with their details
       const { data: staffData, error: staffError } = await supabase
         .from('users')
         .select('id, name, color, role')
       
       if (staffError) throw staffError
       
-      // Create staff map for quick lookup
       const staffMap: {[key: string]: {name: string, color: string, id: string}} = {}
       staffData?.forEach((staff: { id: string; name: string; color?: string; role?: string }) => {
         if (staff.id) {
@@ -122,7 +146,6 @@ export default function JobOrdersPage() {
             color: staff.color || 'blue',
             id: staff.id
           }
-          // Also map by name for fallback
           if (staff.name) {
             staffMap[staff.name] = {
               name: staff.name,
@@ -133,9 +156,6 @@ export default function JobOrdersPage() {
         }
       })
       
-      console.log('🎨 Staff map loaded:', Object.keys(staffMap).length, 'entries')
-      
-      // Fetch tasks
       const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
         .select('*')
@@ -143,11 +163,7 @@ export default function JobOrdersPage() {
       
       if (tasksError) throw tasksError
       
-      console.log(`📊 Found ${tasksData?.length || 0} tasks in database`)
-      
-      // Properly map PIC and Support Staff with correct colors for multiple support staff
       const formattedTasks: JobOrder[] = (tasksData || []).map((task: any) => {
-        // Get PIC info - check both ID and name fields
         let picInfo = null
         const picId = task.task_pic_id
         const picName = task.task_pic_name
@@ -156,17 +172,13 @@ export default function JobOrdersPage() {
           picInfo = staffMap[picId]
         } else if (picName && staffMap[picName]) {
           picInfo = staffMap[picName]
-        } else if (picId && staffMap[picId]) {
-          picInfo = staffMap[picId]
         }
         
-        // ========== FIX: Handle MULTIPLE Support Staff ==========
         let supportNamesArray: string[] = []
         let supportColorsArray: string[] = []
         let supportDisplayName = ''
         let supportDisplayColor = 'gray'
         
-        // Parse support_ids (could be string or array)
         let supportIdsArray: string[] = []
         if (task.task_support_ids) {
           if (typeof task.task_support_ids === 'string') {
@@ -176,7 +188,6 @@ export default function JobOrdersPage() {
           }
         }
         
-        // Parse support_names (could be string or array)
         let supportNamesRaw: string[] = []
         if (task.task_support_names) {
           if (typeof task.task_support_names === 'string') {
@@ -186,7 +197,6 @@ export default function JobOrdersPage() {
           }
         }
         
-        // Parse support_colors (could be string or array)
         let supportColorsRaw: string[] = []
         if (task.task_support_colors) {
           if (typeof task.task_support_colors === 'string') {
@@ -196,7 +206,6 @@ export default function JobOrdersPage() {
           }
         }
         
-        // Process by IDs first
         for (const sid of supportIdsArray) {
           if (sid && staffMap[sid]) {
             supportNamesArray.push(staffMap[sid].name)
@@ -204,7 +213,6 @@ export default function JobOrdersPage() {
           }
         }
         
-        // Process by names if we don't have enough from IDs
         if (supportNamesArray.length === 0 && supportNamesRaw.length > 0) {
           for (let i = 0; i < supportNamesRaw.length; i++) {
             const sname = supportNamesRaw[i]
@@ -213,7 +221,6 @@ export default function JobOrdersPage() {
               supportColorsArray.push(staffMap[sname].color)
             } else if (sname) {
               supportNamesArray.push(sname)
-              // Try to get color from support_colors array
               if (supportColorsRaw[i]) {
                 supportColorsArray.push(supportColorsRaw[i])
               } else {
@@ -223,11 +230,17 @@ export default function JobOrdersPage() {
           }
         }
         
-        // Format display string for support staff
         if (supportNamesArray.length > 0) {
           supportDisplayName = supportNamesArray.join(', ')
           supportDisplayColor = supportColorsArray[0] || 'gray'
         }
+        
+        const computedStatus = computeTaskStatus({
+          date_start: task.date_start,
+          date_stop: task.date_stop,
+          pdf_job_order_path: task.pdf_job_order_path,
+          pdf_final_report_path: task.pdf_final_report_path,
+        })
         
         return {
           id: task.id,
@@ -248,14 +261,13 @@ export default function JobOrdersPage() {
           task_support_names_array: supportNamesArray,
           task_support_colors_array: supportColorsArray,
           pdf_final_report: task.pdf_final_report_url || task.pdf_final_report,
-          job_status: task.job_status || 'in-progress',
+          job_status: computedStatus,
           created_by: task.created_by,
           created_at: task.created_at,
           updated_at: task.updated_at
         }
       })
       
-      // Extract unique staff names for filter dropdown (including all support staff names)
       const staffNames = new Set<string>()
       formattedTasks.forEach(task => {
         if (task.task_pic_name && task.task_pic_name !== 'Unassigned') {
@@ -272,29 +284,24 @@ export default function JobOrdersPage() {
       setStaffList(Array.from(staffNames).sort())
       setJobOrders(formattedTasks)
       
-      console.log('✅ Formatted tasks with support staff:', formattedTasks.length)
-      
       toast({
         title: "Success",
         description: `Loaded ${formattedTasks.length} job orders`,
       })
       
     } catch (error: any) {
-      console.error('❌ Error fetching job orders:', error)
+      console.error('Error fetching job orders:', error)
       toast({
         title: "Error",
         description: error?.message || "Failed to fetch job orders",
         variant: "destructive",
       })
-      
       setJobOrders([])
-      
     } finally {
       setLoading(false)
     }
   }
 
-  // Fetch on mount and when user changes
   useEffect(() => {
     if (user) {
       fetchJobOrders()
@@ -310,21 +317,17 @@ export default function JobOrdersPage() {
     }
   }
 
-  // GO TO CALENDAR WITH SPECIFIC DATE
   const handleDateClick = (date: string) => {
-    // Format date to YYYY-MM-DD for calendar
-    const formattedDate = date.split('T')[0] // Just in case it has time
+    const formattedDate = date.split('T')[0]
     router.push(`/calendar?date=${formattedDate}&view=day`)
   }
 
   const getReminderText = (dateStop: string, hasFinalReport: boolean): string | null => {
     if (hasFinalReport) return null
-    
     const due = new Date(dateStop)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     due.setHours(0, 0, 0, 0)
-    
     const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     return `${diffDays}d`
   }
@@ -338,43 +341,29 @@ export default function JobOrdersPage() {
     return due.getTime() < today.getTime()
   }
 
-  // Helper function to check if task matches staff filter
   const matchesStaffFilter = (job: JobOrder, filterStaffValue: string): boolean => {
     if (filterStaffValue === 'all') return true
-    
-    // Check PIC
     if (job.task_pic_name === filterStaffValue) return true
-    
-    // Check support staff array
     if (job.task_support_names_array && job.task_support_names_array.includes(filterStaffValue)) return true
-    
-    // Also check the combined string as fallback
     if (job.task_support_name && job.task_support_name.includes(filterStaffValue)) return true
-    
     return false
   }
 
-  // ==================== FILTER AND SORT ====================
   const filteredAndSortedJobs = jobOrders
     .filter(job => {
       const matchesSearch = 
         (job.client_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (job.running_number?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (job.job_task?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-      
       const matchesStaff = matchesStaffFilter(job, filterStaff)
       const matchesStatus = filterStatus === 'all' || job.job_status === filterStatus
-      
       return matchesSearch && matchesStaff && matchesStatus
     })
     .sort((a, b) => {
       let aValue = a[sortField]
       let bValue = b[sortField]
-      
-      // Handle undefined values
       if (aValue === undefined) aValue = ''
       if (bValue === undefined) bValue = ''
-      
       if (typeof aValue === 'string' && typeof bValue === 'string') {
         return sortDirection === 'asc' 
           ? aValue.localeCompare(bValue)
@@ -383,7 +372,6 @@ export default function JobOrdersPage() {
       return 0
     })
 
-  // ==================== PAGINATION ====================
   const totalPages = Math.ceil(filteredAndSortedJobs.length / itemsPerPage)
   const paginatedJobs = filteredAndSortedJobs.slice(
     (currentPage - 1) * itemsPerPage,
@@ -399,47 +387,31 @@ export default function JobOrdersPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Job Order List</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Total: {jobOrders.length} job orders
-            </p>
+            <p className="text-sm text-gray-500 mt-1">Total: {jobOrders.length} job orders</p>
           </div>
-          
           <div className="flex gap-2">
-            {/* Refresh Button */}
-            <Button 
-              variant="outline" 
-              onClick={fetchJobOrders}
-              disabled={loading}
-            >
+            <Button variant="outline" onClick={fetchJobOrders} disabled={loading}>
               {loading ? 'Loading...' : 'Refresh'}
             </Button>
-            
-            {/* Export Button */}
             <Button 
               variant="outline" 
               className="border-gray-300"
               onClick={() => {
-                const headers = ['Running Number', 'Client Name', 'Job Task', 'Date Start', 'Date End', 'Start Time', 'End Time', 'Status', 'PIC', 'Support Staff', 'Reminder']
+                const headers = ['Running Number', 'Client Name', 'Job Task', 'Start Date', 'End Date', 'Status', 'PIC', 'Support Staff']
                 const csvRows = [headers]
-                
                 filteredAndSortedJobs.forEach(job => {
-                  const reminder = getReminderText(job.date_stop, !!job.pdf_final_report) || 'N/A'
                   const row = [
                     job.running_number,
                     job.client_name,
                     job.job_task,
                     new Date(job.date_start).toLocaleDateString('en-GB'),
                     new Date(job.date_stop).toLocaleDateString('en-GB'),
-                    job.time_start || '',
-                    job.time_stop || '',
                     getStatusText(job.job_status),
                     job.task_pic_name || '',
-                    job.task_support_name || '',
-                    reminder
+                    job.task_support_name || ''
                   ]
                   csvRows.push(row)
                 })
-                
                 const csvContent = csvRows.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n')
                 const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
                 const url = window.URL.createObjectURL(blob)
@@ -448,71 +420,47 @@ export default function JobOrdersPage() {
                 a.download = `job-orders-${new Date().toISOString().split('T')[0]}.csv`
                 a.click()
                 window.URL.revokeObjectURL(url)
-                
                 toast({ title: "Report exported successfully" })
               }}
             >
-              <Download className="h-4 w-4 mr-2" />
-              Export Report
+              <Download className="h-4 w-4 mr-2" /> Export Report
             </Button>
           </div>
         </div>
 
-        {/* Filters Section */}
+        {/* Filters */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Search */}
           <Input
             placeholder="Search by client, running num, or task..."
             value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value)
-              setCurrentPage(1)
-            }}
+            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1) }}
             className="bg-white border-gray-300"
           />
-
-          {/* Filter by Staff */}
-          <Select value={filterStaff} onValueChange={(value) => {
-            setFilterStaff(value)
-            setCurrentPage(1)
-          }}>
+          <Select value={filterStaff} onValueChange={(value) => { setFilterStaff(value); setCurrentPage(1) }}>
             <SelectTrigger className="bg-white border-gray-300">
               <SelectValue placeholder="Filter by Staff" />
             </SelectTrigger>
-            <SelectContent className='bg-white border border-gray-200 shadow-lg max-h-80'>
-              <SelectItem value="all" className="hover:bg-gray-100 text-gray-900">All Staff</SelectItem>
+            <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
+              <SelectItem value="all">All Staff</SelectItem>
               {staffList.map(staff => (
-                <SelectItem key={staff} value={staff} className="hover:bg-gray-100 text-gray-900">
-                  {staff}
-                </SelectItem>
+                <SelectItem key={staff} value={staff}>{staff}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-
-          {/* Filter by Status */}
-          <Select value={filterStatus} onValueChange={(value) => {
-            setFilterStatus(value)
-            setCurrentPage(1)
-          }}>
+          <Select value={filterStatus} onValueChange={(value) => { setFilterStatus(value); setCurrentPage(1) }}>
             <SelectTrigger className="bg-white border-gray-300">
               <SelectValue placeholder="Filter by Status" />
             </SelectTrigger>
-            <SelectContent className='bg-white border border-gray-200 shadow-lg max-h-80'>
+            <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
               <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="completed">Completed</SelectItem>
               <SelectItem value="in-progress">In Progress</SelectItem>
-              <SelectItem value="incompleted">Incompleted</SelectItem>
+              <SelectItem value="incomplete">Incomplete</SelectItem>
+              <SelectItem value="onhold">On Hold</SelectItem>
             </SelectContent>
           </Select>
-
-          {/* Go to Calendar Button */}
-          <Button 
-            variant="outline" 
-            className="border-gray-300"
-            onClick={() => router.push('/calendar')}
-          >
-            <Calendar className="h-4 w-4 mr-2" />
-            Go to Calendar
+          <Button variant="outline" className="border-gray-300" onClick={() => router.push('/calendar')}>
+            <Calendar className="h-4 w-4 mr-2" /> Go to Calendar
           </Button>
         </div>
 
@@ -520,37 +468,16 @@ export default function JobOrdersPage() {
         {(searchTerm || filterStaff !== 'all' || filterStatus !== 'all') && (
           <div className="flex items-center gap-2 text-sm">
             <span className="text-gray-500">Filters active:</span>
-            {searchTerm && (
-              <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
-                Search: {searchTerm}
-              </span>
-            )}
-            {filterStaff !== 'all' && (
-              <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">
-                Staff: {filterStaff}
-              </span>
-            )}
-            {filterStatus !== 'all' && (
-              <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full">
-                Status: {filterStatus}
-              </span>
-            )}
-            <Button 
-              variant="ghost" 
-              size="sm"
-              className="text-xs"
-              onClick={() => {
-                setSearchTerm('')
-                setFilterStaff('all')
-                setFilterStatus('all')
-              }}
-            >
+            {searchTerm && <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">Search: {searchTerm}</span>}
+            {filterStaff !== 'all' && <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">Staff: {filterStaff}</span>}
+            {filterStatus !== 'all' && <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Status: {filterStatus}</span>}
+            <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setSearchTerm(''); setFilterStaff('all'); setFilterStatus('all') }}>
               Clear all
             </Button>
           </div>
         )}
 
-        {/* Job Orders Table */}
+        {/* Table */}
         <div className="border-2 border-gray-300 rounded-lg overflow-x-auto shadow-sm bg-white">
           <table className="w-full text-sm border-collapse">
             <thead className="bg-gray-100">
@@ -572,8 +499,6 @@ export default function JobOrdersPage() {
                   <div className="flex items-center space-x-1">End Date <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
                 <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Reminder</th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Start Time</th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">End Time</th>
                 <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">PIC</th>
                 <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Support Staff</th>
                 <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Job Order</th>
@@ -584,7 +509,7 @@ export default function JobOrdersPage() {
             <tbody className="divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={14} className="px-4 py-12 text-center border-t border-gray-300">
+                  <td colSpan={12} className="px-4 py-12 text-center border-t border-gray-300">
                     <div className="flex flex-col items-center justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
                       <p className="text-sm text-gray-500">Loading job orders...</p>
@@ -593,7 +518,7 @@ export default function JobOrdersPage() {
                 </tr>
               ) : paginatedJobs.length === 0 ? (
                 <tr>
-                  <td colSpan={14} className="px-4 py-12 text-center border-t border-gray-300">
+                  <td colSpan={12} className="px-4 py-12 text-center border-t border-gray-300">
                     <div className="text-gray-400 text-4xl mb-2">📋</div>
                     <p className="text-gray-500">No job orders found</p>
                     <p className="text-xs text-gray-400 mt-1">
@@ -607,20 +532,15 @@ export default function JobOrdersPage() {
                 paginatedJobs.map((job, index) => {
                   const reminderText = getReminderText(job.date_stop, !!job.pdf_final_report)
                   const overdue = isOverdue(job.date_stop, !!job.pdf_final_report)
-                  
                   return (
                     <tr key={job.id} className="hover:bg-gray-50 transition-colors group border-b border-gray-200">
-                      <td className="border-r border-gray-200 px-4 py-3 text-gray-600">
-                        {(currentPage - 1) * itemsPerPage + index + 1}
-                      </td>
-                      <td className="border-r border-gray-200 px-4 py-3 font-medium text-gray-900">
-                        {job.running_number}
-                      </td>
+                      <td className="border-r border-gray-200 px-4 py-3 text-gray-600">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                      <td className="border-r border-gray-200 px-4 py-3 font-medium text-gray-900">{job.running_number}</td>
                       <td className="border-r border-gray-200 px-4 py-3">
                         <div className="flex items-center gap-2">
                           <span className="text-gray-600 max-w-xs truncate">{job.client_name}</span>
-                          <button onClick={() => handleDateClick(job.date_start)} className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 hover:text-blue-700" title={`Go to ${new Date(job.date_start).toLocaleDateString('en-GB')} in calendar`}>
-                            <Calendar className="h-3 w-3" />
+                          <button onClick={() => handleDateClick(job.date_start)} className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 hover:text-blue-700">
+                            <CalendarIcon className="h-3 w-3" />
                           </button>
                         </div>
                       </td>
@@ -628,79 +548,52 @@ export default function JobOrdersPage() {
                         <span className="bg-gray-100 px-2 py-1 rounded text-xs text-gray-700">{job.job_task}</span>
                       </td>
                       <td className="border-r border-gray-200 px-4 py-3">
-                        <button onClick={() => handleDateClick(job.date_start)} className="text-blue-600 hover:text-blue-800 hover:underline transition-colors">
+                        <button onClick={() => handleDateClick(job.date_start)} className="text-blue-600 hover:text-blue-800 hover:underline">
                           {new Date(job.date_start).toLocaleDateString('en-GB')}
                         </button>
                       </td>
                       <td className="border-r border-gray-200 px-4 py-3">
-                        <button onClick={() => handleDateClick(job.date_stop)} className="text-blue-600 hover:text-blue-800 hover:underline transition-colors">
+                        <button onClick={() => handleDateClick(job.date_stop)} className="text-blue-600 hover:text-blue-800 hover:underline">
                           {new Date(job.date_stop).toLocaleDateString('en-GB')}
                         </button>
                       </td>
-                      {/* REMINDER COLUMN */}
                       <td className="border-r border-gray-200 px-4 py-3">
                         {reminderText ? (
-                          <span className={overdue ? "text-red-600 font-medium" : "text-gray-600"}>
-                            {reminderText}
-                          </span>
-                        ) : (
-                          <span className="text-gray-300">-</span>
-                        )}
+                          <span className={overdue ? "text-red-600 font-medium" : "text-gray-600"}>{reminderText}</span>
+                        ) : <span className="text-gray-300">-</span>}
                       </td>
-                      {/* START TIME COLUMN */}
-                      <td className="border-r border-gray-200 px-4 py-3 text-gray-600">
-                        {job.time_start || '-'}
-                      </td>
-                      {/* END TIME COLUMN */}
-                      <td className="border-r border-gray-200 px-4 py-3 text-gray-600">
-                        {job.time_stop || '-'}
-                      </td>
-                      {/* PIC COLUMN */}
                       <td className="border-r border-gray-200 px-4 py-3">
                         <div className="flex items-center">
                           <span className="w-3 h-3 rounded-full mr-2 flex-shrink-0" style={{ backgroundColor: job.task_pic_color || 'blue' }}></span>
                           <span className="text-sm font-medium">{job.task_pic_name || 'Unassigned'}</span>
                         </div>
                       </td>
-                      {/* SUPPORT STAFF COLUMN - WITH MULTIPLE COLORS */}
                       <td className="border-r border-gray-200 px-4 py-3">
                         {job.task_support_names_array && job.task_support_names_array.length > 0 ? (
                           <div className="flex flex-wrap gap-2">
                             {job.task_support_names_array.map((name, idx) => (
                               <div key={idx} className="flex items-center">
-                                <span 
-                                  className="w-3 h-3 rounded-full mr-1 flex-shrink-0" 
-                                  style={{ backgroundColor: job.task_support_colors_array?.[idx] || 'gray' }}
-                                ></span>
+                                <span className="w-3 h-3 rounded-full mr-1 flex-shrink-0" style={{ backgroundColor: job.task_support_colors_array?.[idx] || 'gray' }}></span>
                                 <span className="text-sm">{name}</span>
                               </div>
                             ))}
                           </div>
-                        ) : (
-                          <span className="text-gray-400 text-sm">-</span>
-                        )}
+                        ) : <span className="text-gray-400 text-sm">-</span>}
                       </td>
-                      {/* JOB ORDER PDF COLUMN */}
                       <td className="border-r border-gray-200 px-4 py-3">
                         {job.pdf_job_order ? (
-                          <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" title="View Job Order PDF" onClick={() => window.open(job.pdf_job_order, '_blank')}>
+                          <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" onClick={() => window.open(job.pdf_job_order, '_blank')}>
                             <FileText className="h-4 w-4" />
                           </Button>
-                        ) : (
-                          <span className="text-gray-300">-</span>
-                        )}
+                        ) : <span className="text-gray-300">-</span>}
                       </td>
-                      {/* FINAL REPORT PDF COLUMN */}
                       <td className="border-r border-gray-200 px-4 py-3">
                         {job.pdf_final_report ? (
-                          <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" title="View Final Report" onClick={() => window.open(job.pdf_final_report, '_blank')}>
+                          <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" onClick={() => window.open(job.pdf_final_report, '_blank')}>
                             <FileText className="h-4 w-4" />
                           </Button>
-                        ) : (
-                          <span className="text-gray-300">-</span>
-                        )}
+                        ) : <span className="text-gray-300">-</span>}
                       </td>
-                      {/* STATUS COLUMN */}
                       <td className="px-4 py-3">
                         <div className="space-y-1">
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(job.job_status)}`}>
@@ -743,7 +636,6 @@ export default function JobOrdersPage() {
                   } else {
                     pageNum = currentPage - 2 + i
                   }
-                  
                   return (
                     <Button key={pageNum} variant={currentPage === pageNum ? 'default' : 'outline'} size="sm" className="w-8 h-8" onClick={() => setCurrentPage(pageNum)}>
                       {pageNum}
@@ -772,7 +664,8 @@ export default function JobOrdersPage() {
             <div className="space-y-1 text-xs">
               <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-green-500 mr-2"></span><span className="text-gray-600">Completed</span></div>
               <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-yellow-500 mr-2"></span><span className="text-gray-600">In Progress</span></div>
-              <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-red-500 mr-2"></span><span className="text-gray-600">Incompleted</span></div>
+              <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-red-500 mr-2"></span><span className="text-gray-600">Incomplete</span></div>
+              <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-gray-400 mr-2"></span><span className="text-gray-600">On Hold (Inbox)</span></div>
             </div>
           </div>
           <div>

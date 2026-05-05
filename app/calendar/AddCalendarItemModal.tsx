@@ -78,11 +78,56 @@ interface Staff {
   color?: string
 }
 
-const taskStatuses = [
-  { value: 'in-progress', label: 'In Progress', color: 'bg-yellow-100 text-yellow-800', dot: 'bg-yellow-500' },
-  { value: 'completed', label: 'Completed', color: 'bg-green-100 text-green-800', dot: 'bg-green-500' },
-  { value: 'incompleted', label: 'Incompleted', color: 'bg-red-100 text-red-800', dot: 'bg-red-500' },
-]
+// ========== AUTO-COMPUTE TASK STATUS ==========
+const computeTaskStatus = (data: {
+  dateStart: string | null
+  dateStop: string | null
+  pdfJobOrderPath: string | null
+  pdfFinalReportPath: string | null
+}) => {
+  // ONHOLD: No date assigned (task in inbox)
+  if (!data.dateStart) return 'onhold'
+  
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  
+  const dueDate = data.dateStop ? new Date(data.dateStop) : new Date(data.dateStart)
+  dueDate.setHours(0, 0, 0, 0)
+  
+  const isDueDatePassed = dueDate < today
+  const hasJobOrder = !!data.pdfJobOrderPath
+  const hasFinalReport = !!data.pdfFinalReportPath
+  
+  // COMPLETED: Both Job Order AND Final Report uploaded
+  if (hasJobOrder && hasFinalReport) return 'completed'
+  
+  // INCOMPLETE: Due date passed AND files not complete
+  if (isDueDatePassed && (!hasJobOrder || !hasFinalReport)) return 'incomplete'
+  
+  // IN-PROGRESS: Has date, not overdue, files may be partial
+  return 'in-progress'
+}
+
+// Status badge colors for display
+const getStatusColor = (status: string) => {
+  switch(status) {
+    case 'completed': return 'bg-green-100 text-green-800'
+    case 'in-progress': return 'bg-yellow-100 text-yellow-800'
+    case 'incomplete': return 'bg-red-100 text-red-800'
+    case 'onhold': return 'bg-gray-100 text-gray-600'
+    default: return 'bg-gray-100 text-gray-800'
+  }
+}
+
+const getStatusText = (status: string) => {
+  switch(status) {
+    case 'completed': return 'Completed'
+    case 'in-progress': return 'In Progress'
+    case 'incomplete': return 'Incomplete'
+    case 'onhold': return 'On Hold'
+    default: return status
+  }
+}
 
 interface JobTask {
   id: string
@@ -122,7 +167,6 @@ const initialTaskData = {
   pdfFinalReport: null as File | null,
   pdfFinalReportPath: '',
   pdfFinalReportUrl: '',
-  jobStatus: 'in-progress',
   task_pic_name: '',           
   task_pic_color: '',          
   task_support_names: [] as string[],  
@@ -175,10 +219,20 @@ export default function AddCalendarItemModal({
 
   const initialLoadDone = useRef(false)
 
+  // Get current computed status for display
+  const getCurrentTaskStatus = useCallback(() => {
+    return computeTaskStatus({
+      dateStart: taskData.dateStart || null,
+      dateStop: taskData.dateStop || null,
+      pdfJobOrderPath: taskData.pdfJobOrderPath || null,
+      pdfFinalReportPath: taskData.pdfFinalReportPath || null,
+    })
+  }, [taskData.dateStart, taskData.dateStop, taskData.pdfJobOrderPath, taskData.pdfFinalReportPath])
+
   const getNextRunningNumber = useCallback(async (date: Date) => {
     const year = date.getFullYear().toString().slice(-2)
     const month = (date.getMonth() + 1).toString().padStart(2, '0')
-    const prefix = `ICS${year}${month}`
+    const prefix = `JOB${year}${month}`
     
     try {
       const { data, error } = await supabase
@@ -208,7 +262,6 @@ export default function AddCalendarItemModal({
     }
   }, [supabase])
 
-  // ==================== SEND TASK NOTIFICATIONS ====================
   const sendTaskNotifications = async (data: any, taskId: string, action: 'created' | 'updated' = 'created') => {
     console.log('🔔 TASK NOTIFICATION CALLED:', { task_pic_id: data.task_pic_id, task_support_ids: data.task_support_ids, taskId, action })
     
@@ -288,7 +341,6 @@ export default function AddCalendarItemModal({
     }
   }
 
-  // ==================== SEND EVENT NOTIFICATIONS ====================
   const sendEventNotifications = async (data: any, eventId: string, action: 'created' | 'updated' = 'created') => {
     console.log('🔔 EVENT NOTIFICATION CALLED:', { event_pic_id: data.event_pic_id, event_support_ids: data.event_support_ids, eventId, action })
     
@@ -427,7 +479,8 @@ export default function AddCalendarItemModal({
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, name, color')
+        .select('id, name, color, is_active')
+        .eq('is_active', true)
         .order('name')
       
       if (error) throw error
@@ -478,11 +531,6 @@ export default function AddCalendarItemModal({
       }
     }
     
-    let jobStatus = item.job_status || item.jobStatus || 'in-progress'
-    if (jobStatus === 'pending' || jobStatus === 'cancelled') {
-      jobStatus = 'incompleted'
-    }
-    
     setTaskData({
       clientName: item.client_name || item.clientName || '',
       runningNumber: item.running_number || item.runningNumber || '',
@@ -500,7 +548,6 @@ export default function AddCalendarItemModal({
       pdfFinalReport: null,
       pdfFinalReportPath: item.pdf_final_report_path || '',
       pdfFinalReportUrl: item.pdf_final_report_url || '',
-      jobStatus: jobStatus,
       task_pic_name: item.task_pic_name || '',
       task_pic_color: item.task_pic_color || '',
       task_support_names: taskSupportNamesArray,
@@ -702,9 +749,7 @@ export default function AddCalendarItemModal({
       case 'task_pic_id':
         if (!value) return 'PIC Staff is required'
         break
-      case 'dateStart':
-        if (!value) return 'Start date is required'
-        break
+      // REMOVED: dateStart validation - now OPTIONAL
       case 'dateStop':
         if (taskData.dateStart && value) {
           const start = new Date(taskData.dateStart)
@@ -715,7 +760,7 @@ export default function AddCalendarItemModal({
         }
         break
       case 'timeStop':
-        if (taskData.timeStart && value && taskData.dateStart === taskData.dateStop) {
+        if (taskData.timeStart && value && taskData.dateStart === taskData.dateStop && taskData.dateStart) {
           if (taskData.timeStart >= value) return 'Stop time must be after start time'
         }
         break
@@ -752,13 +797,12 @@ export default function AddCalendarItemModal({
     if (clientNameError) newErrors.clientName = clientNameError
     const picStaffError = validateTaskField('task_pic_id', taskData.task_pic_id)
     if (picStaffError) newErrors.task_pic_id = picStaffError
-    const dateStartError = validateTaskField('dateStart', taskData.dateStart)
-    if (dateStartError) newErrors.dateStart = dateStartError
+    // REMOVED: dateStart validation
     if (taskData.dateStop) {
       const dateStopError = validateTaskField('dateStop', taskData.dateStop)
       if (dateStopError) newErrors.dateStop = dateStopError
     }
-    if (taskData.timeStart && taskData.timeStop) {
+    if (taskData.timeStart && taskData.timeStop && taskData.dateStart) {
       const timeStopError = validateTaskField('timeStop', taskData.timeStop)
       if (timeStopError) newErrors.timeStop = timeStopError
     }
@@ -842,6 +886,22 @@ export default function AddCalendarItemModal({
     toast({ title: "File Removed", description: "PDF file has been removed" })
   }
 
+  // ========== HANDLE REMOVE DATE - move task to inbox ==========
+  const handleRemoveDate = () => {
+    setTaskData(prev => ({ 
+      ...prev, 
+      dateStart: '', 
+      dateStop: '',
+      timeStart: '',
+      timeStop: ''
+    }))
+    setShowTime(false)
+    toast({ 
+      title: "Date Removed", 
+      description: "Task will be moved to Task Inbox (On Hold)" 
+    })
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (isSaving) return
@@ -863,7 +923,6 @@ export default function AddCalendarItemModal({
       
       try {
         if (activeTab === 'event') {
-          // ============ EVENT SAVE ============
           const dataToSave = {
             title: eventData.title,
             description: eventData.description || '',
@@ -941,11 +1000,19 @@ export default function AddCalendarItemModal({
             }
           }
 
+          // ========== AUTO-COMPUTE STATUS (handles empty date = onhold) ==========
+          const computedStatus = computeTaskStatus({
+            dateStart: taskData.dateStart || null,
+            dateStop: taskData.dateStop || null,
+            pdfJobOrderPath: pdfJobOrderPath || null,
+            pdfFinalReportPath: pdfFinalReportPath || null,
+          })
+
           const dataToSave = {
             client_name: taskData.clientName,
             running_number: runningNumber,
             job_task: taskData.jobTask || 'General Task',
-            date_start: taskData.dateStart,
+            date_start: taskData.dateStart || null,  // ← Can be NULL
             date_stop: taskData.dateStop || null,
             time_start: taskData.timeStart || '',
             time_stop: taskData.timeStop || '',
@@ -960,7 +1027,7 @@ export default function AddCalendarItemModal({
             task_support_colors: taskData.task_support_colors.length > 0 ? taskData.task_support_colors.join(',') : null,
             pdf_final_report_path: pdfFinalReportPath || null,
             pdf_final_report_url: pdfFinalReportUrl || null,
-            job_status: taskData.jobStatus,
+            job_status: computedStatus,
             created_by: currentUser?.id
           }
 
@@ -1001,7 +1068,6 @@ export default function AddCalendarItemModal({
       }
     }
 
-    // Show confirmation dialog for BOTH Task AND Event when staff are assigned
     if (activeTab === 'task' && (taskData.task_pic_id || taskData.task_support_ids.length > 0)) {
       setPendingSubmit(() => saveFunction)
       setShowConfirmDialog(true)
@@ -1051,7 +1117,7 @@ export default function AddCalendarItemModal({
     }
   }
 
-  const formatDate = (date: Date | null) => {
+  const formatDateDisplay = (date: Date | null) => {
     if (!date) return ''
     return date.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   }
@@ -1066,7 +1132,6 @@ export default function AddCalendarItemModal({
     )
   }
 
-  // Get confirmation text based on active tab
   const getConfirmTitle = () => {
     return activeTab === 'event' ? 'Confirm Event Assignment' : 'Confirm Task Assignment'
   }
@@ -1098,6 +1163,8 @@ export default function AddCalendarItemModal({
   }
 
   const staffDetails = getStaffDetails()
+  const currentTaskStatus = activeTab === 'task' ? getCurrentTaskStatus() : null
+  const hasDate = activeTab === 'task' && taskData.dateStart
 
   return (
     <>
@@ -1137,38 +1204,18 @@ export default function AddCalendarItemModal({
                 {selectedDate && !selectedItem && (
                   <div className="flex items-center text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
                     <CalendarIcon className="h-4 w-4 mr-2 text-gray-500" />
-                    <span>{formatDate(selectedDate)}</span>
+                    <span>{formatDateDisplay(selectedDate)}</span>
                   </div>
                 )}
 
                 {activeTab === 'task' && (
                   <>
-                    <div className="flex justify-end mb-2">
-                      <div className="w-48">
-                        <Select value={taskData.jobStatus} onValueChange={(value) => setTaskData(prev => ({...prev, jobStatus: value}))} disabled={isSaving}>
-                          <SelectTrigger className="bg-white border-gray-300">
-                            <SelectValue>
-                              <div className="flex items-center">
-                                <span className={`w-2 h-2 rounded-full mr-2 ${
-                                  taskData.jobStatus === 'in-progress' ? 'bg-yellow-500' :
-                                  taskData.jobStatus === 'completed' ? 'bg-green-500' : 'bg-red-500'
-                                }`} />
-                                <span className="text-gray-900">{taskStatuses.find(s => s.value === taskData.jobStatus)?.label}</span>
-                              </div>
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                            {taskStatuses.map((status) => (
-                              <SelectItem key={status.value} value={status.value} className="hover:bg-gray-100 text-gray-900">
-                                <div className="flex items-center">
-                                  <span className={`w-2 h-2 rounded-full mr-2 ${status.dot}`} />
-                                  <span>{status.label}</span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                    {/* Auto-status display (read-only) */}
+                    <div className="flex justify-between items-center mb-2 p-3 bg-gray-50 rounded-lg">
+                      <span className="text-sm font-medium text-gray-600">Current Status:</span>
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(currentTaskStatus || 'in-progress')}`}>
+                        {getStatusText(currentTaskStatus || 'in-progress')}
+                      </span>
                     </div>
 
                     <div className="space-y-2">
@@ -1194,7 +1241,7 @@ export default function AddCalendarItemModal({
                     <div className="space-y-2">
                       <Label className="text-gray-700 font-medium">Running Number</Label>
                       <Input value={taskData.runningNumber} placeholder="Loading..." className="border-gray-300 bg-gray-50 font-mono text-sm" disabled={true} readOnly />
-                      <p className="text-xs text-gray-500">Format: ICS + Year(2 digits) + Month(2 digits) + Number(001) - Resets every month</p>
+                      <p className="text-xs text-gray-500">Format: JOB + Year(2 digits) + Month(2 digits) + Number(001) - Resets every month</p>
                     </div>
                     
                     <div className="space-y-2">
@@ -1236,26 +1283,42 @@ export default function AddCalendarItemModal({
                       <ErrorMessage field="jobTask" />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label className="text-gray-700 font-medium">Date Start <span className="text-red-500">*</span></Label>
-                        <Input 
-                          type="date" 
-                          value={taskData.dateStart} 
-                          onChange={(e) => { 
-                            setTaskData(prev => ({...prev, dateStart: e.target.value}))
-                            if (touched.dateStart) { 
-                              setErrors(prev => ({ ...prev, dateStart: validateTaskField('dateStart', e.target.value) }))
-                            } 
-                          }} 
-                          onBlur={() => handleBlur('dateStart')} 
-                          className={`border-gray-300 bg-white ${touched.dateStart && errors.dateStart ? 'border-red-500' : ''}`} 
-                          disabled={isSaving} 
-                        />
-                        <ErrorMessage field="dateStart" />
+                    {/* DATE SECTION - with Remove Date button */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-gray-700 font-medium">Start Date (Optional)</Label>
+                        {hasDate && (
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={handleRemoveDate}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                            disabled={isSaving}
+                          >
+                            <X className="h-3 w-3 mr-1" /> Remove Date
+                          </Button>
+                        )}
                       </div>
+                      <Input 
+                        type="date" 
+                        value={taskData.dateStart} 
+                        onChange={(e) => { 
+                          setTaskData(prev => ({...prev, dateStart: e.target.value}))
+                        }} 
+                        className="border-gray-300 bg-white" 
+                        disabled={isSaving} 
+                      />
+                      <p className="text-xs text-gray-500">
+                        {hasDate 
+                          ? "📅 Task will appear in calendar. Remove date to move back to inbox."
+                          : "📋 No date = Task stays in Task Inbox (On Hold)"}
+                      </p>
+                    </div>
+
+                    {hasDate && (
                       <div className="space-y-2">
-                        <Label className="text-gray-700 font-medium">Date Stop (Optional)</Label>
+                        <Label className="text-gray-700 font-medium">End Date (Optional)</Label>
                         <Input 
                           type="date" 
                           value={taskData.dateStop} 
@@ -1271,13 +1334,13 @@ export default function AddCalendarItemModal({
                         />
                         <ErrorMessage field="dateStop" />
                       </div>
-                    </div>
+                    )}
 
-                    {!showTime ? (
+                    {hasDate && !showTime ? (
                       <button type="button" onClick={() => setShowTime(true)} className="flex items-center text-sm text-blue-600 hover:text-blue-700" disabled={isSaving}>
                         <Clock className="h-4 w-4 mr-2" /> Add time
                       </button>
-                    ) : (
+                    ) : hasDate && showTime ? (
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-2">
                           <Label className="text-gray-700 font-medium">Time Start</Label>
@@ -1299,7 +1362,7 @@ export default function AddCalendarItemModal({
                           <ErrorMessage field="timeStop" />
                         </div>
                       </div>
-                    )}
+                    ) : null}
 
                     {!showDescription ? (
                       <button type="button" onClick={() => setShowDescription(true)} className="flex items-center text-sm text-gray-600 hover:text-gray-900" disabled={isSaving}>
@@ -1504,6 +1567,7 @@ export default function AddCalendarItemModal({
                 )}
 
                 {activeTab === 'event' && (
+                  // Event form (date is required for events)
                   <>
                     <div className="space-y-2">
                       <Label className="text-gray-700 font-medium">Title <span className="text-red-500">*</span></Label>
@@ -1723,7 +1787,7 @@ export default function AddCalendarItemModal({
                     <X className="h-4 w-4 mr-2" />Cancel
                   </Button>
                 </div>
-                <Button type="submit" size="sm" className={activeTab === 'event' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'} disabled={isSaving}>
+                <Button type="submit" size="sm" className={activeTab === 'event' ? 'bg-purple-300 hover:bg-purple-300' : 'bg-blue-300 hover:bg-blue-300'} disabled={isSaving}>
                   {isSaving ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</>) : (<><Save className="h-4 w-4 mr-2" />Save</>)}
                 </Button>
               </CardFooter>
@@ -1788,7 +1852,7 @@ export default function AddCalendarItemModal({
         </div>
       )}
 
-      {/* Confirmation Dialog - Works for BOTH Task AND Event */}
+      {/* Confirmation Dialog */}
       {showConfirmDialog && (
         <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
@@ -1829,7 +1893,7 @@ export default function AddCalendarItemModal({
               <Button type="button" variant="outline" onClick={() => { setShowConfirmDialog(false); setPendingSubmit(null) }} disabled={isSaving}>
                 Cancel
               </Button>
-              <Button type="button" onClick={async () => { if (pendingSubmit) await pendingSubmit() }} disabled={isSaving} className={activeTab === 'event' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}>
+              <Button type="button" onClick={async () => { if (pendingSubmit) await pendingSubmit() }} disabled={isSaving} className={activeTab === 'event' ? 'bg-purple-300 hover:bg-purple-300' : 'bg-blue-300 hover:bg-blue-300'}>
                 {isSaving ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</>) : (<><Save className="h-4 w-4 mr-2" />Confirm & Save</>)}
               </Button>
             </div>

@@ -1,3 +1,4 @@
+// app/login/page.tsx (Corrected version)
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -15,13 +16,23 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/use-toast'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { 
   Loader2, 
   Mail, 
   Lock, 
   Eye, 
   EyeOff,
-  LogIn
+  LogIn,
+  Ban,
+  AlertCircle
 } from 'lucide-react'
 
 export default function LoginPage() {
@@ -29,6 +40,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [showDeactivatedDialog, setShowDeactivatedDialog] = useState(false)
+  const [deactivatedUser, setDeactivatedUser] = useState<{name: string, email: string} | null>(null)
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClient()
@@ -68,13 +81,21 @@ export default function LoginPage() {
         return
       }
 
-      // ✅ Hanya simpan data yang diperlukan (tiada user_id)
+      // Check if user is active
+      if (!user.is_active) {
+        setDeactivatedUser({ name: user.name, email: user.email })
+        setShowDeactivatedDialog(true)
+        return // Stop login process
+      }
+
+      // Save user data to localStorage
       const userData = {
-        id: user.id,           // UUID dari database
+        id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
-        color: user.color || 'blue'  // Optional: untuk warna profile
+        color: user.color || 'blue',
+        is_active: user.is_active
       }
       
       localStorage.setItem('user', JSON.stringify(userData))
@@ -190,6 +211,62 @@ export default function LoginPage() {
           <p>ICS Consulting Sdn. Bhd. © 2024</p>
         </div>
       </Card>
+
+      {/* Deactivated Account Dialog - FIXED VERSION */}
+      <Dialog open={showDeactivatedDialog} onOpenChange={setShowDeactivatedDialog}>
+        <DialogContent className="sm:max-w-md bg-white">
+          <DialogHeader>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 mb-4">
+              <Ban className="h-6 w-6 text-red-600" />
+            </div>
+            <DialogTitle className="text-center text-xl text-red-600">
+              Account Deactivated
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div className="text-center pt-2">
+                <div className="space-y-3">
+                  <div className="text-gray-700">
+                    Dear <span className="font-semibold">{deactivatedUser?.name}</span>,
+                  </div>
+                  <div className="text-gray-600">
+                    Your account <span className="font-semibold">({deactivatedUser?.email})</span> has been deactivated.
+                  </div>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-2">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="h-4 w-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm text-yellow-800 text-left">
+                        You cannot access the system. Please contact your system administrator to reactivate your account.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col sm:flex-row gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowDeactivatedDialog(false)
+                setEmail('')
+                setPassword('')
+              }}
+              className="w-full"
+            >
+              Try Again
+            </Button>
+            <Button 
+              onClick={() => {
+                setShowDeactivatedDialog(false)
+                router.push('/')
+              }}
+              className="w-full bg-red-600 hover:bg-red-700"
+            >
+              Go to Home
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

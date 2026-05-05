@@ -132,11 +132,8 @@ export default function EventsPage() {
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [creatorList, setCreatorList] = useState<string[]>([])
   const [picList, setPicList] = useState<string[]>([])
-  
-  // For delete confirmation
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null)
-  
   const itemsPerPage = 10
   const router = useRouter()
   const { toast } = useToast()
@@ -194,13 +191,9 @@ export default function EventsPage() {
         const picId = event.event_pic_id || ''
         const picName = event.event_pic_name || ''
         const picColor = event.event_pic_color || 'blue'
-        
-        // Parse support staff arrays from TEXT columns
         const supportIds = parseTextArray(event.event_support_ids)
         const supportNamesRaw = parseTextArray(event.event_support_names)
         const supportColorsRaw = parseTextArray(event.event_support_colors || '')
-        
-        // Map support staff to their colors from userMap if available
         const supportNames: string[] = []
         const supportColors: string[] = []
         
@@ -568,8 +561,6 @@ export default function EventsPage() {
                 <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-200" onClick={() => handleSort('date_stop')}>
                   <div className="flex items-center space-x-1">End Date <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Start Time</th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">End Time</th>
                 <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Location</th>
                 <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">PIC</th>
                 <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Support Staff</th>
@@ -623,26 +614,6 @@ export default function EventsPage() {
                       </td>
                       <td className="border-r border-gray-200 px-4 py-3 text-gray-600">
                         {formatDate(event.date_stop)}
-                      </td>
-                      <td className="border-r border-gray-200 px-4 py-3">
-                        {event.time_start ? (
-                          <div className="flex items-center">
-                            <Clock className="h-3 w-3 mr-1 text-gray-400" />
-                            <span>{event.time_start}</span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-400 text-xs">-</span>
-                        )}
-                      </td>
-                      <td className="border-r border-gray-200 px-4 py-3">
-                        {event.time_stop ? (
-                          <div className="flex items-center">
-                            <Clock className="h-3 w-3 mr-1 text-gray-400" />
-                            <span>{event.time_stop}</span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-400 text-xs">-</span>
-                        )}
                       </td>
                       <td className="border-r border-gray-200 px-4 py-3">
                         {event.location ? (

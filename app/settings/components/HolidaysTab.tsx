@@ -54,10 +54,9 @@ export function HolidaysTab() {
   })
   const [isStatePopoverOpen, setIsStatePopoverOpen] = useState(false)
 
-  // Generate year options (current year -2 to +2)
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i)
 
-  // Filter holidays
+
   const filteredHolidays = holidays.filter(holiday => {
     const holidayYear = new Date(holiday.date).getFullYear()
     const matchesYear = holidayYear === filterYear
@@ -205,7 +204,6 @@ export function HolidaysTab() {
                 </SelectTrigger>
                 <SelectContent className="bg-white">
                   <SelectItem value="all">All States</SelectItem>
-                  <SelectItem value="national">National Only</SelectItem>
                   {MALAYSIA_STATES.map(state => (
                     <SelectItem key={state.value} value={state.value}>
                       {state.label}
@@ -339,7 +337,7 @@ export function HolidaysTab() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-gray-700">States (Leave empty for National holiday)</Label>
+              <Label className="text-gray-700">States</Label>
               <Popover open={isStatePopoverOpen} onOpenChange={setIsStatePopoverOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -424,7 +422,7 @@ export function HolidaysTab() {
                 </PopoverContent>
               </Popover>
               <p className="text-xs text-gray-500">
-                Select multiple states where this holiday is observed. Leave empty for national holiday.
+                Select multiple states where this holiday is observed.
               </p>
             </div>
           </div>
@@ -435,7 +433,7 @@ export function HolidaysTab() {
             </Button>
             <Button 
               type="button" 
-              className="bg-blue-600 hover:bg-blue-700" 
+              className="bg-blue-300 hover:bg-blue-300" 
               onClick={handleSave}
               disabled={saving}
             >

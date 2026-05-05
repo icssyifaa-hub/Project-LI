@@ -1,11 +1,16 @@
-
 export interface User {
   id: string
   name: string
   email: string
-  color: string
+  password: string
   role: 'admin' | 'staff'
+  is_active: boolean
   created_at: string
+  updated_at?: string
+  phone?: string
+  color?: string
+  notification_settings?: any
+
 }
 
 export interface Task {
@@ -22,15 +27,15 @@ export interface Task {
   pdfJobOrderUrl?: string    
   pdfFinalReportPath: string
   pdfFinalReportUrl?: string
-  jobStatus: 'in-progress' | 'completed' | 'incompleted'
+  jobStatus: 'onhold' | 'in-progress' | 'completed' | 'incomplete'
   createdby?: string              
   createdAt?: string
   updatedAt?: string
   task_pic_id?: string          
   task_pic_color?: string         
-  task_pic_name?: string 
-  task_support_ids?: string[]         
-  task_support_names?: string[]    
+  task_pic_name?: string
+  task_support_ids?: string[]
+  task_support_names?: string[]
   task_support_colors?: string[]    
 }
 
@@ -93,7 +98,7 @@ export type ViewType = 'day' | 'week' | 'month' | 'year' | 'schedule'
 
 
 export interface StaffOption {
-  id: string    
+  id: string
   name: string  
   color: string 
 }

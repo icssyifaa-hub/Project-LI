@@ -352,7 +352,6 @@ export function UsersTab() {
             <Button 
               type="button" 
               className="bg-blue-300 hover:bg-blue-300"
-              className="bg-blue-500 hover:bg-blue-700" 
               onClick={handleSave}
               disabled={saving}
             >

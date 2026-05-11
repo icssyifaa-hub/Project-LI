@@ -56,11 +56,11 @@ export default function CalendarFilter({
   const hasExternalFilters = Object.keys(externalFilters).length > 0
   const staffFilters = hasExternalFilters ? externalFilters : internalFilters
   
-const staffList = users.filter((staff) => staff.role === 'staff')
+  const staffList = users.filter((staff) => staff.role === 'staff')
 
-const filteredStaff = staffList.filter((staff) =>
-  staff.name?.toLowerCase().includes(staffSearch.toLowerCase())
-)
+  const filteredStaff = staffList.filter((staff) =>
+    staff.name?.toLowerCase().includes(staffSearch.toLowerCase())
+  )
 
   const getUserColorClasses = (user: StaffInfo) => {
     const colorKey = user.color || 'blue'
@@ -293,8 +293,7 @@ const filteredStaff = staffList.filter((staff) =>
                             onCheckedChange={(checked) => {
                               handleStaffTaskToggle(staffId, checked === true)
                             }}
-                            className="border-blue-300 data-[state=checked]:bg-blue-300 data-[state=checked]:border-blue-300"
-                            className="border-blue-400 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
+                            className="border-blue-500 data-[state=checked]:bg-blue-300 data-[state=checked]:border-blue-300"
                           />
                         </div>
 
@@ -306,8 +305,7 @@ const filteredStaff = staffList.filter((staff) =>
                             onCheckedChange={(checked) => {
                               handleStaffEventToggle(staffId, checked === true)
                             }}
-                            className="border-purple-300 data-[state=checked]:bg-purple-300 data-[state=checked]:border-purple-300"
-                            className="border-purple-400 data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500"
+                            className="border-purple-500 data-[state=checked]:bg-purple-300 data-[state=checked]:border-purple-300"
                           />
                         </div>
 

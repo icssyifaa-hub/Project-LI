@@ -57,8 +57,7 @@ export function JobTasksTab() {
   }
 
   const handleSave = async () => {
-    // Validation
-    if (!formData.name.trim()) {
+    if (!formData.name) {
       toast({ 
         title: "Error", 
         description: "Task name is required", 
@@ -68,21 +67,14 @@ export function JobTasksTab() {
     }
 
     setSaving(true)
-    
     try {
       if (editingTask) {
         await updateJobTask(editingTask.id, formData)
       } else {
         await addJobTask(formData)
       }
-
       setIsDialogOpen(false)
-      setFormData({ name: '' })
-      setEditingTask(null)
-      
     } catch (error) {
-
-      console.error('Save operation failed:', error)
     } finally {
       setSaving(false)
     }
@@ -90,20 +82,9 @@ export function JobTasksTab() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this job task?')) return
-    
     try {
       await deleteJobTask(id)
     } catch (error) {
-      console.error('Delete operation failed:', error)
-    }
-  }
-
-  // Handle dialog close manually
-  const handleDialogClose = () => {
-    if (!saving) {
-      setIsDialogOpen(false)
-      setEditingTask(null)
-      setFormData({ name: '' })
     }
   }
 
@@ -126,8 +107,7 @@ export function JobTasksTab() {
                 Manage job tasks list - All tasks will appear in calendar form dropdown
               </CardDescription>
             </div>
-            <Button onClick={handleAdd} className="bg-blue-300 hover:bg-blue-700"
-            >
+            <Button onClick={handleAdd} className="bg-blue-300 hover:bg-blue-700">
               <Plus className="h-4 w-4 mr-2" />
               Add Task
             </Button>
@@ -191,7 +171,7 @@ export function JobTasksTab() {
       </Card>
 
       {/* Add/Edit Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md bg-white">
           <DialogHeader>
             <DialogTitle className="text-gray-900">
@@ -212,28 +192,17 @@ export function JobTasksTab() {
                 placeholder="e.g., CHRA"
                 className="border-gray-300"
                 required
-                disabled={saving}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !saving) {
-                    handleSave()
-                  }
-                }}
               />
             </div>
           </div>
 
           <DialogFooter>
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={handleDialogClose}
-              disabled={saving}
-            >
+            <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
               Cancel
             </Button>
             <Button 
               type="button" 
-              className="bg-blue-300 hover:bg-blue-700"
+              className="bg-blue-500 hover:bg-blue-700" 
               onClick={handleSave}
               disabled={saving}
             >

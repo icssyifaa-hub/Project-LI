@@ -351,7 +351,11 @@ export function UsersTab() {
             </Button>
             <Button 
               type="button" 
+<<<<<<< HEAD
               className="bg-blue-300 hover:bg-blue-300"
+=======
+              className="bg-blue-500 hover:bg-blue-700" 
+>>>>>>> 0ce3bc6 (save before pull)
               onClick={handleSave}
               disabled={saving}
             >

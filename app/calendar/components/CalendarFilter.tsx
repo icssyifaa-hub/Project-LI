@@ -293,7 +293,11 @@ const filteredStaff = staffList.filter((staff) =>
                             onCheckedChange={(checked) => {
                               handleStaffTaskToggle(staffId, checked === true)
                             }}
+<<<<<<< HEAD
                             className="border-blue-300 data-[state=checked]:bg-blue-300 data-[state=checked]:border-blue-300"
+=======
+                            className="border-blue-400 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
+>>>>>>> 0ce3bc6 (save before pull)
                           />
                         </div>
 
@@ -305,8 +309,19 @@ const filteredStaff = staffList.filter((staff) =>
                             onCheckedChange={(checked) => {
                               handleStaffEventToggle(staffId, checked === true)
                             }}
+<<<<<<< HEAD
                             className="border-purple-300 data-[state=checked]:bg-purple-300 data-[state=checked]:border-purple-300"
+=======
+                            className="border-purple-400 data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500"
+>>>>>>> 0ce3bc6 (save before pull)
                           />
+                        </div>
+
+                        {/* Status Indicator - Green dot when selected */}
+                        <div className="col-span-1 flex justify-center">
+                          {(showStaffTasks || showStaffEvents) && (
+                            <div className="w-2 h-2 rounded-full bg-green-500" />
+                          )}
                         </div>
                       </div>
                     )

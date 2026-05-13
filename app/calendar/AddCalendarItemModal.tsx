@@ -1192,7 +1192,7 @@ export default function AddCalendarItemModal({
                 </button>
                 <button type="button" onClick={() => { setActiveTab('task'); setErrors({}); setTouched({}) }} disabled={isSaving}
                   className={`pb-1 px-1 text-sm font-medium transition-colors relative flex items-center space-x-2 ${
-                    activeTab === 'task' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'
+                    activeTab === 'task' ? 'text-blue-400 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'
                   } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
                   <Briefcase className="h-4 w-4" />
                   <span>Task</span>
@@ -1779,7 +1779,7 @@ export default function AddCalendarItemModal({
                     <X className="h-4 w-4 mr-2" />Cancel
                   </Button>
                 </div>
-                <Button type="submit" size="sm" className={activeTab === 'event' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'} disabled={isSaving}>
+                <Button type="submit" size="sm" className={activeTab === 'event' ? 'bg-purple-300 hover:bg-purple-300' : 'bg-blue-300 hover:bg-blue-300'} disabled={isSaving}>
                   {isSaving ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</>) : (<><Save className="h-4 w-4 mr-2" />Save</>)}
                 </Button>
               </CardFooter>
@@ -1885,7 +1885,7 @@ export default function AddCalendarItemModal({
               <Button type="button" variant="outline" onClick={() => { setShowConfirmDialog(false); setPendingSubmit(null) }} disabled={isSaving}>
                 Cancel
               </Button>
-              <Button type="button" onClick={async () => { if (pendingSubmit) await pendingSubmit() }} disabled={isSaving} className={activeTab === 'event' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}>
+              <Button type="button" onClick={async () => { if (pendingSubmit) await pendingSubmit() }} disabled={isSaving} className={activeTab === 'event' ? 'bg-purple-300 hover:bg-purple-300' : 'bg-blue-300 hover:bg-blue-300'}>
                 {isSaving ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</>) : (<><Save className="h-4 w-4 mr-2" />Confirm & Save</>)}
               </Button>
             </div>

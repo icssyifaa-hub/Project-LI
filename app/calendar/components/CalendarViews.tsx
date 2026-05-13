@@ -448,7 +448,7 @@ const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, onClose, 
               onEdit()
               onClose()
             }}
-            className={type === 'event' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}
+            className={type === 'event' ? 'bg-purple-300 hover:bg-purple-300' : 'bg-blue-300 hover:bg-blue-300'}
           >
             <Edit2 className="h-4 w-4 mr-2" />
             Edit

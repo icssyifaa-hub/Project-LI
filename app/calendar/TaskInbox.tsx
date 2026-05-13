@@ -481,7 +481,7 @@ function AddTaskModal({
           </div>
 
           <div className="flex gap-2 pt-2">
-            <Button type="submit" disabled={saving} className="flex-1 bg-blue-600 hover:bg-blue-700">
+            <Button type="submit" disabled={saving} className="flex-1 bg-blue-300 hover:bg-blue-300">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Create Task
             </Button>
@@ -687,7 +687,7 @@ function EditTaskModal({
           </div>
 
           <div className="flex gap-2 pt-2">
-            <Button type="submit" disabled={saving} className="flex-1 bg-blue-600 hover:bg-blue-700">
+            <Button type="submit" disabled={saving} className="flex-1 bg-blue-300 hover:bg-blue-300">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Save Changes
             </Button>

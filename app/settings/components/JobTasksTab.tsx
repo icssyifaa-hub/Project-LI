@@ -202,7 +202,7 @@ export function JobTasksTab() {
             </Button>
             <Button 
               type="button" 
-              className="bg-blue-500 hover:bg-blue-700" 
+              className="bg-blue-300 hover:bg-blue-300" 
               onClick={handleSave}
               disabled={saving}
             >

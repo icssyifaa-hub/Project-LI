@@ -42,6 +42,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { uploadPDF, deletePDF } from '@/lib/pdf-service'
+import { Combobox } from '@/components/ui/combobox'
 
 interface AddCalendarItemModalProps {
   isOpen: boolean
@@ -1244,44 +1245,35 @@ export default function AddCalendarItemModal({
                       <p className="text-xs text-gray-500">Format: JOB + Year(2 digits) + Month(2 digits) + Number(001) - Resets every month</p>
                     </div>
                     
-                    <div className="space-y-2">
-                      <Label className="text-gray-700 font-medium">Job Task</Label>
-                      {loadingTasks ? (
-                        <div className="flex items-center space-x-2 border border-gray-300 rounded-md p-2">
-                          <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                          <span className="text-sm text-gray-500">Loading job tasks...</span>
-                        </div>
-                      ) : (
-                        <Select 
-                          value={taskData.jobTask || "none"} 
-                          onValueChange={(value) => { 
-                            setTaskData(prev => ({...prev, jobTask: value === "none" ? "" : value}))
-                            if (touched.jobTask) { 
-                              const error = validateTaskField('jobTask', value)
-                              setErrors(prev => ({ ...prev, jobTask: error }))
-                            } 
-                          }} 
-                          onOpenChange={() => handleBlur('jobTask')} 
-                          disabled={isSaving}
-                        >
-                          <SelectTrigger className={`bg-white border-gray-300 ${touched.jobTask && errors.jobTask ? 'border-red-500' : ''}`}>
-                            <SelectValue placeholder="Select job task" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
-                            <SelectItem value="none" className="hover:bg-gray-100 text-gray-900 italic">None</SelectItem>
-                            {jobTasks.map((task) => (
-                              <SelectItem key={task.id} value={task.name} className="hover:bg-gray-100 text-gray-900">
-                                <span>{task.name}</span>
-                              </SelectItem>
-                            ))}
-                            {jobTasks.length === 0 && (
-                              <div className="px-2 py-3 text-sm text-gray-500 text-center">No job tasks found.</div>
-                            )}
-                          </SelectContent>
-                        </Select>
-                      )}
-                      <ErrorMessage field="jobTask" />
-                    </div>
+                     {/* Job Task - Searchable Combobox */}
+                      <div className="space-y-2">
+                        <Label className="text-gray-700 font-medium">Job Task</Label>
+                        {loadingTasks ? (
+                          <div className="flex items-center space-x-2 border border-gray-300 rounded-md p-2 bg-gray-50">
+                            <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                            <span className="text-sm text-gray-500">Loading job tasks...</span>
+                          </div>
+                        ) : (
+                          <Combobox
+                            options={[
+                                              ...jobTasks.map(task => ({ value: task.name, label: task.name }))
+                                            ]}
+                            value={taskData.jobTask || ""}
+                            onValueChange={(value) => {
+                              setTaskData(prev => ({ ...prev, jobTask: value }))
+                              if (touched.jobTask) {
+                                const error = validateTaskField('jobTask', value)
+                                setErrors(prev => ({ ...prev, jobTask: error }))
+                              }
+                            }}
+                            placeholder="Select job task"
+                            emptyMessage="No job tasks found."
+                            disabled={isSaving}
+                            className={touched.jobTask && errors.jobTask ? 'border-red-500' : ''}
+                          />
+                        )}
+                        <ErrorMessage field="jobTask" />
+                      </div>
 
                     {/* DATE SECTION - with Remove Date button */}
                     <div className="space-y-2">

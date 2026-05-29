@@ -47,6 +47,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/use-toast'
 import { uploadPDF, deletePDF } from '@/lib/pdf-service'
+import { getDotClass } from '@/lib/colors'
 
 export interface UnscheduledTask {
   id: string
@@ -83,7 +84,6 @@ interface Staff {
   color?: string
 }
 
-// ==================== PDF VIEWER MODAL ====================
 function PDFViewerModal({ url, fileName, isOpen, onClose }: { 
   url: string | null, 
   fileName: string, 
@@ -126,7 +126,6 @@ function PDFViewerModal({ url, fileName, isOpen, onClose }: {
   )
 }
 
-// ==================== SORTABLE TASK ITEM ====================
 function SortableTaskItem({ 
   task, 
   onTaskClick,
@@ -205,10 +204,7 @@ function SortableTaskItem({
             
             <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
               <span className="flex items-center">
-                <div 
-                  className="w-2 h-2 rounded-full mr-1" 
-                  style={{ backgroundColor: task.task_pic_color || '#3b82f6' }}
-                ></div>
+                <div className={`w-2 h-2 rounded-full mr-1 ${getDotClass(task.task_pic_color)}`}></div>
                 <span className="truncate">{task.task_pic_name || 'No PIC'}</span>
               </span>
               {task.pdfJobOrderUrl && (
@@ -267,7 +263,6 @@ function SortableTaskItem({
   )
 }
 
-// ==================== ADD TASK MODAL ====================
 function AddTaskModal({ 
   isOpen, 
   onClose, 
@@ -465,7 +460,7 @@ function AddTaskModal({
                 {staffList.map((staff) => (
                   <SelectItem key={staff.id} value={staff.id}>
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: staff.color || '#3b82f6' }}></div>
+                      <div className={`w-3 h-3 rounded-full ${getDotClass(staff.color)}`}></div>
                       <span>{staff.name}</span>
                     </div>
                   </SelectItem>
@@ -493,7 +488,6 @@ function AddTaskModal({
   )
 }
 
-// ==================== EDIT TASK MODAL ====================
 function EditTaskModal({ 
   task, 
   isOpen, 
@@ -625,7 +619,6 @@ function EditTaskModal({
             />
           </div>
 
-          {/* Job Task - SEARCHABLE COMBOBOX */}
           <div className="space-y-2">
             <Label className="text-gray-700 font-medium">Job Task <span className="text-red-500">*</span></Label>
             <Combobox
@@ -651,7 +644,7 @@ function EditTaskModal({
                 {staffList.map((staff) => (
                   <SelectItem key={staff.id} value={staff.id}>
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: staff.color || '#3b82f6' }}></div>
+                      <div className={`w-3 h-3 rounded-full ${getDotClass(staff.color)}`}></div>
                       <span>{staff.name}</span>
                     </div>
                   </SelectItem>
@@ -699,7 +692,6 @@ function EditTaskModal({
   )
 }
 
-// ==================== MAIN TASK INBOX COMPONENT ====================
 export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskSaved, onUnreadCountChange }: TaskInboxProps) {
   const [tasks, setTasks] = useState<UnscheduledTask[]>([])
   const [filter, setFilter] = useState('')

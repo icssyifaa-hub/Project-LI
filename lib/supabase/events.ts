@@ -1,6 +1,5 @@
 import { createClient } from './client'
 
-// ==================== HELPER FUNCTIONS ====================
 const handleSupportArrays = (data: any, prefix: string) => {
   const supportIds = data[`${prefix}_support_ids`] 
     ? (typeof data[`${prefix}_support_ids`] === 'string' 
@@ -28,9 +27,9 @@ export async function getEvents(startDate: string, endDate: string) {
   const supabase = createClient()
   
   try {
-    // Get current user for debugging
+    // Get current user for debugging (optional - no error if not logged in)
     const { data: { user } } = await supabase.auth.getUser()
-    console.log('👤 Current user fetching events:', user?.id, user?.email)
+    console.log('👤 Current user fetching events:', user?.id || 'No user', user?.email || 'Not logged in')
     
     const { data, error } = await supabase
       .from('events')
@@ -134,10 +133,19 @@ export async function createEvent(eventData: any) {
       throw new Error('Start date is required')
     }
     
-    // Get current user
+    // Get current user - MAKE OPTIONAL (no error if not authenticated)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('User not authenticated')
-    console.log('👤 Creating event as user:', user.id)
+    
+    // Use a default user ID if not authenticated (for development)
+    // Change this to a valid user ID from your database
+    const DEFAULT_USER_ID = '00000000-0000-0000-0000-000000000000'
+    const userId = user?.id || DEFAULT_USER_ID
+    
+    if (!user) {
+      console.warn('⚠️ No authenticated user, using default user ID:', DEFAULT_USER_ID)
+    } else {
+      console.log('👤 Creating event as user:', user.id)
+    }
     
     // Handle support staff arrays - convert to comma-separated strings for DB
     const eventSupportIdsString = eventData.event_support_ids 
@@ -172,7 +180,7 @@ export async function createEvent(eventData: any) {
       event_support_ids: eventSupportIdsString,
       event_support_names: eventSupportNamesString,
       event_support_colors: eventSupportColorsString,
-      created_by: user.id,
+      created_by: userId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }

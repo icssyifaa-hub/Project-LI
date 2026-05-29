@@ -62,17 +62,14 @@ export function PDFTab() {
 
     try {
       await uploadPDF(type, file)
-      // Clear file input
       if (type === 'job-order') {
         setJobOrderFile(null)
       } else {
         setFinalReportFile(null)
       }
-      // Reset file input
       const fileInput = document.getElementById(`${type}-file`) as HTMLInputElement
       if (fileInput) fileInput.value = ''
     } catch (error) {
-      // Error already handled in hook
     }
   }
 
@@ -83,7 +80,6 @@ export function PDFTab() {
       await deletePDF(deleteDialog.template.id, deleteDialog.template.file_url || undefined)
       setDeleteDialog({ isOpen: false, template: null })
     } catch (error) {
-      // Error already handled in hook
     }
   }
 

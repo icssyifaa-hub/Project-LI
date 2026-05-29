@@ -9,34 +9,52 @@ export interface NotificationData {
   created_by_name?: string
 }
 
+// Get user from localStorage
+const getCurrentUser = (): any | null => {
+  try {
+    const userData = localStorage.getItem('user')
+    if (userData) {
+      return JSON.parse(userData)
+    }
+  } catch (e) {
+    console.error('Error getting user from localStorage:', e)
+  }
+  return null
+}
+
 export async function createNotification(
   userId: string,
   notification: NotificationData
 ) {
   const supabase = createClient()
   
-  const { data, error } = await supabase
-    .from('notifications')
-    .insert({
-      user_id: userId,
-      title: notification.title,
-      message: notification.message,
-      type: notification.type,
-      task_id: notification.task_id || null,
-      event_id: notification.event_id || null,
-      read: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      created_by_name: notification.created_by_name || null
-    })
-    .select()
-  
-  if (error) {
-    console.error('Error creating notification:', error)
+  try {
+    const { data, error } = await supabase
+      .from('notifications')
+      .insert({
+        user_id: userId,
+        title: notification.title,
+        message: notification.message,
+        type: notification.type,
+        task_id: notification.task_id || null,
+        event_id: notification.event_id || null,
+        read: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        created_by_name: notification.created_by_name || null
+      })
+      .select()
+    
+    if (error) {
+      console.error('Error creating notification:', error)
+      return null
+    }
+    
+    return data
+  } catch (error) {
+    console.error('Error in createNotification:', error)
     return null
   }
-  
-  return data
 }
 
 export async function notifyStaffForTask(
@@ -47,11 +65,10 @@ export async function notifyStaffForTask(
   const supabase = createClient()
   
   console.log(`🔔 Sending ${action} notifications for task:`, task.id)
-  console.log('📦 Task data received:', task)
   
   const staffToNotify: { id: string; name: string; role: string }[] = []
   
-  // Handle PIC - check both possible field names
+  // Handle PIC
   const picName = task.taskPicStaff || task.task_pic_name
   if (picName && typeof picName === 'string' && picName.trim()) {
     const { data: picUser } = await supabase
@@ -62,23 +79,18 @@ export async function notifyStaffForTask(
     
     if (picUser) {
       staffToNotify.push({ id: picUser.id, name: picUser.name, role: 'PIC' })
-      console.log(`✅ Found PIC: ${picUser.name}`)
-    } else {
-      console.warn(`⚠️ PIC not found: ${picName}`)
     }
   }
   
-  // Handle Support Staff - support BOTH string and array formats
+  // Handle Support Staff
   let supportNames: string[] = []
   const supportStaff = task.taskSupportStaff || task.task_support_names
   
   if (supportStaff) {
     if (typeof supportStaff === 'string') {
       supportNames = supportStaff.split(',').map((s: string) => s.trim()).filter(s => s)
-      console.log('📝 Support staff (string):', supportNames)
     } else if (Array.isArray(supportStaff)) {
       supportNames = supportStaff.filter((s: any) => s && typeof s === 'string' && s.trim())
-      console.log('📝 Support staff (array):', supportNames)
     }
   }
   
@@ -90,20 +102,13 @@ export async function notifyStaffForTask(
         .eq('name', supportName.trim())
         .maybeSingle()
       
-      if (supportUser) {
-        if (!staffToNotify.some(s => s.id === supportUser.id)) {
-          staffToNotify.push({ id: supportUser.id, name: supportUser.name, role: 'Support' })
-          console.log(`✅ Found Support: ${supportUser.name}`)
-        }
-      } else {
-        console.warn(`⚠️ Support not found: ${supportName}`)
+      if (supportUser && !staffToNotify.some(s => s.id === supportUser.id)) {
+        staffToNotify.push({ id: supportUser.id, name: supportUser.name, role: 'Support' })
       }
     }
   }
   
-  console.log(`📋 Total staff to notify: ${staffToNotify.length}`)
-  
-  // Format dates for message
+  // Format date for message
   const taskDate = task.date_start || task.dateStart
   const formattedDate = taskDate ? new Date(taskDate).toLocaleDateString('en-MY', {
     day: 'numeric',
@@ -111,7 +116,7 @@ export async function notifyStaffForTask(
     year: 'numeric'
   }) : 'Date not set'
   
-  // Create notifications for each staff
+  // Create notifications
   for (const staff of staffToNotify) {
     let title = ''
     let message = ''
@@ -139,8 +144,6 @@ export async function notifyStaffForTask(
       task_id: task.id,
       created_by_name: assignedBy || undefined
     })
-    
-    console.log(`✅ Notification sent to ${staff.name} (${staff.role})`)
   }
   
   return staffToNotify.length
@@ -154,11 +157,10 @@ export async function notifyStaffForEvent(
   const supabase = createClient()
   
   console.log(`🔔 Sending ${action} notifications for event:`, event.id)
-  console.log('📦 Event data received:', event)
   
   const staffToNotify: { id: string; name: string; role: string }[] = []
   
-  // Handle PIC - check both possible field names
+  // Handle PIC
   const picName = event.eventPicStaff || event.event_pic_name
   if (picName && typeof picName === 'string' && picName.trim()) {
     const { data: picUser } = await supabase
@@ -169,22 +171,18 @@ export async function notifyStaffForEvent(
     
     if (picUser) {
       staffToNotify.push({ id: picUser.id, name: picUser.name, role: 'PIC' })
-      console.log(`✅ Found Event PIC: ${picUser.name}`)
-    } else {
-      console.warn(`⚠️ Event PIC not found: ${picName}`)
     }
   }
   
+  // Handle Support Staff
   let supportNames: string[] = []
   const supportStaff = event.eventSupportStaff || event.event_support_names
   
   if (supportStaff) {
     if (typeof supportStaff === 'string') {
       supportNames = supportStaff.split(',').map((s: string) => s.trim()).filter(s => s)
-      console.log('📝 Event support staff (string):', supportNames)
     } else if (Array.isArray(supportStaff)) {
       supportNames = supportStaff.filter((s: any) => s && typeof s === 'string' && s.trim())
-      console.log('📝 Event support staff (array):', supportNames)
     }
   }
   
@@ -196,20 +194,13 @@ export async function notifyStaffForEvent(
         .eq('name', supportName.trim())
         .maybeSingle()
       
-      if (supportUser) {
-        if (!staffToNotify.some(s => s.id === supportUser.id)) {
-          staffToNotify.push({ id: supportUser.id, name: supportUser.name, role: 'Support' })
-          console.log(`✅ Found Event Support: ${supportUser.name}`)
-        }
-      } else {
-        console.warn(`⚠️ Event Support not found: ${supportName}`)
+      if (supportUser && !staffToNotify.some(s => s.id === supportUser.id)) {
+        staffToNotify.push({ id: supportUser.id, name: supportUser.name, role: 'Support' })
       }
     }
   }
   
-  console.log(`📋 Total event staff to notify: ${staffToNotify.length}`)
-  
-  // Format dates for message
+  // Format date for message
   const eventDate = event.date_start || event.dateStart
   const formattedDate = eventDate ? new Date(eventDate).toLocaleDateString('en-MY', {
     day: 'numeric',
@@ -217,7 +208,7 @@ export async function notifyStaffForEvent(
     year: 'numeric'
   }) : 'Date not set'
   
-  // Create notifications for each staff
+  // Create notifications
   for (const staff of staffToNotify) {
     let title = ''
     let message = ''
@@ -245,8 +236,6 @@ export async function notifyStaffForEvent(
       event_id: event.id,
       created_by_name: assignedBy || undefined
     })
-    
-    console.log(`✅ Event notification sent to ${staff.name} (${staff.role})`)
   }
   
   return staffToNotify.length

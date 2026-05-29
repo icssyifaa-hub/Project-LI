@@ -37,23 +37,24 @@ import {
   Shield,
   Info,
 } from 'lucide-react'
+import { getColorClass, getDotClass, getSolidClass, getItemBgClass } from '@/lib/colors'
 
 const staffColors = [
-  { name: 'Ocean', value: 'blue', bgClass: 'bg-blue-500', bgLightClass: 'bg-blue-100', textClass: 'text-blue-600', ringClass: 'ring-blue-200', borderClass: 'border-blue-200', hoverBgClass: 'hover:bg-blue-600' },
-  { name: 'Forest', value: 'green', bgClass: 'bg-green-500', bgLightClass: 'bg-green-100', textClass: 'text-green-600', ringClass: 'ring-green-200', borderClass: 'border-green-200', hoverBgClass: 'hover:bg-green-600' },
-  { name: 'Lavender', value: 'purple', bgClass: 'bg-purple-500', bgLightClass: 'bg-purple-100', textClass: 'text-purple-600', ringClass: 'ring-purple-200', borderClass: 'border-purple-200', hoverBgClass: 'hover:bg-purple-600' },
-  { name: 'Mint', value: 'teal', bgClass: 'bg-teal-500', bgLightClass: 'bg-teal-100', textClass: 'text-teal-600', ringClass: 'ring-teal-200', borderClass: 'border-teal-200', hoverBgClass: 'hover:bg-teal-600' },
-  { name: 'Sunshine', value: 'yellow', bgClass: 'bg-yellow-500', bgLightClass: 'bg-yellow-100', textClass: 'text-yellow-600', ringClass: 'ring-yellow-200', borderClass: 'border-yellow-200', hoverBgClass: 'hover:bg-yellow-600' },
-  { name: 'Blossom', value: 'pink', bgClass: 'bg-pink-500', bgLightClass: 'bg-pink-100', textClass: 'text-pink-600', ringClass: 'ring-pink-200', borderClass: 'border-pink-200', hoverBgClass: 'hover:bg-pink-600' },
-  { name: 'Twilight', value: 'indigo', bgClass: 'bg-indigo-500', bgLightClass: 'bg-indigo-100', textClass: 'text-indigo-600', ringClass: 'ring-indigo-200', borderClass: 'border-indigo-200', hoverBgClass: 'hover:bg-indigo-600' },
-  { name: 'Coral', value: 'orange', bgClass: 'bg-orange-500', bgLightClass: 'bg-orange-100', textClass: 'text-orange-600', ringClass: 'ring-orange-200', borderClass: 'border-orange-200', hoverBgClass: 'hover:bg-orange-600' },
-  { name: 'Sky', value: 'cyan', bgClass: 'bg-cyan-500', bgLightClass: 'bg-cyan-100', textClass: 'text-cyan-600', ringClass: 'ring-cyan-200', borderClass: 'border-cyan-200', hoverBgClass: 'hover:bg-cyan-600' },
-  { name: 'Ruby', value: 'red', bgClass: 'bg-red-500', bgLightClass: 'bg-red-100', textClass: 'text-red-600', ringClass: 'ring-red-200', borderClass: 'border-red-200', hoverBgClass: 'hover:bg-red-600' },
+  { name: 'Blue', value: 'blue', bgClass: 'bg-blue-500', bgLightClass: 'bg-blue-100', textClass: 'text-blue-600', ringClass: 'ring-blue-200', borderClass: 'border-blue-200', hoverBgClass: 'hover:bg-blue-600' },
+  { name: 'Green', value: 'green', bgClass: 'bg-green-500', bgLightClass: 'bg-green-100', textClass: 'text-green-600', ringClass: 'ring-green-200', borderClass: 'border-green-200', hoverBgClass: 'hover:bg-green-600' },
+  { name: 'Purple', value: 'purple', bgClass: 'bg-purple-500', bgLightClass: 'bg-purple-100', textClass: 'text-purple-600', ringClass: 'ring-purple-200', borderClass: 'border-purple-200', hoverBgClass: 'hover:bg-purple-600' },
+  { name: 'Teal', value: 'teal', bgClass: 'bg-teal-500', bgLightClass: 'bg-teal-100', textClass: 'text-teal-600', ringClass: 'ring-teal-200', borderClass: 'border-teal-200', hoverBgClass: 'hover:bg-teal-600' },
+  { name: 'Yellow', value: 'yellow', bgClass: 'bg-yellow-500', bgLightClass: 'bg-yellow-100', textClass: 'text-yellow-600', ringClass: 'ring-yellow-200', borderClass: 'border-yellow-200', hoverBgClass: 'hover:bg-yellow-600' },
+  { name: 'Pink', value: 'pink', bgClass: 'bg-pink-500', bgLightClass: 'bg-pink-100', textClass: 'text-pink-600', ringClass: 'ring-pink-200', borderClass: 'border-pink-200', hoverBgClass: 'hover:bg-pink-600' },
+  { name: 'Indigo', value: 'indigo', bgClass: 'bg-indigo-500', bgLightClass: 'bg-indigo-100', textClass: 'text-indigo-600', ringClass: 'ring-indigo-200', borderClass: 'border-indigo-200', hoverBgClass: 'hover:bg-indigo-600' },
+  { name: 'Orange', value: 'orange', bgClass: 'bg-orange-500', bgLightClass: 'bg-orange-100', textClass: 'text-orange-600', ringClass: 'ring-orange-200', borderClass: 'border-orange-200', hoverBgClass: 'hover:bg-orange-600' },
+  { name: 'Cyan', value: 'cyan', bgClass: 'bg-cyan-500', bgLightClass: 'bg-cyan-100', textClass: 'text-cyan-600', ringClass: 'ring-cyan-200', borderClass: 'border-cyan-200', hoverBgClass: 'hover:bg-cyan-600' },
+  { name: 'Red', value: 'red', bgClass: 'bg-red-500', bgLightClass: 'bg-red-100', textClass: 'text-red-600', ringClass: 'ring-red-200', borderClass: 'border-red-200', hoverBgClass: 'hover:bg-red-600' },
   { name: 'Rose', value: 'rose', bgClass: 'bg-rose-500', bgLightClass: 'bg-rose-100', textClass: 'text-rose-600', ringClass: 'ring-rose-200', borderClass: 'border-rose-200', hoverBgClass: 'hover:bg-rose-600' },
-  { name: 'Amber', value: 'amber', bgClass: 'bg-amber-500', bgLightClass: 'bg-amber-100', textClass: 'text-amber-600', ringClass: 'ring-amber-200', borderClass: 'border-amber-200', hoverBgClass: 'hover:bg-amber-600' },
+  { name: 'Brown', value: 'brown', bgClass: 'bg-amber-800', bgLightClass: 'bg-amber-100', textClass: 'text-amber-800', ringClass: 'ring-amber-200', borderClass: 'border-amber-200', hoverBgClass: 'hover:bg-amber-800' },
   { name: 'Lime', value: 'lime', bgClass: 'bg-lime-500', bgLightClass: 'bg-lime-100', textClass: 'text-lime-600', ringClass: 'ring-lime-200', borderClass: 'border-lime-200', hoverBgClass: 'hover:bg-lime-600' },
-  { name: 'Emerald', value: 'emerald', bgClass: 'bg-emerald-500', bgLightClass: 'bg-emerald-100', textClass: 'text-emerald-600', ringClass: 'ring-emerald-200', borderClass: 'border-emerald-200', hoverBgClass: 'hover:bg-emerald-600' },
-  { name: 'Violet', value: 'violet', bgClass: 'bg-violet-500', bgLightClass: 'bg-violet-100', textClass: 'text-violet-600', ringClass: 'ring-violet-200', borderClass: 'border-violet-200', hoverBgClass: 'hover:bg-violet-600' },
+  { name: 'Gray', value: 'gray', bgClass: 'bg-gray-500', bgLightClass: 'bg-gray-100', textClass: 'text-gray-600', ringClass: 'ring-gray-200', borderClass: 'border-gray-200', hoverBgClass: 'hover:bg-gray-600' },
+  { name: 'Peach', value: 'peach', bgClass: 'bg-orange-300', bgLightClass: 'bg-orange-100', textClass: 'text-orange-700', ringClass: 'ring-orange-200', borderClass: 'border-orange-200', hoverBgClass: 'hover:bg-orange-400' },
 ]
 
 const getColorByValue = (value: string) => {
@@ -466,7 +467,8 @@ export default function ProfilePage() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
   }
 
-  const currentColor = getColorByValue(profileData.color)
+  const currentColorValue = profileData.color
+  const currentColor = getColorByValue(currentColorValue)
 
   if (loading) {
     return (
@@ -519,10 +521,10 @@ export default function ProfilePage() {
           <CardContent className="px-6 py-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-end gap-6">
               <div className="relative group">
-                <div className={`w-28 h-28 rounded-full flex items-center justify-center text-white text-3xl font-bold ${currentColor.bgClass} shadow-md ring-4 ring-white transition-colors duration-300`}>
+                <div className={`w-28 h-28 rounded-full flex items-center justify-center text-white text-3xl font-bold ${getSolidClass(currentColorValue)} shadow-md ring-4 ring-white transition-colors duration-300`}>
                   {getInitials(profileData.name)}
                 </div>
-                <div className={`absolute -bottom-2 -right-2 bg-white ${currentColor.textClass} text-xs font-semibold px-3 py-1.5 rounded-full shadow border border-gray-200`}>
+                <div className={`absolute -bottom-2 -right-2 bg-white ${getColorClass(currentColorValue, 'text')} text-xs font-semibold px-3 py-1.5 rounded-full shadow border border-gray-200`}>
                   {user?.role === 'admin' ? 'Admin' : 'Staff'}
                 </div>
               </div>
@@ -542,8 +544,8 @@ export default function ProfilePage() {
                 </div>
               </div>
               <div className="flex items-center gap-2 bg-gray-100 px-4 py-2 rounded-full">
-                <div className={`w-3 h-3 rounded-full ${currentColor.bgClass} transition-colors duration-300`} />
-                <span className="text-sm text-gray-600">Color: <span className={`font-medium ${currentColor.textClass}`}>{currentColor.name}</span></span>
+                <div className={`w-3 h-3 rounded-full ${getDotClass(currentColorValue)} transition-colors duration-300`} />
+                <span className="text-sm text-gray-600">Color: <span className={`font-medium ${getColorClass(currentColorValue, 'text')}`}>{currentColor.name}</span></span>
               </div>
             </div>
           </CardContent>
@@ -574,7 +576,7 @@ export default function ProfilePage() {
                 {/* Avatar Preview */}
                 <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
                   <div className="flex flex-col sm:flex-row items-center gap-6">
-                    <div className={`w-32 h-32 rounded-full flex items-center justify-center text-white text-4xl font-bold ${currentColor.bgClass} shadow-md ring-4 ${currentColor.ringClass}`}>
+                    <div className={`w-32 h-32 rounded-full flex items-center justify-center text-white text-4xl font-bold ${getSolidClass(currentColorValue)} shadow-md ring-4 ${getColorClass(currentColorValue, 'ring')}`}>
                       {getInitials(profileData.name)}
                     </div>
                     <div className="flex-1 text-center sm:text-left">
@@ -928,7 +930,7 @@ export default function ProfilePage() {
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <div className={`w-4 h-4 rounded-full ${currentColor.bgClass} ring-4 ${currentColor.ringClass}`} />
+                          <div className={`w-4 h-4 rounded-full ${getSolidClass(currentColorValue)} ring-4 ${getColorClass(currentColorValue, 'ring')}`} />
                           <span className="text-gray-600">Your current color</span>
                         </div>
                       </div>
@@ -968,16 +970,16 @@ export default function ProfilePage() {
                     <Eye className="h-4 w-4 text-blue-500" />Live Preview
                   </h3>
                   <div className="flex flex-col sm:flex-row items-center gap-6">
-                    <div className={`w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl font-bold ${currentColor.bgClass} shadow-md ring-4 ${currentColor.ringClass} transition-colors duration-300`}>
+                    <div className={`w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl font-bold ${getSolidClass(currentColorValue)} shadow-md ring-4 ${getColorClass(currentColorValue, 'ring')} transition-colors duration-300`}>
                       {getInitials(profileData.name)}
                     </div>
                     <div className="flex-1 text-center sm:text-left">
                       <p className="font-medium text-gray-900">{profileData.name || 'Your Name'}</p>
                       <div className="flex items-center justify-center sm:justify-start gap-2 mt-2">
-                        <div className={`w-3 h-3 rounded-full ${currentColor.bgClass}`} />
+                        <div className={`w-3 h-3 rounded-full ${getDotClass(currentColorValue)}`} />
                         <p className="text-sm text-gray-600">
                           Your <span className="font-medium">profile, tasks, and events</span> will appear in{' '}
-                          <span className={`font-medium ${currentColor.textClass}`}>{currentColor.name}</span>
+                          <span className={`font-medium ${getColorClass(currentColorValue, 'text')}`}>{currentColor.name}</span>
                         </p>
                       </div>
                     </div>
@@ -985,19 +987,19 @@ export default function ProfilePage() {
 
                   {/* Example cards */}
                   <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className={`${currentColor.bgLightClass} border ${currentColor.borderClass} rounded-lg p-3`}>
+                    <div className={`${getItemBgClass(currentColorValue)} border ${getColorClass(currentColorValue, 'border')} rounded-lg p-3`}>
                       <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${currentColor.bgClass}`} />
-                        <span className={`text-xs font-medium ${currentColor.textClass}`}>Task</span>
+                        <div className={`w-2 h-2 rounded-full ${getDotClass(currentColorValue)}`} />
+                        <span className={`text-xs font-medium ${getColorClass(currentColorValue, 'text')}`}>Task</span>
                       </div>
-                      <p className={`text-sm ${currentColor.textClass} mt-1`}>Complete project report</p>
+                      <p className={`text-sm ${getColorClass(currentColorValue, 'text')} mt-1`}>Complete project report</p>
                     </div>
-                    <div className={`${currentColor.bgLightClass} border ${currentColor.borderClass} rounded-lg p-3`}>
+                    <div className={`${getItemBgClass(currentColorValue)} border ${getColorClass(currentColorValue, 'border')} rounded-lg p-3`}>
                       <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${currentColor.bgClass}`} />
-                        <span className={`text-xs font-medium ${currentColor.textClass}`}>Event</span>
+                        <div className={`w-2 h-2 rounded-full ${getDotClass(currentColorValue)}`} />
+                        <span className={`text-xs font-medium ${getColorClass(currentColorValue, 'text')}`}>Event</span>
                       </div>
-                      <p className={`text-sm ${currentColor.textClass} mt-1`}>Team meeting at 2 PM</p>
+                      <p className={`text-sm ${getColorClass(currentColorValue, 'text')} mt-1`}>Team meeting at 2 PM</p>
                     </div>
                   </div>
                 </div>

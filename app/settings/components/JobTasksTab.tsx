@@ -1,3 +1,5 @@
+// File: components/JobTasksTab.tsx (sama je, confirmkan warna button)
+
 'use client'
 
 import { useState } from 'react'
@@ -75,6 +77,7 @@ export function JobTasksTab() {
       }
       setIsDialogOpen(false)
     } catch (error) {
+      // Error dah handle dalam hook
     } finally {
       setSaving(false)
     }
@@ -85,6 +88,7 @@ export function JobTasksTab() {
     try {
       await deleteJobTask(id)
     } catch (error) {
+      // Error dah handle dalam hook
     }
   }
 
@@ -107,7 +111,7 @@ export function JobTasksTab() {
                 Manage job tasks list - All tasks will appear in calendar form dropdown
               </CardDescription>
             </div>
-            <Button onClick={handleAdd} className="bg-blue-300 hover:bg-blue-700">
+            <Button onClick={handleAdd} className="bg-blue-300 hover:bg-blue-300">
               <Plus className="h-4 w-4 mr-2" />
               Add Task
             </Button>

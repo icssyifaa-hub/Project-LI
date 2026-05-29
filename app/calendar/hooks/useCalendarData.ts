@@ -1,5 +1,4 @@
 'use client'
-
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { 
   getTasks, createTask, updateTask, deleteTask as deleteTaskApi,
@@ -12,14 +11,12 @@ import { uploadPDF, deletePDF } from '@/lib/pdf-service'
 import { notifyStaffForTask, notifyStaffForEvent } from '@/lib/supabase/notifications'
 import type { Task, Event, Holiday, ViewType, StaffInfo } from '@/app/calendar/types/calendar'
 
-// ========== AUTO-COMPUTE TASK STATUS ==========
 const computeTaskStatus = (data: {
   dateStart: string | null
   dateStop: string | null
   pdfJobOrderPath: string | null
   pdfFinalReportPath: string | null
 }) => {
-  // ONHOLD: No date assigned (task in inbox)
   if (!data.dateStart) return 'onhold'
   
   const today = new Date()
@@ -32,13 +29,9 @@ const computeTaskStatus = (data: {
   const hasJobOrder = !!data.pdfJobOrderPath
   const hasFinalReport = !!data.pdfFinalReportPath
   
-  // COMPLETED: Both Job Order AND Final Report uploaded
   if (hasJobOrder && hasFinalReport) return 'completed'
-  
-  // INCOMPLETE: Due date passed AND files not complete
   if (isDueDatePassed && (!hasJobOrder || !hasFinalReport)) return 'incomplete'
   
-  // IN-PROGRESS: Has date, not overdue, files may be partial
   return 'in-progress'
 }
 
@@ -194,9 +187,6 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
       lastFetchRef.current = now
       
       const staffData = await fetchAllStaff()
-      
-      // Fetch ALL tasks (including those with null date_start for inbox)
-      // But for calendar display, we'll filter tasks with date_start in range
       const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
         .select('*')
@@ -214,9 +204,6 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
       if (eventsError) throw eventsError
       
       const  holidaysData = await getHolidays (start, end)
-
-      // Filter tasks that have date_start within range OR null (for inbox)
-      // For calendar display, only show tasks with date_start in range
       const tasksInRange = tasksData?.filter((task: any) => 
         task.date_start && task.date_start >= start && task.date_start <= end
       ) || []

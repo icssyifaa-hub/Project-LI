@@ -1,12 +1,11 @@
 'use client'
-
 import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Plus, CalendarCheck, X, Edit2 } from 'lucide-react'
 import type { Task, Event } from '@/app/calendar/types/calendar'
 import { MALAYSIA_STATES } from '@/app/settings/types'
+import { getItemStyleClasses, getItemBgClass, getBadgeClass, getDotClass, getSolidClass, getHeaderGradientClass } from '@/lib/colors'
 
-// ==================== TYPE FOR STAFF FILTERS ====================
 interface StaffFilters {
   [staffId: string]: {
     tasks: boolean
@@ -14,7 +13,6 @@ interface StaffFilters {
   }
 }
 
-// ==================== COLOR STYLES ====================
 export const getItemStyle = (item: any) => {
   let colorKey
   
@@ -23,28 +21,10 @@ export const getItemStyle = (item: any) => {
   } else if (item.type === 'event') {
     colorKey = item.event_pic_color
   } else {
-    colorKey = null
+    colorKey = 'blue'
   }
   
-  const colorMap: {[key: string]: string} = {
-    'blue': 'bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200',
-    'green': 'bg-green-100 text-green-800 border-green-300 hover:bg-green-200',
-    'purple': 'bg-purple-100 text-purple-800 border-purple-300 hover:bg-purple-200',
-    'teal': 'bg-teal-100 text-teal-800 border-teal-300 hover:bg-teal-200',
-    'yellow': 'bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200',
-    'pink': 'bg-pink-100 text-pink-800 border-pink-300 hover:bg-pink-200',
-    'indigo': 'bg-indigo-100 text-indigo-800 border-indigo-300 hover:bg-indigo-200',
-    'orange': 'bg-orange-100 text-orange-800 border-orange-300 hover:bg-orange-200',
-    'cyan': 'bg-cyan-100 text-cyan-800 border-cyan-300 hover:bg-cyan-200',
-    'red': 'bg-red-100 text-red-800 border-red-300 hover:bg-red-200',
-    'rose': 'bg-rose-100 text-rose-800 border-rose-300 hover:bg-rose-200',
-    'amber': 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200',
-    'lime': 'bg-lime-100 text-lime-800 border-lime-300 hover:bg-lime-200',
-    'emerald': 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200',
-    'violet': 'bg-violet-100 text-violet-800 border-violet-300 hover:bg-violet-200',
-  }
-  
-  return colorMap[colorKey || 'blue'] || 'bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200'
+  return getItemStyleClasses(colorKey)
 }
 
 export const getItemBgColor = (item: any) => {
@@ -55,28 +35,10 @@ export const getItemBgColor = (item: any) => {
   } else if (item.type === 'event') {
     colorKey = item.event_pic_color
   } else {
-    colorKey = null
+    colorKey = 'blue'
   }
   
-  const colorMap: {[key: string]: string} = {
-    'blue': 'bg-blue-50',
-    'green': 'bg-green-50',
-    'purple': 'bg-purple-50',
-    'teal': 'bg-teal-50',
-    'yellow': 'bg-yellow-50',
-    'pink': 'bg-pink-50',
-    'indigo': 'bg-indigo-50',
-    'orange': 'bg-orange-50',
-    'cyan': 'bg-cyan-50',
-    'red': 'bg-red-50',
-    'rose': 'bg-rose-50',
-    'amber': 'bg-amber-50',
-    'lime': 'bg-lime-50',
-    'emerald': 'bg-emerald-50',
-    'violet': 'bg-violet-50',
-  }
-  
-  return colorMap[colorKey] || 'bg-gray-50'
+  return getItemBgClass(colorKey)
 }
 
 export const getItemBorderColor = (item: any) => {
@@ -87,33 +49,13 @@ export const getItemBorderColor = (item: any) => {
   } else if (item.type === 'event') {
     colorKey = item.event_pic_color
   } else {
-    colorKey = null
+    colorKey = 'blue'
   }
   
-  const colorMap: {[key: string]: string} = {
-    'blue': 'border-blue-400',
-    'green': 'border-green-400',
-    'purple': 'border-purple-400',
-    'teal': 'border-teal-400',
-    'yellow': 'border-yellow-400',
-    'pink': 'border-pink-400',
-    'indigo': 'border-indigo-400',
-    'orange': 'border-orange-400',
-    'cyan': 'border-cyan-400',
-    'red': 'border-red-400',
-    'rose': 'border-rose-400',
-    'amber': 'border-amber-400',
-    'lime': 'border-lime-400',
-    'emerald': 'border-emerald-400',
-    'violet': 'border-violet-400',
-  }
-  
-  return colorMap[colorKey] || 'border-gray-400'
+  return getItemBgClass(colorKey)
 }
 
 export const holidayStyle = 'bg-green-400 text-white border-green-600 cursor-pointer hover:bg-green-500 transition-colors'
-
-// ==================== DISPLAY FUNCTIONS ====================
 
 const getTaskDisplayText = (item: any) => {
   const jobTask = item.jobTask || 'No Job Task'
@@ -131,6 +73,7 @@ const getTaskDisplayElement = (item: any) => {
   const jobTask = item.jobTask || 'No Job Task'
   const clientName = item.clientName || 'No Client'
   const picText = item.task_pic_name || 'No PIC'
+  const picColor = item.task_pic_color || 'blue'
   const supportText = item.task_support_names && item.task_support_names.length > 0
     ? `, ${item.task_support_names.join(',')}`
     : ''
@@ -141,7 +84,7 @@ const getTaskDisplayElement = (item: any) => {
         {jobTask} - {clientName}
       </span>
       <div className="flex items-center space-x-1 flex-shrink-0 ml-2">
-        <span className={`text-[10px] px-1.5 py-0.5 rounded-full bg-${item.task_pic_color}-200 text-${item.task_pic_color}-800`}>
+        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${getBadgeClass(picColor)}`}>
           {picText}{supportText}
         </span>
       </div>
@@ -174,7 +117,7 @@ const getEventDisplayElement = (item: any) => {
       </span>
       {hasPIC && (
         <div className="flex items-center gap-1 flex-shrink-0">
-          <span className={`text-[10px] px-1.5 py-0.5 rounded-full bg-${picColor}-200 text-${picColor}-800 whitespace-nowrap`}>
+          <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${getBadgeClass(picColor)} whitespace-nowrap`}>
             👤 {picName}{supportText}
           </span>
         </div>
@@ -195,7 +138,6 @@ const getItemIcon = (item: any) => {
   return '🎉'
 }
 
-// ==================== HOLIDAY POPUP ====================
 interface HolidayPopupProps {
   holiday: any
   onClose: () => void
@@ -289,7 +231,6 @@ const HolidayPopup: React.FC<HolidayPopupProps> = ({ holiday, onClose }) => {
   )
 }
 
-// ==================== ITEM DETAIL POPUP ====================
 interface ItemDetailPopupProps {
   item: any
   type: 'task' | 'event'
@@ -308,6 +249,14 @@ const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, onClose, 
     })
   }
 
+  const getHeaderColorClass = () => {
+    if (type === 'event') {
+      return getSolidClass(item.event_pic_color) || 'bg-purple-500'
+    } else {
+      return getSolidClass(item.task_pic_color) || 'bg-blue-500'
+    }
+  }
+
   const getDisplayText = () => {
     if (type === 'event') {
       return (
@@ -324,9 +273,9 @@ const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, onClose, 
           
           <div className="border-t pt-3 mt-2">
             <p className="text-sm font-medium text-gray-700 mb-2">👥 Person In Charge:</p>
-            <div className="flex flex-wrap items-center gap-2 p-2 rounded-lg" style={{ backgroundColor: `${item.event_pic_color}10` }}>
+            <div className="flex flex-wrap items-center gap-2 p-2 rounded-lg bg-purple-50">
               <div className="flex items-center gap-1">
-                <span className={`w-3 h-3 rounded-full bg-${item.event_pic_color || 'purple'}-500`}></span>
+                <span className={`w-3 h-3 rounded-full ${getDotClass(item.event_pic_color)}`}></span>
                 <span className="text-sm font-semibold text-gray-900">
                   {item.event_pic_name || 'No PIC'}
                 </span>
@@ -337,7 +286,7 @@ const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, onClose, 
                   <span className="text-gray-400">→</span>
                   {item.event_support_names.map((name: string, idx: number) => (
                     <div key={idx} className="flex items-center gap-1">
-                      <span className={`w-3 h-3 rounded-full bg-${item.event_support_colors?.[idx] || 'purple'}-500`}></span>
+                      <span className={`w-3 h-3 rounded-full ${getDotClass(item.event_support_colors?.[idx])}`}></span>
                       <span className="text-sm text-gray-700">{name}</span>
                     </div>
                   ))}
@@ -365,9 +314,9 @@ const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, onClose, 
           
           <div className="border-t pt-3 mt-2">
             <p className="text-sm font-medium text-gray-700 mb-2">👥 Person In Charge:</p>
-            <div className="flex flex-wrap items-center gap-2 p-2 rounded-lg" style={{ backgroundColor: `${item.task_pic_color}10` }}>
+            <div className="flex flex-wrap items-center gap-2 p-2 rounded-lg bg-blue-50">
               <div className="flex items-center gap-1">
-                <span className={`w-3 h-3 rounded-full bg-${item.task_pic_color || 'blue'}-500`}></span>
+                <span className={`w-3 h-3 rounded-full ${getDotClass(item.task_pic_color)}`}></span>
                 <span className="text-sm font-semibold text-gray-900">
                   {item.task_pic_name || 'No PIC'}
                 </span>
@@ -378,7 +327,7 @@ const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, onClose, 
                   <span className="text-gray-400">→</span>
                   {item.task_support_names.map((name: string, idx: number) => (
                     <div key={idx} className="flex items-center gap-1">
-                      <span className={`w-3 h-3 rounded-full bg-${item.task_support_colors?.[idx] || 'blue'}-500`}></span>
+                      <span className={`w-3 h-3 rounded-full ${getDotClass(item.task_support_colors?.[idx])}`}></span>
                       <span className="text-sm text-gray-700">{name}</span>
                     </div>
                   ))}
@@ -400,18 +349,10 @@ const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, onClose, 
     }
   }
 
-  const getHeaderColor = () => {
-    if (type === 'event') {
-      return `bg-${item.event_pic_color || 'purple'}-500`
-    } else {
-      return `bg-${item.task_pic_color || 'blue'}-500`
-    }
-  }
-
   return (
     <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-lg w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-        <div className={`flex items-center justify-between p-4 border-b rounded-t-lg ${getHeaderColor()} text-white`}>
+        <div className={`flex items-center justify-between p-4 border-b rounded-t-lg ${getHeaderColorClass()} text-white`}>
           <h2 className="text-lg font-semibold">
             {type === 'event' ? '📅 Event Details' : '📋 Task Details'}
           </h2>
@@ -470,6 +411,8 @@ interface CalendarViewsProps {
   onEditTask: (task: Task) => void
   onEditEvent: (event: Event) => void
   onDateClick?: (date: Date) => void
+  onViewChange?: (view: 'day' | 'week' | 'month' | 'year' | 'schedule') => void
+  onMonthSelect?: (date: Date) => void
   onDragOver?: (e: React.DragEvent, date: Date) => void
   onDrop?: (e: React.DragEvent, date: Date) => void
   onDragLeave?: () => void
@@ -489,6 +432,8 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
   onEditTask,
   onEditEvent,
   onDateClick,
+  onViewChange,
+  onMonthSelect,
   onDragOver,
   onDrop,
   onDragLeave,
@@ -522,7 +467,6 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
     })
   }
 
-  // ========== FILTER FUNCTIONS ==========
   const shouldShowTask = (task: Task): boolean => {
     if (Object.keys(staffTaskEventFilters).length === 0) return true
     
@@ -549,7 +493,6 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
     return false
   }
 
-  // ========== GET ITEMS FOR DATE (WITH FILTERS) ==========
   const getItemsForDate = (date: Date) => {
     const dateKey = formatDateKey(date)
     
@@ -571,7 +514,6 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
     return sorted
   }
 
-  // ========== GET ALL ITEMS FOR MONTH (WITH FILTERS) ==========
   const getAllItemsForYearMonth = (year: number, month: number) => {
     const startDate = new Date(year, month, 1)
     const endDate = new Date(year, month + 1, 0)
@@ -589,7 +531,6 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
     return items
   }
 
-  // ========== CLICK HANDLERS ==========
   const handleItemClick = (item: any, type: 'task' | 'event', e: React.MouseEvent) => {
     e.stopPropagation()
     e.preventDefault()
@@ -610,6 +551,17 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
     e.stopPropagation()
     e.preventDefault()
     setSelectedMoreItems({ date, items, holidays })
+  }
+
+  // Handle month click from year view
+  const handleMonthClick = (year: number, month: number) => {
+    const newDate = new Date(year, month, 1)
+    if (onViewChange) {
+      onViewChange('month')
+    }
+    if (onMonthSelect) {
+      onMonthSelect(newDate)
+    }
   }
 
   if (loading) {
@@ -893,10 +845,8 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
             {(() => {
               const year = currentDate.getFullYear()
               const month = currentDate.getMonth()
-              
               const firstDay = new Date(year, month, 1).getDay()
               const daysInMonth = new Date(year, month + 1, 0).getDate()
-              
               const calendar = []
               for (let i = 0; i < 42; i++) {
                 calendar.push(null)
@@ -1037,9 +987,7 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
               const totalTasksInMonth = monthItems.reduce((sum, day) => sum + day.items.filter(i => i.type === 'task').length, 0)
               const totalEventsInMonth = monthItems.reduce((sum, day) => sum + day.items.filter(i => i.type === 'event').length, 0)
               const totalHolidaysInMonth = monthHolidays.length
-              
               const daysWithItems = monthItems.filter(day => day.items.length > 0 || day.holidays.length > 0).slice(0, 3)
-
               const firstDayOfMonth = new Date(currentDate.getFullYear(), index, 1).getDay()
               const daysInMonth = new Date(currentDate.getFullYear(), index + 1, 0).getDate()
               const totalCells = Math.ceil((firstDayOfMonth + daysInMonth) / 7) * 7 
@@ -1048,10 +996,7 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                 <div 
                   key={month} 
                   className="border rounded-xl p-4 hover:shadow-xl transition-all cursor-pointer bg-white hover:bg-gray-50"
-                  onClick={() => {
-                    const newDate = new Date(currentDate.getFullYear(), index, 1)
-                    onDateClick?.(newDate)
-                  }}
+                  onClick={() => handleMonthClick(currentDate.getFullYear(), index)}
                 >
                   <div className="flex items-center justify-between mb-3 pb-2 border-b">
                     <h3 className="font-bold text-lg text-gray-800">{month}</h3>
@@ -1098,14 +1043,10 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                         previewDays.push(
                           <div 
                             key={day} 
-                            className={`h-5 flex items-center justify-center rounded-full text-[9px] font-medium cursor-pointer
+                            className={`h-5 flex items-center justify-center rounded-full text-[9px] font-medium
                               ${hasItems ? 'bg-blue-100 text-blue-700 font-bold' : ''}
                               ${isToday ? 'ring-1 ring-blue-500 bg-blue-50' : ''}
                             `}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleDateClick(date)
-                            }}
                           >
                             {day}
                           </div>
@@ -1245,7 +1186,7 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                                     </div>
                                     <div className="text-xs text-gray-600 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
                                       <span className="flex items-center gap-1">
-                                        <span className={`w-2 h-2 rounded-full bg-${item.type === 'event' ? (item.event_pic_color || 'purple') : (item.task_pic_color || 'blue')}-500`}></span>
+                                        <span className={`w-2 h-2 rounded-full ${getDotClass(item.type === 'event' ? item.event_pic_color : item.task_pic_color)}`}></span>
                                         <span>👤 PIC: {item.type === 'event' ? (item.event_pic_name || 'No PIC') : (item.task_pic_name || 'No PIC')}</span>
                                       </span>
                                       
@@ -1310,7 +1251,6 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
   )
 }
 
-// ==================== MORE ITEMS POPUP ====================
 interface MoreItemsPopupProps {
   date: Date
   items: any[]
@@ -1445,8 +1385,8 @@ const MoreItemsPopup: React.FC<MoreItemsPopupProps> = ({
                     <span className={`
                       text-[10px] px-2 py-0.5 rounded-full shadow-sm
                       ${item.type === 'holiday' ? 'bg-green-500 text-white' : 
-                        item.type === 'event' ? `bg-${item.event_pic_color || 'purple'}-500 text-white` : 
-                        `bg-${item.task_pic_color || 'blue'}-500 text-white`}
+                        item.type === 'event' ? getSolidClass(item.event_pic_color) : 
+                        getSolidClass(item.task_pic_color)}
                     `}>
                       {item.type === 'holiday' ? 'Holiday' : item.type === 'event' ? 'Event' : 'Task'}
                     </span>
@@ -1456,8 +1396,8 @@ const MoreItemsPopup: React.FC<MoreItemsPopupProps> = ({
                     <div className={`
                       w-8 h-8 rounded-lg flex items-center justify-center text-lg
                       ${item.type === 'holiday' ? 'bg-green-100' : 
-                        item.type === 'event' ? `bg-${item.event_pic_color || 'purple'}-100` : 
-                        `bg-${item.task_pic_color || 'blue'}-100`}
+                        item.type === 'event' ? getItemBgClass(item.event_pic_color) : 
+                        getItemBgClass(item.task_pic_color)}
                     `}>
                       {getItemIconLocal(item)}
                     </div>
@@ -1483,13 +1423,13 @@ const MoreItemsPopup: React.FC<MoreItemsPopupProps> = ({
                             <span className="text-gray-500">👥 Staff:</span>
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <div className="flex items-center gap-1">
-                                <span className={`w-2 h-2 rounded-full bg-${item.task_pic_color || 'blue'}-500`}></span>
+                                <span className={`w-2 h-2 rounded-full ${getDotClass(item.task_pic_color)}`}></span>
                                 <span className="font-medium">PIC: {item.task_pic_name || 'No PIC'}</span>
                               </div>
                               {item.task_support_names && item.task_support_names.map((name: string, idx: number) => (
                                 <div key={idx} className="flex items-center gap-1">
                                   <span className="text-gray-300">+</span>
-                                  <span className={`w-2 h-2 rounded-full bg-${item.task_support_colors?.[idx] || 'blue'}-500`}></span>
+                                  <span className={`w-2 h-2 rounded-full ${getDotClass(item.task_support_colors?.[idx])}`}></span>
                                   <span className="font-medium">{name}</span>
                                 </div>
                               ))}
@@ -1502,13 +1442,13 @@ const MoreItemsPopup: React.FC<MoreItemsPopupProps> = ({
                             <span className="text-gray-500">👥 Staff:</span>
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <div className="flex items-center gap-1">
-                                <span className={`w-2 h-2 rounded-full bg-${item.event_pic_color || 'purple'}-500`}></span>
+                                <span className={`w-2 h-2 rounded-full ${getDotClass(item.event_pic_color)}`}></span>
                                 <span className="font-medium">PIC: {item.event_pic_name || 'No PIC'}</span>
                               </div>
                               {item.event_support_names && item.event_support_names.map((name: string, idx: number) => (
                                 <div key={idx} className="flex items-center gap-1">
                                   <span className="text-gray-300">+</span>
-                                  <span className={`w-2 h-2 rounded-full bg-${item.event_support_colors?.[idx] || 'purple'}-500`}></span>
+                                  <span className={`w-2 h-2 rounded-full ${getDotClass(item.event_support_colors?.[idx])}`}></span>
                                   <span className="font-medium">{name}</span>
                                 </div>
                               ))}

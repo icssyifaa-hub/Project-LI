@@ -1,3 +1,5 @@
+// File: hooks/useJobTasks.ts
+
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -44,21 +46,27 @@ export function useJobTasks() {
     try {
       console.log('➕ Adding job task:', taskData)
       
-      // Get current user
+      // Get current user - optional
       const { data: { user } } = await supabase.auth.getUser()
       
-      if (!user) {
-        throw new Error('User not authenticated')
+      // Prepare data - only include created_by if user exists
+      const insertData: any = {
+        name: taskData.name,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+      
+      // Only add created_by if user is logged in
+      if (user) {
+        insertData.created_by = user.id
+        console.log('✅ User authenticated, using user ID:', user.id)
+      } else {
+        console.warn('⚠️ No authenticated user, created_by will be NULL')
       }
       
       const { data, error } = await supabase
         .from('job_tasks')
-        .insert([{
-          name: taskData.name,
-          created_by: user.id,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }])
+        .insert([insertData])
         .select()
         .single()
 
@@ -69,7 +77,6 @@ export function useJobTasks() {
       
       console.log('✅ Job task added:', data)
       
-      // Sort by name after adding
       const updatedTasks = [...jobTasks, data].sort((a, b) => a.name.localeCompare(b.name))
       setJobTasks(updatedTasks)
       
@@ -165,6 +172,7 @@ export function useJobTasks() {
       throw error
     }
   }
+  
   useEffect(() => {
     fetchJobTasks()
   }, [])

@@ -1,4 +1,3 @@
-// app/login/page.tsx (Corrected version)
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -46,12 +45,10 @@ export default function LoginPage() {
   const { toast } = useToast()
   const supabase = createClient()
 
-  // Check if already logged in
   useEffect(() => {
     const userData = localStorage.getItem('user')
     if (userData) {
       const user = JSON.parse(userData)
-      // Redirect based on role
       if (user.role === 'admin') {
         router.push('/settings')
       } else {
@@ -129,7 +126,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md shadow-xl border-0">
         <CardHeader className="space-y-2 text-center pb-6">
           <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center">
+            <div className="w-16 h-16 bg-blue-400 rounded-2xl flex items-center justify-center">
               <span className="text-2xl font-bold text-white">ICS</span>
             </div>
           </div>
@@ -149,7 +146,7 @@ export default function LoginPage() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="name@icsconsulting.com"
+                  placeholder="ics.admin@gmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -190,7 +187,7 @@ export default function LoginPage() {
           <CardFooter>
             <Button 
               type="submit" 
-              className="w-full bg-blue-600 hover:bg-blue-700 h-11" 
+              className="w-full bg-blue-300 hover:bg-blue-700 h-11" 
               disabled={loading}
             >
               {loading ? (
@@ -208,7 +205,7 @@ export default function LoginPage() {
           </CardFooter>
         </form>
         <div className="px-6 pb-6 text-center text-xs text-gray-400">
-          <p>ICS Consulting Sdn. Bhd. © 2024</p>
+          <p>ICS Consulting Sdn. Bhd. © 2026</p>
         </div>
       </Card>
 

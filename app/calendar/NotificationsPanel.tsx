@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Bell, CheckCheck, Clock, Briefcase, Calendar, X } from 'lucide-react'
+import { Bell, CheckCheck, Clock, Briefcase, Calendar, X, AlarmClock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/use-toast'
 import { formatDistanceToNow } from 'date-fns'
@@ -13,9 +13,10 @@ interface Notification {
   user_id: string
   title: string
   message: string
-  type: 'task_assignment' | 'task_update' | 'event_assignment' | 'event_update'
+  type: 'task_assignment' | 'task_update' | 'event_assignment' | 'event_update' | 'reminder'
   task_id: string | null
   event_id: string | null
+  reminder_id: string | null
   read: boolean
   created_at: string
   updated_at: string
@@ -75,14 +76,20 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
     getUser()
   }, [supabase])
 
-  // Filter notifications based on category only
+  // Filter notifications based on category - REMINDER masuk dalam TASK atau EVENT
   useEffect(() => {
     let filtered = [...notifications]
     
     if (category === 'task') {
-      filtered = filtered.filter(n => n.task_id !== null)
+      filtered = filtered.filter(n => 
+        n.task_id !== null ||  // task assignment/update
+        (n.type === 'reminder' && n.task_id !== null)  // reminder untuk task
+      )
     } else if (category === 'event') {
-      filtered = filtered.filter(n => n.event_id !== null)
+      filtered = filtered.filter(n => 
+        n.event_id !== null ||  // event assignment/update
+        (n.type === 'reminder' && n.event_id !== null)  // reminder untuk event
+      )
     }
     
     setFilteredNotifications(filtered)
@@ -235,7 +242,50 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
       await markAsRead(notification.id)
     }
     
-    if (notification.task_id) {
+    // Handle reminder notification
+    if (notification.type === 'reminder') {
+      if (notification.task_id) {
+        localStorage.setItem('highlight_task_id', notification.task_id)
+        
+        const { data: task } = await supabase
+          .from('tasks')
+          .select('date_start')
+          .eq('id', notification.task_id)
+          .single()
+        
+        if (task?.date_start) {
+          const targetDate = new Date(task.date_start)
+          const year = targetDate.getFullYear()
+          const month = targetDate.getMonth()
+          const day = targetDate.getDate()
+          
+          router.push(`/calendar?year=${year}&month=${month}&day=${day}&task=${notification.task_id}`)
+        } else {
+          router.push('/calendar')
+        }
+      } else if (notification.event_id) {
+        localStorage.setItem('highlight_event_id', notification.event_id)
+        
+        const { data: event } = await supabase
+          .from('events')
+          .select('date_start')
+          .eq('id', notification.event_id)
+          .single()
+        
+        if (event?.date_start) {
+          const targetDate = new Date(event.date_start)
+          const year = targetDate.getFullYear()
+          const month = targetDate.getMonth()
+          const day = targetDate.getDate()
+          
+          router.push(`/calendar?year=${year}&month=${month}&day=${day}&event=${notification.event_id}`)
+        } else {
+          router.push('/calendar')
+        }
+      }
+    } 
+    // Handle task notification
+    else if (notification.task_id) {
       localStorage.setItem('highlight_task_id', notification.task_id)
       
       const { data: task } = await supabase
@@ -254,7 +304,9 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
       } else {
         router.push('/calendar')
       }
-    } else if (notification.event_id) {
+    } 
+    // Handle event notification
+    else if (notification.event_id) {
       localStorage.setItem('highlight_event_id', notification.event_id)
       
       const { data: event } = await supabase
@@ -294,6 +346,8 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
         return <Calendar className="h-4 w-4 mr-2 mt-0.5 text-purple-600 flex-shrink-0" />
       case 'event_update':
         return <Calendar className="h-4 w-4 mr-2 mt-0.5 text-orange-600 flex-shrink-0" />
+      case 'reminder':
+        return <AlarmClock className="h-4 w-4 mr-2 mt-0.5 text-red-600 flex-shrink-0" />
       default:
         return <Bell className="h-4 w-4 mr-2 mt-0.5 text-gray-600 flex-shrink-0" />
     }
@@ -311,6 +365,8 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
         return 'bg-purple-50 border-purple-200'
       case 'event_update':
         return 'bg-orange-50 border-orange-200'
+      case 'reminder':
+        return 'bg-red-50 border-red-200'
       default:
         return 'bg-gray-50 border-gray-200'
     }
@@ -433,6 +489,7 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
                   {getNotificationIcon(notif.type)}
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-900">
+                      {notif.type === 'reminder' && '⏰ '}
                       {notif.title}
                     </p>
                     <p className="text-xs text-gray-600 mt-1 leading-relaxed">

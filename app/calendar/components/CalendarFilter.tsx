@@ -1,5 +1,4 @@
 'use client'
-
 import { useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -18,7 +17,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { StaffInfo, Holiday } from '@/app/calendar/types/calendar'
-import { staffColorMap } from '@/lib/colors'
+import { getColorClass, getDotClass, getBadgeClass, getItemBgClass } from '@/lib/colors'
 
 interface StaffFilters {
   [staffId: string]: {
@@ -50,24 +49,26 @@ export default function CalendarFilter({
   const [myCalendarsOpen, setMyCalendarsOpen] = useState(true)
   const [staffSearch, setStaffSearch] = useState('')
   const [internalFilters, setInternalFilters] = useState<StaffFilters>({})
-  
-  // Determine which filters to use
   const hasExternalHandlers = !!externalTaskToggle && !!externalEventToggle
   const hasExternalFilters = Object.keys(externalFilters).length > 0
   const staffFilters = hasExternalFilters ? externalFilters : internalFilters
-  
   const staffList = users.filter((staff) => staff.role === 'staff')
-
   const filteredStaff = staffList.filter((staff) =>
     staff.name?.toLowerCase().includes(staffSearch.toLowerCase())
   )
 
   const getUserColorClasses = (user: StaffInfo) => {
     const colorKey = user.color || 'blue'
-    return staffColorMap[colorKey] || staffColorMap['blue']
+    return {
+      bg: getDotClass(colorKey),
+      text: getColorClass(colorKey, 'text'),
+      badge: getBadgeClass(colorKey),
+      lightBg: getItemBgClass(colorKey),
+      solid: getColorClass(colorKey, 'solid'),
+      border: getColorClass(colorKey, 'border'),
+    }
   }
 
-  // Helper to get staff filter state - using staff.id as key
   const getStaffTasksChecked = (staffId: string): boolean => {
     return staffFilters[staffId]?.tasks || false
   }
@@ -75,7 +76,6 @@ export default function CalendarFilter({
   const getStaffEventsChecked = (staffId: string): boolean => {
     return staffFilters[staffId]?.events || false
   }
-
 
   const handleStaffTaskToggle = (staffId: string, value: boolean) => {
     if (hasExternalHandlers && externalTaskToggle) {
@@ -94,7 +94,6 @@ export default function CalendarFilter({
     }
   }
 
-  // Handler for event toggle
   const handleStaffEventToggle = (staffId: string, value: boolean) => {
     if (hasExternalHandlers && externalEventToggle) {
       externalEventToggle(staffId, value)
@@ -144,7 +143,6 @@ export default function CalendarFilter({
     getStaffEventsChecked(staff.id)
   ).length
 
-  // Check if all tasks/events are selected for filtered staff
   const allTasksSelected = filteredStaff.length > 0 && totalTasksSelected === filteredStaff.length
   const allEventsSelected = filteredStaff.length > 0 && totalEventsSelected === filteredStaff.length
 
@@ -293,7 +291,7 @@ export default function CalendarFilter({
                             onCheckedChange={(checked) => {
                               handleStaffTaskToggle(staffId, checked === true)
                             }}
-                            className="border-blue-500 data-[state=checked]:bg-blue-300 data-[state=checked]:border-blue-300"
+                            className="border-blue-300 data-[state=checked]:bg-blue-300 data-[state=checked]:border-blue-300"
                           />
                         </div>
 
@@ -305,7 +303,7 @@ export default function CalendarFilter({
                             onCheckedChange={(checked) => {
                               handleStaffEventToggle(staffId, checked === true)
                             }}
-                            className="border-purple-500 data-[state=checked]:bg-purple-300 data-[state=checked]:border-purple-300"
+                            className="border-purple-300 data-[state=checked]:bg-purple-300 data-[state=checked]:border-purple-300"
                           />
                         </div>
 
@@ -319,7 +317,7 @@ export default function CalendarFilter({
                     )
                   })}
                 </div>
-
+                
                 {/* Summary Footer */}
                 {filteredStaff.length > 0 && (
                   <div className="pt-2 mt-2 border-t">

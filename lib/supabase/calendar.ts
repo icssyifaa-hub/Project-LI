@@ -1,48 +1,46 @@
 import { createClient } from './client'
 
-// ==================== HELPER FUNCTIONS ====================
-const formatDateForDB = (date: Date): string => {
-  return date.toISOString().split('T')[0]
+const getCurrentUserId = (): string | null => {
+  try {
+    const userData = localStorage.getItem('user')
+    if (userData) {
+      const user = JSON.parse(userData)
+      return user.id || null
+    }
+  } catch (e) {
+    console.error('Error getting user from localStorage:', e)
+  }
+  return null
 }
+
+const getCurrentUser = (): any | null => {
+  try {
+    const userData = localStorage.getItem('user')
+    if (userData) {
+      return JSON.parse(userData)
+    }
+  } catch (e) {
+    console.error('Error getting user from localStorage:', e)
+  }
+  return null
+}
+
+// ==================== TASKS ====================
 
 export async function getTasks(startDate: string, endDate: string) {
   const supabase = createClient()
   
   try {
-    // Get current user for debugging
-    const { data: { user } } = await supabase.auth.getUser()
-    console.log('👤 Current user:', user?.id, user?.email)
-    
-    // Fetch ALL tasks (RLS will filter based on policies)
     const { data, error } = await supabase
       .from('tasks')
       .select('*')
+      .gte('date_start', startDate)
+      .lte('date_start', endDate)
       .order('date_start', { ascending: true })
     
-    if (error) {
-      console.error('❌ Error fetching tasks:', error)
-      throw error
-    }
+    if (error) throw error
     
-    console.log(`📊 Total tasks from DB: ${data?.length || 0}`)
-    
-    // Filter tasks for calendar view (only those with date in range)
-    const filteredTasks = data?.filter((task: any) => {
-      if (!task.date_start) return false // Skip tasks without date (inbox)
-      return task.date_start >= startDate && task.date_start <= endDate
-    }) || []
-    
-    console.log(`📅 Tasks in range ${startDate} to ${endDate}: ${filteredTasks.length}`)
-    
-    // Sort filtered tasks with nulls last manually if needed
-    filteredTasks.sort((a: any, b: any) => {
-      if (!a.date_start && !b.date_start) return 0
-      if (!a.date_start) return 1
-      if (!b.date_start) return -1
-      return a.date_start.localeCompare(b.date_start)
-    })
-    
-    const formattedTasks = filteredTasks.map((task: any) => {
+    const formattedTasks = data?.map((task: any) => {
       const supportIds = task.task_support_ids 
         ? (typeof task.task_support_ids === 'string' ? task.task_support_ids.split(',') : task.task_support_ids)
         : []
@@ -78,7 +76,7 @@ export async function getTasks(startDate: string, endDate: string) {
         createdAt: task.created_at,
         updatedAt: task.updated_at
       }
-    })
+    }) || []
     
     return formattedTasks
   } catch (error) {
@@ -93,32 +91,23 @@ export async function createTask(taskData: any) {
   try {
     console.log('🔍 CREATING TASK:', taskData)
     
-    // Validation
     if (!taskData.client_name && !taskData.clientName) {
       throw new Error('client_name is required')
     }
     
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('User not authenticated')
+    const userId = getCurrentUserId()
+    console.log('👤 Creating task with userId:', userId)
     
-    // Handle support staff arrays
     const taskSupportIdsString = taskData.task_support_ids 
-      ? (Array.isArray(taskData.task_support_ids) 
-          ? taskData.task_support_ids.join(',') 
-          : taskData.task_support_ids)
+      ? (Array.isArray(taskData.task_support_ids) ? taskData.task_support_ids.join(',') : taskData.task_support_ids)
       : null
     
     const taskSupportNamesString = taskData.task_support_names 
-      ? (Array.isArray(taskData.task_support_names) 
-          ? taskData.task_support_names.join(',') 
-          : taskData.task_support_names)
+      ? (Array.isArray(taskData.task_support_names) ? taskData.task_support_names.join(',') : taskData.task_support_names)
       : null
     
     const taskSupportColorsString = taskData.task_support_colors 
-      ? (Array.isArray(taskData.task_support_colors) 
-          ? taskData.task_support_colors.join(',') 
-          : taskData.task_support_colors)
+      ? (Array.isArray(taskData.task_support_colors) ? taskData.task_support_colors.join(',') : taskData.task_support_colors)
       : null
     
     const dataToInsert = {
@@ -141,12 +130,10 @@ export async function createTask(taskData: any) {
       pdf_final_report_path: taskData.pdf_final_report_path || taskData.pdfFinalReportPath || null,
       pdf_final_report_url: taskData.pdf_final_report_url || taskData.pdfFinalReportUrl || null,
       job_status: taskData.job_status || taskData.jobStatus || 'in-progress',
-      created_by: user.id,
+      created_by: userId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }
-    
-    console.log('📦 Inserting task:', dataToInsert)
     
     const { data, error } = await supabase
       .from('tasks')
@@ -154,10 +141,7 @@ export async function createTask(taskData: any) {
       .select()
       .single()
     
-    if (error) {
-      console.error('❌ Error creating task:', error)
-      throw error
-    }
+    if (error) throw error
     
     console.log('✅ Task created successfully:', data.id)
     return data
@@ -171,25 +155,16 @@ export async function updateTask(id: string, taskData: any) {
   const supabase = createClient()
   
   try {
-    console.log('🔍 UPDATING TASK:', { id, taskData })
-    
-    // Handle support staff arrays
     const taskSupportIdsString = taskData.task_support_ids 
-      ? (Array.isArray(taskData.task_support_ids) 
-          ? taskData.task_support_ids.join(',') 
-          : taskData.task_support_ids)
+      ? (Array.isArray(taskData.task_support_ids) ? taskData.task_support_ids.join(',') : taskData.task_support_ids)
       : null
     
     const taskSupportNamesString = taskData.task_support_names 
-      ? (Array.isArray(taskData.task_support_names) 
-          ? taskData.task_support_names.join(',') 
-          : taskData.task_support_names)
+      ? (Array.isArray(taskData.task_support_names) ? taskData.task_support_names.join(',') : taskData.task_support_names)
       : null
     
     const taskSupportColorsString = taskData.task_support_colors 
-      ? (Array.isArray(taskData.task_support_colors) 
-          ? taskData.task_support_colors.join(',') 
-          : taskData.task_support_colors)
+      ? (Array.isArray(taskData.task_support_colors) ? taskData.task_support_colors.join(',') : taskData.task_support_colors)
       : null
     
     const { data, error } = await supabase
@@ -220,10 +195,7 @@ export async function updateTask(id: string, taskData: any) {
       .select()
       .single()
     
-    if (error) {
-      console.error('❌ Error updating task:', error)
-      throw error
-    }
+    if (error) throw error
     
     console.log('✅ Task updated successfully:', data.id)
     return data
@@ -237,19 +209,12 @@ export async function deleteTask(id: string) {
   const supabase = createClient()
   
   try {
-    console.log('🗑️ Deleting task:', id)
-    
     const { error } = await supabase
       .from('tasks')
       .delete()
       .eq('id', id)
     
-    if (error) {
-      console.error('❌ Error deleting task:', error)
-      throw error
-    }
-    
-    console.log('✅ Task deleted successfully')
+    if (error) throw error
     return true
   } catch (error) {
     console.error('❌ Error in deleteTask:', error)
@@ -258,14 +223,11 @@ export async function deleteTask(id: string) {
 }
 
 // ==================== EVENTS ====================
+
 export async function getEvents(startDate: string, endDate: string) {
   const supabase = createClient()
   
   try {
-    // Get current user for debugging
-    const { data: { user } } = await supabase.auth.getUser()
-    console.log('👤 Current user for events:', user?.id)
-    
     const { data, error } = await supabase
       .from('events')
       .select('*')
@@ -273,16 +235,9 @@ export async function getEvents(startDate: string, endDate: string) {
       .lte('date_start', endDate)
       .order('date_start', { ascending: true })
     
-    if (error) {
-      console.error('❌ Error fetching events:', error)
-      throw error
-    }
+    if (error) throw error
     
-    console.log(`📊 Events in range ${startDate} to ${endDate}: ${data?.length || 0}`)
-    
-    // Format events for frontend
     const formattedEvents = data?.map((event: any) => {
-      // Parse support staff arrays
       const supportIds = event.event_support_ids 
         ? (typeof event.event_support_ids === 'string' ? event.event_support_ids.split(',') : event.event_support_ids)
         : []
@@ -331,27 +286,19 @@ export async function createEvent(eventData: any) {
       throw new Error('date_start is required')
     }
     
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('User not authenticated')
+    const userId = getCurrentUserId()
+    console.log('👤 Creating event with userId:', userId)
     
-    // Handle support staff arrays
     const eventSupportIdsString = eventData.event_support_ids 
-      ? (Array.isArray(eventData.event_support_ids) 
-          ? eventData.event_support_ids.join(',') 
-          : eventData.event_support_ids)
+      ? (Array.isArray(eventData.event_support_ids) ? eventData.event_support_ids.join(',') : eventData.event_support_ids)
       : null
     
     const eventSupportNamesString = eventData.event_support_names 
-      ? (Array.isArray(eventData.event_support_names) 
-          ? eventData.event_support_names.join(',') 
-          : eventData.event_support_names)
+      ? (Array.isArray(eventData.event_support_names) ? eventData.event_support_names.join(',') : eventData.event_support_names)
       : null
     
     const eventSupportColorsString = eventData.event_support_colors 
-      ? (Array.isArray(eventData.event_support_colors) 
-          ? eventData.event_support_colors.join(',') 
-          : eventData.event_support_colors)
+      ? (Array.isArray(eventData.event_support_colors) ? eventData.event_support_colors.join(',') : eventData.event_support_colors)
       : null
     
     const dataToInsert = {
@@ -368,12 +315,10 @@ export async function createEvent(eventData: any) {
       event_support_ids: eventSupportIdsString,
       event_support_names: eventSupportNamesString,
       event_support_colors: eventSupportColorsString,
-      created_by: user.id,
+      created_by: userId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }
-    
-    console.log('📦 Inserting event:', dataToInsert)
     
     const { data, error } = await supabase
       .from('events')
@@ -381,10 +326,7 @@ export async function createEvent(eventData: any) {
       .select()
       .single()
     
-    if (error) {
-      console.error('❌ Error creating event:', error)
-      throw error
-    }
+    if (error) throw error
     
     console.log('✅ Event created successfully:', data.id)
     return data
@@ -398,25 +340,16 @@ export async function updateEvent(id: string, eventData: any) {
   const supabase = createClient()
   
   try {
-    console.log('🔍 UPDATING EVENT:', { id, eventData })
-    
-    // Handle support staff arrays
     const eventSupportIdsString = eventData.event_support_ids 
-      ? (Array.isArray(eventData.event_support_ids) 
-          ? eventData.event_support_ids.join(',') 
-          : eventData.event_support_ids)
+      ? (Array.isArray(eventData.event_support_ids) ? eventData.event_support_ids.join(',') : eventData.event_support_ids)
       : null
     
     const eventSupportNamesString = eventData.event_support_names 
-      ? (Array.isArray(eventData.event_support_names) 
-          ? eventData.event_support_names.join(',') 
-          : eventData.event_support_names)
+      ? (Array.isArray(eventData.event_support_names) ? eventData.event_support_names.join(',') : eventData.event_support_names)
       : null
     
     const eventSupportColorsString = eventData.event_support_colors 
-      ? (Array.isArray(eventData.event_support_colors) 
-          ? eventData.event_support_colors.join(',') 
-          : eventData.event_support_colors)
+      ? (Array.isArray(eventData.event_support_colors) ? eventData.event_support_colors.join(',') : eventData.event_support_colors)
       : null
     
     const { data, error } = await supabase
@@ -441,10 +374,7 @@ export async function updateEvent(id: string, eventData: any) {
       .select()
       .single()
     
-    if (error) {
-      console.error('❌ Error updating event:', error)
-      throw error
-    }
+    if (error) throw error
     
     console.log('✅ Event updated successfully:', data.id)
     return data
@@ -458,19 +388,12 @@ export async function deleteEvent(id: string) {
   const supabase = createClient()
   
   try {
-    console.log('🗑️ Deleting event:', id)
-    
     const { error } = await supabase
       .from('events')
       .delete()
       .eq('id', id)
     
-    if (error) {
-      console.error('❌ Error deleting event:', error)
-      throw error
-    }
-    
-    console.log('✅ Event deleted successfully')
+    if (error) throw error
     return true
   } catch (error) {
     console.error('❌ Error in deleteEvent:', error)
@@ -479,6 +402,7 @@ export async function deleteEvent(id: string) {
 }
 
 // ==================== HOLIDAYS ====================
+
 export async function getHolidays(startDate: string, endDate: string) {
   const supabase = createClient()
   
@@ -490,13 +414,7 @@ export async function getHolidays(startDate: string, endDate: string) {
       .lte('date', endDate)
       .order('date', { ascending: true })
     
-    if (error) {
-      console.error('❌ Error fetching holidays:', error)
-      throw error
-    }
-    
-    console.log(`📊 Holidays in range ${startDate} to ${endDate}: ${data?.length || 0}`)
-    
+    if (error) throw error
     return data || []
   } catch (error) {
     console.error('Error fetching holidays:', error)
@@ -505,6 +423,7 @@ export async function getHolidays(startDate: string, endDate: string) {
 }
 
 // ==================== STAFF / USERS ====================
+
 export async function getAllActiveUsers() {
   const supabase = createClient()
   
@@ -515,12 +434,7 @@ export async function getAllActiveUsers() {
       .eq('is_active', true)
       .order('name', { ascending: true })
     
-    if (error) {
-      console.error('❌ Error fetching users:', error)
-      throw error
-    }
-    
-    console.log(`👥 Active users: ${data?.length || 0}`)
+    if (error) throw error
     return data || []
   } catch (error) {
     console.error('Error fetching users:', error)

@@ -40,8 +40,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { getDotClass } from '@/lib/colors'
 
-// ==================== TYPES FOR EVENT (MATCH YOUR DATABASE STRUCTURE) ====================
 interface Event {
   id: string
   title: string
@@ -58,13 +58,10 @@ interface Event {
   event_support_names?: string[]
   event_support_colors?: string[]
   created_by?: string
-  creator_name?: string
-  creator_color?: string
   created_at?: string
   updated_at?: string
 }
 
-// ==================== HELPER FUNCTIONS ====================
 const formatDate = (dateString: string) => {
   const date = new Date(dateString)
   return date.toLocaleDateString('en-GB', { 
@@ -102,16 +99,13 @@ const getEventStatus = (dateStart: string, dateStop: string) => {
   }
 }
 
-// Helper function to parse comma-separated text to array
 const parseTextArray = (textValue: string | null | undefined): string[] => {
   if (!textValue) return []
   
   try {
-    // Check if it's a JSON array string
     if (textValue.startsWith('[')) {
       return JSON.parse(textValue)
     }
-    // Otherwise treat as comma-separated
     return textValue.split(',').map(item => item.trim()).filter(item => item)
   } catch (e) {
     console.error('Error parsing array:', e)
@@ -127,11 +121,10 @@ export default function EventsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [sortField, setSortField] = useState<keyof Event>('date_start')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
-  const [filterCreator, setFilterCreator] = useState<string>('all')
-  const [filterPIC, setFilterPIC] = useState<string>('all')
+  const [filterStaff, setFilterStaff] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
-  const [creatorList, setCreatorList] = useState<string[]>([])
-  const [picList, setPicList] = useState<string[]>([])
+  const [staffList, setStaffList] = useState<string[]>([])
+  const [staffStatusMap, setStaffStatusMap] = useState<Map<string, boolean>>(new Map())
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null)
   const itemsPerPage = 10
@@ -148,33 +141,47 @@ export default function EventsPage() {
     }
   }, [router])
 
-  // ==================== FETCH EVENTS FROM DATABASE ====================
   const fetchEvents = async () => {
     setLoading(true)
     try {
       console.log('📅 Fetching events from database...')
       
-      // 1. First, get all users for names and colors
       const { data: usersData, error: usersError } = await supabase
         .from('users')
-        .select('id, name, color')
+        .select('id, name, color, role, is_active')
       
       if (usersError) throw usersError
       
-      // Create user map
-      const userMap: {[key: string]: {name: string, color: string}} = {}
-      usersData?.forEach((user: {id: string; name:string; color?: string}) => {
+      const userMap: {[key: string]: {name: string, color: string, is_active: boolean}} = {}
+      const staffNames: string[] = []
+      const statusMap = new Map<string, boolean>()
+      
+      usersData?.forEach((user: {id: string; name: string; color?: string; role?: string; is_active?: boolean}) => {
         if (user.id) {
           userMap[user.id] = {
             name: user.name,
-            color: user.color || 'purple'
+            color: user.color || 'purple',
+            is_active: user.is_active ?? true
           }
+          userMap[user.name] = {
+            name: user.name,
+            color: user.color || 'purple',
+            is_active: user.is_active ?? true
+          }
+        }
+        
+        if (user.role === 'staff' && user.name) {
+          staffNames.push(user.name)
+          statusMap.set(user.name, user.is_active ?? true)
         }
       })
       
-      console.log('👥 User map loaded:', userMap)
+      staffNames.sort()
+      setStaffList(staffNames)
+      setStaffStatusMap(statusMap)
       
-      // 2. Fetch ALL events
+      console.log(`📋 Found ${staffNames.length} staff members for filter (including inactive)`)
+      
       const { data: eventsData, error: eventsError } = await supabase
         .from('events')
         .select('*')
@@ -185,19 +192,25 @@ export default function EventsPage() {
       console.log(`📊 Found ${eventsData?.length || 0} events in database`)
       
       const formattedEvents: Event[] = (eventsData || []).map((event: any) => {
-        // Get creator info
-        const creatorId = event.created_by || ''
-        const creatorInfo = userMap[creatorId]
         const picId = event.event_pic_id || ''
         const picName = event.event_pic_name || ''
-        const picColor = event.event_pic_color || 'blue'
+        
+        let picInfo = null
+        if (picId && userMap[picId]) {
+          picInfo = userMap[picId]
+        } else if (picName && userMap[picName]) {
+          picInfo = userMap[picName]
+        }
+        
+        const picColor = picInfo?.color || event.event_pic_color || 'blue'
+        const actualPicName = picInfo?.name || picName || null
+        
         const supportIds = parseTextArray(event.event_support_ids)
         const supportNamesRaw = parseTextArray(event.event_support_names)
         const supportColorsRaw = parseTextArray(event.event_support_colors || '')
         const supportNames: string[] = []
         const supportColors: string[] = []
         
-        // Process support staff
         for (let i = 0; i < supportIds.length; i++) {
           const supportId = supportIds[i]
           const supportInfo = userMap[supportId]
@@ -206,16 +219,23 @@ export default function EventsPage() {
             supportNames.push(supportInfo.name)
             supportColors.push(supportInfo.color)
           } else if (supportNamesRaw[i]) {
-            // If we have name from database but no user found
             supportNames.push(supportNamesRaw[i])
             supportColors.push(supportColorsRaw[i] || 'blue')
           }
         }
         
-        // If no support IDs but we have support names from database
         if (supportIds.length === 0 && supportNamesRaw.length > 0) {
-          supportNames.push(...supportNamesRaw)
-          supportColors.push(...supportColorsRaw.map(c => c || 'blue'))
+          for (let i = 0; i < supportNamesRaw.length; i++) {
+            const sname = supportNamesRaw[i]
+            const supportInfo = userMap[sname]
+            if (supportInfo) {
+              supportNames.push(supportInfo.name)
+              supportColors.push(supportInfo.color)
+            } else {
+              supportNames.push(sname)
+              supportColors.push(supportColorsRaw[i] || 'blue')
+            }
+          }
         }
         
         return {
@@ -228,35 +248,25 @@ export default function EventsPage() {
           time_stop: event.time_stop,
           location: event.location,
           event_pic_id: picId,
-          event_pic_name: picName || (picId ? userMap[picId]?.name : null),
-          event_pic_color: picColor || (picId ? userMap[picId]?.color : 'blue'),
+          event_pic_name: actualPicName,
+          event_pic_color: picColor,
           event_support_ids: supportIds,
           event_support_names: supportNames,
           event_support_colors: supportColors,
-          created_by: creatorId,
-          creator_name: creatorInfo?.name || 'Unknown Creator',
-          creator_color: creatorInfo?.color || 'purple',
+          created_by: event.created_by,
           created_at: event.created_at,
           updated_at: event.updated_at
         }
       })
       
-      // Extract unique creators and PICs for filters
-      const creators = new Set<string>()
-      const pics = new Set<string>()
-      
-      formattedEvents.forEach(event => {
-        if (event.creator_name) creators.add(event.creator_name)
-        if (event.event_pic_name) pics.add(event.event_pic_name)
-      })
-      
-      setCreatorList(Array.from(creators).sort())
-      setPicList(Array.from(pics).sort())
       setEvents(formattedEvents)
+      
+      const activeStaffCount = Array.from(statusMap.values()).filter(isActive => isActive === true).length
+      const inactiveStaffCount = statusMap.size - activeStaffCount
       
       toast({
         title: "Success",
-        description: `Loaded ${formattedEvents.length} events`,
+        description: `Loaded ${formattedEvents.length} events | ${statusMap.size} staff members (${activeStaffCount} active, ${inactiveStaffCount} inactive)`,
       })
       
     } catch (error: any) {
@@ -280,7 +290,6 @@ export default function EventsPage() {
     }
   }, [user])
 
-  // ==================== HANDLE DELETE ====================
   const handleDeleteClick = (event: Event) => {
     setEventToDelete(event)
     setDeleteDialogOpen(true)
@@ -299,7 +308,6 @@ export default function EventsPage() {
       
       if (error) throw error
       
-      // Remove from local state
       setEvents(events.filter(e => e.id !== eventToDelete.id))
       
       toast({
@@ -320,7 +328,6 @@ export default function EventsPage() {
     }
   }
 
-  // ==================== HANDLE SORT ====================
   const handleSort = (field: keyof Event) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
@@ -330,17 +337,21 @@ export default function EventsPage() {
     }
   }
 
-  // ==================== VIEW IN CALENDAR ====================
   const handleViewInCalendar = (date: string) => {
     router.push(`/calendar?date=${date}`)
   }
 
-  // ==================== EDIT EVENT ====================
   const handleEditEvent = (event: Event) => {
     router.push(`/calendar?editEvent=${event.id}`)
   }
 
-  // ==================== FILTER AND SORT ====================
+  const matchesStaffFilter = (event: Event, filterStaffValue: string): boolean => {
+    if (filterStaffValue === 'all') return true
+    if (event.event_pic_name === filterStaffValue) return true
+    if (event.event_support_names?.includes(filterStaffValue)) return true
+    return false
+  }
+
   const filteredAndSortedEvents = events
     .filter(event => {
       const matchesSearch = 
@@ -348,13 +359,12 @@ export default function EventsPage() {
         (event.description?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (event.location?.toLowerCase() || '').includes(searchTerm.toLowerCase())
       
-      const matchesCreator = filterCreator === 'all' || event.creator_name === filterCreator
-      const matchesPIC = filterPIC === 'all' || event.event_pic_name === filterPIC
+      const matchesStaff = matchesStaffFilter(event, filterStaff)
       
       const status = getEventStatus(event.date_start, event.date_stop)
       const matchesStatus = filterStatus === 'all' || status.label.toLowerCase() === filterStatus.toLowerCase()
       
-      return matchesSearch && matchesCreator && matchesPIC && matchesStatus
+      return matchesSearch && matchesStaff && matchesStatus
     })
     .sort((a, b) => {
       let aValue = a[sortField]
@@ -371,7 +381,6 @@ export default function EventsPage() {
       return 0
     })
 
-  // ==================== PAGINATION ====================
   const totalPages = Math.ceil(filteredAndSortedEvents.length / itemsPerPage)
   const paginatedEvents = filteredAndSortedEvents.slice(
     (currentPage - 1) * itemsPerPage,
@@ -381,11 +390,13 @@ export default function EventsPage() {
   if (!user) return null
 
   const isAdmin = user.role === 'admin' || user.role === 'superadmin'
+  
+  const activeStaffCount = Array.from(staffStatusMap.values()).filter(isActive => isActive === true).length
+  const inactiveStaffCount = staffList.length - activeStaffCount
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 lg:p-6">
       <div className="max-w-[95%] mx-auto space-y-6">
-        {/* Delete Confirmation Dialog */}
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -407,12 +418,12 @@ export default function EventsPage() {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Events List</h1>
             <p className="text-sm text-gray-500 mt-1">
-              Total: {events.length} events
+              Total: {events.length} events | Staff: {staffList.length} total
+              {inactiveStaffCount > 0 && ` (${activeStaffCount} active, ${inactiveStaffCount} inactive)`}
             </p>
           </div>
           
@@ -463,8 +474,7 @@ export default function EventsPage() {
           </div>
         </div>
 
-        {/* Filters Section */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <Input
             placeholder="Search by title, description, location..."
             value={searchTerm}
@@ -475,18 +485,26 @@ export default function EventsPage() {
             className="bg-white border-gray-300"
           />
 
-          <Select value={filterPIC} onValueChange={(value) => {
-            setFilterPIC(value)
+          <Select value={filterStaff} onValueChange={(value) => {
+            setFilterStaff(value)
             setCurrentPage(1)
           }}>
             <SelectTrigger className="bg-white border-gray-300">
-              <SelectValue placeholder="Filter by PIC" />
+              <SelectValue placeholder="Filter by Staff (PIC/Support)" />
             </SelectTrigger>
             <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
-              <SelectItem value="all" className="hover:bg-gray-100 text-gray-900">All PIC</SelectItem>
-              {picList.map(pic => (
-                <SelectItem key={pic} value={pic}>{pic}</SelectItem>
-              ))}
+              <SelectItem value="all">All Staff ({staffList.length})</SelectItem>
+              {staffList.map(staff => {
+                const isActive = staffStatusMap.get(staff)
+                return (
+                  <SelectItem key={staff} value={staff}>
+                    <div className="flex items-center gap-2">
+                      <span>{staff}</span>
+                      {!isActive && <span className="text-xs text-gray-400">(inactive)</span>}
+                    </div>
+                  </SelectItem>
+                )
+              })}
             </SelectContent>
           </Select>
 
@@ -506,8 +524,7 @@ export default function EventsPage() {
           </Select>
         </div>
 
-        {/* Active Filters Summary */}
-        {(searchTerm || filterCreator !== 'all' || filterPIC !== 'all' || filterStatus !== 'all') && (
+        {(searchTerm || filterStaff !== 'all' || filterStatus !== 'all') && (
           <div className="flex items-center gap-2 text-sm flex-wrap">
             <span className="text-gray-500">Filters active:</span>
             {searchTerm && (
@@ -515,14 +532,9 @@ export default function EventsPage() {
                 Search: {searchTerm}
               </span>
             )}
-            {filterCreator !== 'all' && (
-              <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">
-                Creator: {filterCreator}
-              </span>
-            )}
-            {filterPIC !== 'all' && (
-              <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full">
-                PIC: {filterPIC}
+            {filterStaff !== 'all' && (
+              <span className={`px-2 py-0.5 rounded-full ${staffStatusMap.get(filterStaff) ? 'bg-purple-100 text-purple-800' : 'bg-red-100 text-red-800'}`}>
+                Staff: {filterStaff} {!staffStatusMap.get(filterStaff) && '(inactive)'}
               </span>
             )}
             {filterStatus !== 'all' && (
@@ -536,8 +548,7 @@ export default function EventsPage() {
               className="text-xs"
               onClick={() => {
                 setSearchTerm('')
-                setFilterCreator('all')
-                setFilterPIC('all')
+                setFilterStaff('all')
                 setFilterStatus('all')
               }}
             >
@@ -546,7 +557,6 @@ export default function EventsPage() {
           </div>
         )}
 
-        {/* Events Table */}
         <div className="border-2 border-gray-300 rounded-lg overflow-x-auto shadow-sm bg-white">
           <table className="w-full text-sm border-collapse">
             <thead className="bg-gray-100">
@@ -571,7 +581,7 @@ export default function EventsPage() {
             <tbody className="divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-12 text-center border-t border-gray-300">
+                  <td colSpan={9} className="px-4 py-12 text-center border-t border-gray-300">
                     <div className="flex flex-col items-center justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mb-2"></div>
                       <p className="text-sm text-gray-500">Loading events...</p>
@@ -580,11 +590,11 @@ export default function EventsPage() {
                 </tr>
               ) : paginatedEvents.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-12 text-center border-t border-gray-300">
+                  <td colSpan={9} className="px-4 py-12 text-center border-t border-gray-300">
                     <div className="text-gray-400 text-4xl mb-2">📅</div>
                     <p className="text-gray-500">No events found</p>
                     <p className="text-xs text-gray-400 mt-1">
-                      {searchTerm || filterCreator !== 'all' || filterPIC !== 'all' || filterStatus !== 'all' 
+                      {searchTerm || filterStaff !== 'all' || filterStatus !== 'all' 
                         ? 'Try clearing your filters' 
                         : 'Click "Add Event" to create your first event'}
                     </p>
@@ -630,11 +640,10 @@ export default function EventsPage() {
                       <td className="border-r border-gray-200 px-4 py-3">
                         {event.event_pic_name ? (
                           <div className="flex items-center">
-                            <span 
-                              className="w-3 h-3 rounded-full mr-2 flex-shrink-0"
-                              style={{ backgroundColor: event.event_pic_color || 'blue' }}
-                            ></span>
-                            <span className="text-sm font-medium">{event.event_pic_name}</span>
+                            <span className={`w-3 h-3 rounded-full mr-2 flex-shrink-0 ${getDotClass(event.event_pic_color)}`}></span>
+                            <span className="text-sm font-medium">
+                              {event.event_pic_name}
+                            </span>
                           </div>
                         ) : (
                           <span className="text-gray-400 text-xs">Not assigned</span>
@@ -645,11 +654,10 @@ export default function EventsPage() {
                           <div className="flex flex-col gap-1">
                             {event.event_support_names.map((name, idx) => (
                               <div key={idx} className="flex items-center">
-                                <span 
-                                  className="w-3 h-3 rounded-full mr-2 flex-shrink-0"
-                                  style={{ backgroundColor: event.event_support_colors?.[idx] || 'gray' }}
-                                ></span>
-                                <span className="text-sm">{name}</span>
+                                <span className={`w-3 h-3 rounded-full mr-2 flex-shrink-0 ${getDotClass(event.event_support_colors?.[idx])}`}></span>
+                                <span className="text-sm">
+                                  {name}
+                                </span>
                               </div>
                             ))}
                           </div>
@@ -705,7 +713,6 @@ export default function EventsPage() {
           </table>
         </div>
 
-        {/* Pagination */}
         {filteredAndSortedEvents.length > 0 && !loading && (
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-500">
@@ -758,7 +765,6 @@ export default function EventsPage() {
           </div>
         )}
 
-        {/* Info Section */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white rounded-lg border-2 border-gray-300">
           <div>
             <h4 className="text-sm font-semibold text-gray-700 mb-2">📊 Event Status:</h4>
@@ -782,16 +788,12 @@ export default function EventsPage() {
             <h4 className="text-sm font-semibold text-gray-700 mb-2">👥 Staff Roles:</h4>
             <div className="space-y-1 text-xs">
               <div className="flex items-center">
-                <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: 'blue' }}></div>
+                <div className="w-3 h-3 rounded-full mr-2 bg-blue-500"></div>
                 <span className="text-gray-600"><strong>PIC</strong> (Person In Charge) - Single person responsible</span>
               </div>
               <div className="flex items-center">
-                <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: 'green' }}></div>
+                <div className="w-3 h-3 rounded-full mr-2 bg-green-500"></div>
                 <span className="text-gray-600"><strong>Support Staff</strong> - Multiple people can be assigned</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: 'purple' }}></div>
-                <span className="text-gray-600"><strong>Creator</strong> - Person who created the event</span>
               </div>
             </div>
           </div>

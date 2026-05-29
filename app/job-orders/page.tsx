@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { getDotClass } from '@/lib/colors'
 
 interface JobOrder {
   id: string
@@ -79,6 +80,35 @@ const getStatusText = (status: string) => {
   }
 }
 
+// ========== REMINDER FUNCTION (25 DAYS FROM DATE_STOP OR DATE_START) ==========
+const getReminderText = (dateStart: string, dateStop: string, hasFinalReport: boolean): string | null => {
+  if (hasFinalReport) return null
+  
+  const baseDateStr = (dateStop && dateStop.trim() !== '') ? dateStop : dateStart
+  if (!baseDateStr) return null
+  
+  const baseDate = new Date(baseDateStr)
+  baseDate.setHours(0, 0, 0, 0)
+  
+  const reminderDate = new Date(baseDate)
+  reminderDate.setDate(reminderDate.getDate() + 25)
+  
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  
+  const diffDays = Math.ceil((reminderDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  
+  if (diffDays === 0) {
+    return 'Due today!'
+  }
+  
+  if (diffDays < 0) {
+    return `Overdue by ${Math.abs(diffDays)}d`
+  }
+  
+  return `${diffDays}d left`
+}
+
 // ========== AUTO-COMPUTE STATUS FALLBACK ==========
 const computeTaskStatus = (data: {
   date_start: string | null
@@ -113,6 +143,7 @@ export default function JobOrdersPage() {
   const [filterStaff, setFilterStaff] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [staffList, setStaffList] = useState<string[]>([])
+  const [staffStatusMap, setStaffStatusMap] = useState<Map<string, boolean>>(new Map())
   const itemsPerPage = 10
   const router = useRouter()
   const { toast } = useToast()
@@ -132,30 +163,51 @@ export default function JobOrdersPage() {
     try {
       console.log('📋 Fetching job orders from database...')
       
+      // STEP 1: Fetch ALL users from database (including inactive/deactivated)
       const { data: staffData, error: staffError } = await supabase
         .from('users')
-        .select('id, name, color, role')
+        .select('id, name, color, role, is_active')
       
       if (staffError) throw staffError
       
-      const staffMap: {[key: string]: {name: string, color: string, id: string}} = {}
-      staffData?.forEach((staff: { id: string; name: string; color?: string; role?: string }) => {
+      // STEP 2: Create staff mapping (by id and by name)
+      const staffMap: {[key: string]: {name: string, color: string, id: string, is_active: boolean}} = {}
+      const staffNamesForFilter: string[] = []
+      const statusMap = new Map<string, boolean>()
+      
+      staffData?.forEach((staff: { id: string; name: string; color?: string; role?: string; is_active?: boolean }) => {
         if (staff.id) {
           staffMap[staff.id] = {
             name: staff.name,
             color: staff.color || 'blue',
-            id: staff.id
+            id: staff.id,
+            is_active: staff.is_active ?? true
           }
           if (staff.name) {
             staffMap[staff.name] = {
               name: staff.name,
               color: staff.color || 'blue',
-              id: staff.id
+              id: staff.id,
+              is_active: staff.is_active ?? true
             }
           }
         }
+        
+        // Add ALL staff to filter list (including inactive)
+        if (staff.role === 'staff' && staff.name) {
+          staffNamesForFilter.push(staff.name)
+          statusMap.set(staff.name, staff.is_active ?? true)
+        }
       })
       
+      // Sort staff names alphabetically
+      staffNamesForFilter.sort()
+      setStaffList(staffNamesForFilter)
+      setStaffStatusMap(statusMap)
+      
+      console.log(`📋 Found ${staffNamesForFilter.length} staff members for filter (including inactive)`)
+      
+      // STEP 3: Fetch tasks from database
       const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
         .select('*')
@@ -163,6 +215,7 @@ export default function JobOrdersPage() {
       
       if (tasksError) throw tasksError
       
+      // STEP 4: Format tasks with staff information
       const formattedTasks: JobOrder[] = (tasksData || []).map((task: any) => {
         let picInfo = null
         const picId = task.task_pic_id
@@ -206,6 +259,7 @@ export default function JobOrdersPage() {
           }
         }
         
+        // Map support staff from IDs
         for (const sid of supportIdsArray) {
           if (sid && staffMap[sid]) {
             supportNamesArray.push(staffMap[sid].name)
@@ -213,6 +267,7 @@ export default function JobOrdersPage() {
           }
         }
         
+        // If no support from IDs, use names
         if (supportNamesArray.length === 0 && supportNamesRaw.length > 0) {
           for (let i = 0; i < supportNamesRaw.length; i++) {
             const sname = supportNamesRaw[i]
@@ -268,25 +323,11 @@ export default function JobOrdersPage() {
         }
       })
       
-      const staffNames = new Set<string>()
-      formattedTasks.forEach(task => {
-        if (task.task_pic_name && task.task_pic_name !== 'Unassigned') {
-          staffNames.add(task.task_pic_name)
-        }
-        if (task.task_support_names_array && task.task_support_names_array.length > 0) {
-          task.task_support_names_array.forEach(name => {
-            const trimmed = name.trim()
-            if (trimmed) staffNames.add(trimmed)
-          })
-        }
-      })
-      
-      setStaffList(Array.from(staffNames).sort())
       setJobOrders(formattedTasks)
       
       toast({
         title: "Success",
-        description: `Loaded ${formattedTasks.length} job orders`,
+        description: `Loaded ${formattedTasks.length} job orders | ${staffNamesForFilter.length} staff members (including inactive)`,
       })
       
     } catch (error: any) {
@@ -320,25 +361,6 @@ export default function JobOrdersPage() {
   const handleDateClick = (date: string) => {
     const formattedDate = date.split('T')[0]
     router.push(`/calendar?date=${formattedDate}&view=day`)
-  }
-
-  const getReminderText = (dateStop: string, hasFinalReport: boolean): string | null => {
-    if (hasFinalReport) return null
-    const due = new Date(dateStop)
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    due.setHours(0, 0, 0, 0)
-    const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-    return `${diffDays}d`
-  }
-
-  const isOverdue = (dateStop: string, hasFinalReport: boolean) => {
-    if (hasFinalReport) return false
-    const due = new Date(dateStop)
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    due.setHours(0, 0, 0, 0)
-    return due.getTime() < today.getTime()
   }
 
   const matchesStaffFilter = (job: JobOrder, filterStaffValue: string): boolean => {
@@ -380,6 +402,10 @@ export default function JobOrdersPage() {
 
   if (!user) return null
 
+  // Get count of active vs inactive staff
+  const activeStaffCount = Array.from(staffStatusMap.values()).filter(isActive => isActive === true).length
+  const inactiveStaffCount = staffList.length - activeStaffCount
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 lg:p-6">
       <div className="max-w-[95%] mx-auto space-y-6">
@@ -387,7 +413,10 @@ export default function JobOrdersPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Job Order List</h1>
-            <p className="text-sm text-gray-500 mt-1">Total: {jobOrders.length} job orders</p>
+            <p className="text-sm text-gray-500 mt-1">
+              Total: {jobOrders.length} job orders | Staff: {staffList.length} total 
+              {inactiveStaffCount > 0 && ` (${activeStaffCount} active, ${inactiveStaffCount} inactive)`}
+            </p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={fetchJobOrders} disabled={loading}>
@@ -441,10 +470,18 @@ export default function JobOrdersPage() {
               <SelectValue placeholder="Filter by Staff" />
             </SelectTrigger>
             <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
-              <SelectItem value="all">All Staff</SelectItem>
-              {staffList.map(staff => (
-                <SelectItem key={staff} value={staff}>{staff}</SelectItem>
-              ))}
+              <SelectItem value="all">All Staff ({staffList.length})</SelectItem>
+              {staffList.map(staff => {
+                const isActive = staffStatusMap.get(staff)
+                return (
+                  <SelectItem key={staff} value={staff}>
+                    <div className="flex items-center gap-2">
+                      <span>{staff}</span>
+                      {!isActive && <span className="text-xs text-gray-400">(inactive)</span>}
+                    </div>
+                  </SelectItem>
+                )
+              })}
             </SelectContent>
           </Select>
           <Select value={filterStatus} onValueChange={(value) => { setFilterStatus(value); setCurrentPage(1) }}>
@@ -469,7 +506,11 @@ export default function JobOrdersPage() {
           <div className="flex items-center gap-2 text-sm">
             <span className="text-gray-500">Filters active:</span>
             {searchTerm && <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">Search: {searchTerm}</span>}
-            {filterStaff !== 'all' && <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">Staff: {filterStaff}</span>}
+            {filterStaff !== 'all' && (
+              <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">
+                Staff: {filterStaff} {!staffStatusMap.get(filterStaff) && '(inactive)'}
+              </span>
+            )}
             {filterStatus !== 'all' && <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Status: {filterStatus}</span>}
             <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setSearchTerm(''); setFilterStaff('all'); setFilterStatus('all') }}>
               Clear all
@@ -498,7 +539,7 @@ export default function JobOrdersPage() {
                 <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-200" onClick={() => handleSort('date_stop')}>
                   <div className="flex items-center space-x-1">End Date <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Reminder</th>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Reminder (25d)</th>
                 <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">PIC</th>
                 <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Support Staff</th>
                 <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Job Order</th>
@@ -530,8 +571,10 @@ export default function JobOrdersPage() {
                 </tr>
               ) : (
                 paginatedJobs.map((job, index) => {
-                  const reminderText = getReminderText(job.date_stop, !!job.pdf_final_report)
-                  const overdue = isOverdue(job.date_stop, !!job.pdf_final_report)
+                  const reminderText = getReminderText(job.date_start, job.date_stop, !!job.pdf_final_report)
+                  const isOverdue = reminderText?.startsWith('Overdue') || false
+                  const isDueToday = reminderText === 'Due today!'
+                  
                   return (
                     <tr key={job.id} className="hover:bg-gray-50 transition-colors group border-b border-gray-200">
                       <td className="border-r border-gray-200 px-4 py-3 text-gray-600">{(currentPage - 1) * itemsPerPage + index + 1}</td>
@@ -559,13 +602,23 @@ export default function JobOrdersPage() {
                       </td>
                       <td className="border-r border-gray-200 px-4 py-3">
                         {reminderText ? (
-                          <span className={overdue ? "text-red-600 font-medium" : "text-gray-600"}>{reminderText}</span>
-                        ) : <span className="text-gray-300">-</span>}
+                          <span className={`font-medium ${
+                            isOverdue ? 'text-red-600' : 
+                            isDueToday ? 'text-orange-600 font-bold' : 
+                            'text-orange-600'
+                          }`}>
+                            {reminderText}
+                          </span>
+                        ) : (
+                          <span className="text-gray-300">-</span>
+                        )}
                       </td>
                       <td className="border-r border-gray-200 px-4 py-3">
                         <div className="flex items-center">
-                          <span className="w-3 h-3 rounded-full mr-2 flex-shrink-0" style={{ backgroundColor: job.task_pic_color || 'blue' }}></span>
-                          <span className="text-sm font-medium">{job.task_pic_name || 'Unassigned'}</span>
+                          <span className={`w-3 h-3 rounded-full mr-2 flex-shrink-0 ${getDotClass(job.task_pic_color)}`}></span>
+                          <span className="text-sm font-medium">
+                            {job.task_pic_name || 'Unassigned'}
+                          </span>
                         </div>
                       </td>
                       <td className="border-r border-gray-200 px-4 py-3">
@@ -573,8 +626,10 @@ export default function JobOrdersPage() {
                           <div className="flex flex-wrap gap-2">
                             {job.task_support_names_array.map((name, idx) => (
                               <div key={idx} className="flex items-center">
-                                <span className="w-3 h-3 rounded-full mr-1 flex-shrink-0" style={{ backgroundColor: job.task_support_colors_array?.[idx] || 'gray' }}></span>
-                                <span className="text-sm">{name}</span>
+                                <span className={`w-3 h-3 rounded-full mr-1 flex-shrink-0 ${getDotClass(job.task_support_colors_array?.[idx])}`}></span>
+                                <span className="text-sm">
+                                  {name}
+                                </span>
                               </div>
                             ))}
                           </div>
@@ -669,11 +724,12 @@ export default function JobOrdersPage() {
             </div>
           </div>
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">⏰ Reminder Format:</h4>
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">⏰ Reminder Format (25 days):</h4>
             <div className="space-y-1 text-xs">
-              <div className="flex items-center"><span className="text-green-600 mr-2">14d</span><span className="text-gray-600">= 14 days left</span></div>
-              <div className="flex items-center"><span className="text-red-600 font-medium mr-2">-4d</span><span className="text-gray-600">= Overdue by 4 days</span></div>
-              <div className="flex items-center"><span className="text-gray-300 mr-2">-</span><span className="text-gray-600">= Report submitted</span></div>
+              <div className="flex items-center"><span className="text-orange-600 mr-2">14d left</span><span className="text-gray-600">= 14 days until reminder</span></div>
+              <div className="flex items-center"><span className="text-orange-600 font-bold mr-2">Due today!</span><span className="text-gray-600">= Reminder day</span></div>
+              <div className="flex items-center"><span className="text-red-600 font-medium mr-2">Overdue by 4d</span><span className="text-gray-600">= Past reminder date</span></div>
+              <div className="flex items-center"><span className="text-gray-300 mr-2">-</span><span className="text-gray-600">= Final report submitted</span></div>
             </div>
           </div>
         </div>

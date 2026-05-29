@@ -1,146 +1,278 @@
-// lib/colors.ts
-export const staffColorMap: {[key: string]: { 
-  bg: string, 
-  text: string, 
-  border: string,
-  light: string,
-  dark: string,
-  ring: string,
-  gradient: string
-}} = {
-  'blue': { 
-    bg: 'bg-blue-500', 
-    text: 'text-blue-600', 
-    border: 'border-blue-200',
-    light: 'bg-blue-50',
-    dark: 'bg-blue-600',
+// lib/color.ts
+
+export const colorClasses = {
+  blue: {
+    bg: 'bg-blue-100',
+    text: 'text-blue-800',
+    border: 'border-blue-300',
+    hoverBg: 'hover:bg-blue-200',
+    lightBg: 'bg-blue-50',
+    badge: 'bg-blue-100 text-blue-800',
+    badgeLight: 'bg-blue-50 text-blue-700',
+    dot: 'bg-blue-500',
     ring: 'ring-blue-200',
-    gradient: 'from-blue-500 to-blue-600'
+    gradient: 'from-blue-500 to-blue-600',
+    solid: 'bg-blue-500',
+    solidHover: 'hover:bg-blue-600',
+    solidText: 'text-white',
+    headerGradient: 'from-blue-600 to-blue-700',
   },
-  'green': { 
-    bg: 'bg-green-500', 
-    text: 'text-green-600', 
-    border: 'border-green-200',
-    light: 'bg-green-50',
-    dark: 'bg-green-600',
+  green: {
+    bg: 'bg-green-100',
+    text: 'text-green-800',
+    border: 'border-green-300',
+    hoverBg: 'hover:bg-green-200',
+    lightBg: 'bg-green-50',
+    badge: 'bg-green-100 text-green-800',
+    badgeLight: 'bg-green-50 text-green-700',
+    dot: 'bg-green-500',
     ring: 'ring-green-200',
-    gradient: 'from-green-500 to-green-600'
+    gradient: 'from-green-500 to-green-600',
+    solid: 'bg-green-500',
+    solidHover: 'hover:bg-green-600',
+    solidText: 'text-white',
+    headerGradient: 'from-green-600 to-green-700',
   },
-  'purple': { 
-    bg: 'bg-purple-500', 
-    text: 'text-purple-600', 
-    border: 'border-purple-200',
-    light: 'bg-purple-50',
-    dark: 'bg-purple-600',
+  purple: {
+    bg: 'bg-purple-100',
+    text: 'text-purple-800',
+    border: 'border-purple-300',
+    hoverBg: 'hover:bg-purple-200',
+    lightBg: 'bg-purple-50',
+    badge: 'bg-purple-100 text-purple-800',
+    badgeLight: 'bg-purple-50 text-purple-700',
+    dot: 'bg-purple-500',
     ring: 'ring-purple-200',
-    gradient: 'from-purple-500 to-purple-600'
+    gradient: 'from-purple-500 to-purple-600',
+    solid: 'bg-purple-500',
+    solidHover: 'hover:bg-purple-600',
+    solidText: 'text-white',
+    headerGradient: 'from-purple-600 to-purple-700',
   },
-  'teal': { 
-    bg: 'bg-teal-500', 
-    text: 'text-teal-600', 
-    border: 'border-teal-200',
-    light: 'bg-teal-50',
-    dark: 'bg-teal-600',
+  teal: {
+    bg: 'bg-teal-100',
+    text: 'text-teal-800',
+    border: 'border-teal-300',
+    hoverBg: 'hover:bg-teal-200',
+    lightBg: 'bg-teal-50',
+    badge: 'bg-teal-100 text-teal-800',
+    badgeLight: 'bg-teal-50 text-teal-700',
+    dot: 'bg-teal-500',
     ring: 'ring-teal-200',
-    gradient: 'from-teal-500 to-teal-600'
+    gradient: 'from-teal-500 to-teal-600',
+    solid: 'bg-teal-500',
+    solidHover: 'hover:bg-teal-600',
+    solidText: 'text-white',
+    headerGradient: 'from-teal-600 to-teal-700',
   },
-  'yellow': { 
-    bg: 'bg-yellow-500', 
-    text: 'text-yellow-600', 
-    border: 'border-yellow-200',
-    light: 'bg-yellow-50',
-    dark: 'bg-yellow-600',
+  yellow: {
+    bg: 'bg-yellow-100',
+    text: 'text-yellow-800',
+    border: 'border-yellow-300',
+    hoverBg: 'hover:bg-yellow-200',
+    lightBg: 'bg-yellow-50',
+    badge: 'bg-yellow-100 text-yellow-800',
+    badgeLight: 'bg-yellow-50 text-yellow-700',
+    dot: 'bg-yellow-500',
     ring: 'ring-yellow-200',
-    gradient: 'from-yellow-500 to-yellow-600'
+    gradient: 'from-yellow-500 to-yellow-600',
+    solid: 'bg-yellow-500',
+    solidHover: 'hover:bg-yellow-600',
+    solidText: 'text-white',
+    headerGradient: 'from-yellow-600 to-yellow-700',
   },
-  'pink': { 
-    bg: 'bg-pink-500', 
-    text: 'text-pink-600', 
-    border: 'border-pink-200',
-    light: 'bg-pink-50',
-    dark: 'bg-pink-600',
+  pink: {
+    bg: 'bg-pink-100',
+    text: 'text-pink-800',
+    border: 'border-pink-300',
+    hoverBg: 'hover:bg-pink-200',
+    lightBg: 'bg-pink-50',
+    badge: 'bg-pink-100 text-pink-800',
+    badgeLight: 'bg-pink-50 text-pink-700',
+    dot: 'bg-pink-500',
     ring: 'ring-pink-200',
-    gradient: 'from-pink-500 to-pink-600'
+    gradient: 'from-pink-500 to-pink-600',
+    solid: 'bg-pink-500',
+    solidHover: 'hover:bg-pink-600',
+    solidText: 'text-white',
+    headerGradient: 'from-pink-600 to-pink-700',
   },
-  'indigo': { 
-    bg: 'bg-indigo-500', 
-    text: 'text-indigo-600', 
-    border: 'border-indigo-200',
-    light: 'bg-indigo-50',
-    dark: 'bg-indigo-600',
+  indigo: {
+    bg: 'bg-indigo-100',
+    text: 'text-indigo-800',
+    border: 'border-indigo-300',
+    hoverBg: 'hover:bg-indigo-200',
+    lightBg: 'bg-indigo-50',
+    badge: 'bg-indigo-100 text-indigo-800',
+    badgeLight: 'bg-indigo-50 text-indigo-700',
+    dot: 'bg-indigo-500',
     ring: 'ring-indigo-200',
-    gradient: 'from-indigo-500 to-indigo-600'
+    gradient: 'from-indigo-500 to-indigo-600',
+    solid: 'bg-indigo-500',
+    solidHover: 'hover:bg-indigo-600',
+    solidText: 'text-white',
+    headerGradient: 'from-indigo-600 to-indigo-700',
   },
-  'orange': { 
-    bg: 'bg-orange-500', 
-    text: 'text-orange-600', 
-    border: 'border-orange-200',
-    light: 'bg-orange-50',
-    dark: 'bg-orange-600',
+  orange: {
+    bg: 'bg-orange-100',
+    text: 'text-orange-800',
+    border: 'border-orange-300',
+    hoverBg: 'hover:bg-orange-200',
+    lightBg: 'bg-orange-50',
+    badge: 'bg-orange-100 text-orange-800',
+    badgeLight: 'bg-orange-50 text-orange-700',
+    dot: 'bg-orange-500',
     ring: 'ring-orange-200',
-    gradient: 'from-orange-500 to-orange-600'
+    gradient: 'from-orange-500 to-orange-600',
+    solid: 'bg-orange-500',
+    solidHover: 'hover:bg-orange-600',
+    solidText: 'text-white',
+    headerGradient: 'from-orange-600 to-orange-700',
   },
-  'cyan': { 
-    bg: 'bg-cyan-500', 
-    text: 'text-cyan-600', 
-    border: 'border-cyan-200',
-    light: 'bg-cyan-50',
-    dark: 'bg-cyan-600',
+  cyan: {
+    bg: 'bg-cyan-100',
+    text: 'text-cyan-800',
+    border: 'border-cyan-300',
+    hoverBg: 'hover:bg-cyan-200',
+    lightBg: 'bg-cyan-50',
+    badge: 'bg-cyan-100 text-cyan-800',
+    badgeLight: 'bg-cyan-50 text-cyan-700',
+    dot: 'bg-cyan-500',
     ring: 'ring-cyan-200',
-    gradient: 'from-cyan-500 to-cyan-600'
+    gradient: 'from-cyan-500 to-cyan-600',
+    solid: 'bg-cyan-500',
+    solidHover: 'hover:bg-cyan-600',
+    solidText: 'text-white',
+    headerGradient: 'from-cyan-600 to-cyan-700',
   },
-  'red': { 
-    bg: 'bg-red-500', 
-    text: 'text-red-600', 
-    border: 'border-red-200',
-    light: 'bg-red-50',
-    dark: 'bg-red-600',
+  red: {
+    bg: 'bg-red-100',
+    text: 'text-red-800',
+    border: 'border-red-300',
+    hoverBg: 'hover:bg-red-200',
+    lightBg: 'bg-red-50',
+    badge: 'bg-red-100 text-red-800',
+    badgeLight: 'bg-red-50 text-red-700',
+    dot: 'bg-red-500',
     ring: 'ring-red-200',
-    gradient: 'from-red-500 to-red-600'
+    gradient: 'from-red-500 to-red-600',
+    solid: 'bg-red-500',
+    solidHover: 'hover:bg-red-600',
+    solidText: 'text-white',
+    headerGradient: 'from-red-600 to-red-700',
   },
-  'rose': { 
-    bg: 'bg-rose-500', 
-    text: 'text-rose-600', 
-    border: 'border-rose-200',
-    light: 'bg-rose-50',
-    dark: 'bg-rose-600',
+  rose: {
+    bg: 'bg-rose-100',
+    text: 'text-rose-800',
+    border: 'border-rose-300',
+    hoverBg: 'hover:bg-rose-200',
+    lightBg: 'bg-rose-50',
+    badge: 'bg-rose-100 text-rose-800',
+    badgeLight: 'bg-rose-50 text-rose-700',
+    dot: 'bg-rose-500',
     ring: 'ring-rose-200',
-    gradient: 'from-rose-500 to-rose-600'
+    gradient: 'from-rose-500 to-rose-600',
+    solid: 'bg-rose-500',
+    solidHover: 'hover:bg-rose-600',
+    solidText: 'text-white',
+    headerGradient: 'from-rose-600 to-rose-700',
   },
-  'amber': { 
-    bg: 'bg-amber-500', 
-    text: 'text-amber-600', 
-    border: 'border-amber-200',
-    light: 'bg-amber-50',
-    dark: 'bg-amber-600',
+  brown: {
+    bg: 'bg-amber-100',
+    text: 'text-amber-800',
+    border: 'border-amber-300',
+    hoverBg: 'hover:bg-amber-200',
+    lightBg: 'bg-amber-50',
+    badge: 'bg-amber-100 text-amber-800',
+    badgeLight: 'bg-amber-50 text-amber-700',
+    dot: 'bg-amber-800',
     ring: 'ring-amber-200',
-    gradient: 'from-amber-500 to-amber-600'
+    gradient: 'from-amber-700 to-amber-800',
+    solid: 'bg-amber-800',
+    solidHover: 'hover:bg-amber-900',
+    solidText: 'text-white',
+    headerGradient: 'from-amber-800 to-amber-900',
   },
-  'lime': { 
-    bg: 'bg-lime-500', 
-    text: 'text-lime-600', 
-    border: 'border-lime-200',
-    light: 'bg-lime-50',
-    dark: 'bg-lime-600',
+  lime: {
+    bg: 'bg-lime-100',
+    text: 'text-lime-800',
+    border: 'border-lime-300',
+    hoverBg: 'hover:bg-lime-200',
+    lightBg: 'bg-lime-50',
+    badge: 'bg-lime-100 text-lime-800',
+    badgeLight: 'bg-lime-50 text-lime-700',
+    dot: 'bg-lime-500',
     ring: 'ring-lime-200',
-    gradient: 'from-lime-500 to-lime-600'
+    gradient: 'from-lime-500 to-lime-600',
+    solid: 'bg-lime-500',
+    solidHover: 'hover:bg-lime-600',
+    solidText: 'text-white',
+    headerGradient: 'from-lime-600 to-lime-700',
   },
-  'emerald': { 
-    bg: 'bg-emerald-500', 
-    text: 'text-emerald-600', 
-    border: 'border-emerald-200',
-    light: 'bg-emerald-50',
-    dark: 'bg-emerald-600',
-    ring: 'ring-emerald-200',
-    gradient: 'from-emerald-500 to-emerald-600'
+  gray: {
+    bg: 'bg-gray-100',
+    text: 'text-gray-800',
+    border: 'border-gray-300',
+    hoverBg: 'hover:bg-gray-200',
+    lightBg: 'bg-gray-50',
+    badge: 'bg-gray-100 text-gray-800',
+    badgeLight: 'bg-gray-50 text-gray-700',
+    dot: 'bg-gray-500',
+    ring: 'ring-gray-200',
+    gradient: 'from-gray-500 to-gray-600',
+    solid: 'bg-gray-500',
+    solidHover: 'hover:bg-gray-600',
+    solidText: 'text-white',
+    headerGradient: 'from-gray-600 to-gray-700',
   },
-  'violet': { 
-    bg: 'bg-violet-500', 
-    text: 'text-violet-600', 
-    border: 'border-violet-200',
-    light: 'bg-violet-50',
-    dark: 'bg-violet-600',
-    ring: 'ring-violet-200',
-    gradient: 'from-violet-500 to-violet-600'
-  }
-}
+  peach: {
+    bg: 'bg-orange-100',
+    text: 'text-orange-800',
+    border: 'border-orange-300',
+    hoverBg: 'hover:bg-orange-200',
+    lightBg: 'bg-orange-50',
+    badge: 'bg-orange-100 text-orange-800',
+    badgeLight: 'bg-orange-50 text-orange-700',
+    dot: 'bg-orange-300',
+    ring: 'ring-orange-200',
+    gradient: 'from-orange-300 to-orange-400',
+    solid: 'bg-orange-300',
+    solidHover: 'hover:bg-orange-400',
+    solidText: 'text-white',
+    headerGradient: 'from-orange-400 to-orange-500',
+  },
+};
+
+export type ColorKey = keyof typeof colorClasses;
+export type ColorType = keyof typeof colorClasses.blue;
+
+export const getColorClass = (color: string | undefined | null, type: ColorType): string => {
+  if (!color) return colorClasses.blue[type];
+  const colorKey = color as ColorKey;
+  return colorClasses[colorKey]?.[type] || colorClasses.blue[type];
+};
+
+export const getItemStyleClasses = (color: string | undefined | null): string => {
+  const safeColor = color || 'blue';
+  return `${getColorClass(safeColor, 'bg')} ${getColorClass(safeColor, 'text')} ${getColorClass(safeColor, 'hoverBg')}`;
+};
+
+export const getItemBgClass = (color: string | undefined | null): string => {
+  return getColorClass(color, 'lightBg');
+};
+
+export const getBadgeClass = (color: string | undefined | null): string => {
+  return getColorClass(color, 'badge');
+};
+
+export const getDotClass = (color: string | undefined | null): string => {
+  return getColorClass(color, 'dot');
+};
+
+export const getSolidClass = (color: string | undefined | null): string => {
+  return getColorClass(color, 'solid');
+};
+
+export const getHeaderGradientClass = (color: string | undefined | null): string => {
+  return getColorClass(color, 'headerGradient');
+};

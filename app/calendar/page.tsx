@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { CalendarViews } from './components/CalendarViews'
-import { useCalendarData } from './hooks/useCalendarData'
+import { useCalendarData } from '@/app/calendar/hooks/useCalendarData'
 import AddCalendarItemModal from './AddCalendarItemModal'
 import TaskInbox from './TaskInbox'
 import CalendarFilter from './components/CalendarFilter'
@@ -116,7 +116,6 @@ export default function CalendarPage() {
     }
   }, [])
 
-  // ========== SAVE NOTIFICATION BADGE COUNT ==========
   useEffect(() => {
     if (badgeCountsLoaded) {
       localStorage.setItem(STORAGE_KEYS.NOTIFICATION_BADGE_COUNT, notificationUnreadCount.toString())
@@ -124,7 +123,6 @@ export default function CalendarPage() {
     }
   }, [notificationUnreadCount, badgeCountsLoaded])
 
-  // ========== SAVE INBOX BADGE COUNT ==========
   useEffect(() => {
     if (badgeCountsLoaded) {
       localStorage.setItem(STORAGE_KEYS.INBOX_BADGE_COUNT, inboxUnreadCount.toString())
@@ -132,7 +130,6 @@ export default function CalendarPage() {
     }
   }, [inboxUnreadCount, badgeCountsLoaded])
 
-  // ========== HIGHLIGHT FROM NOTIFICATION ==========
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const taskIdFromUrl = urlParams.get('task')
@@ -143,7 +140,6 @@ export default function CalendarPage() {
     if (highlightTaskId) {
       console.log('🔍 Looking for task to highlight:', highlightTaskId)
       
-      // Wait for DOM and tasks to be loaded
       const timeoutId = setTimeout(() => {
         let taskElement = document.querySelector(`[data-task-id="${highlightTaskId}"]`)
         
@@ -157,13 +153,9 @@ export default function CalendarPage() {
         
         if (taskElement) {
           console.log('✅ Found task element, highlighting...')
-          // Scroll to task
           taskElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          
-          // Add highlight classes
           taskElement.classList.add('ring-4', 'ring-blue-500', 'animate-pulse', 'bg-blue-100', 'shadow-lg')
           
-          // Remove highlight after 3 seconds
           setTimeout(() => {
             taskElement?.classList.remove('ring-4', 'ring-blue-500', 'animate-pulse', 'bg-blue-100', 'shadow-lg')
           }, 3000)
@@ -195,11 +187,8 @@ export default function CalendarPage() {
         if (eventElement) {
           console.log('✅ Found event element, highlighting...')
           eventElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          
-          // Add highlight classes
           eventElement.classList.add('ring-4', 'ring-purple-500', 'animate-pulse', 'bg-purple-100', 'shadow-lg')
           
-          // Remove highlight after 3 seconds
           setTimeout(() => {
             eventElement?.classList.remove('ring-4', 'ring-purple-500', 'animate-pulse', 'bg-purple-100', 'shadow-lg')
           }, 3000)
@@ -215,7 +204,6 @@ export default function CalendarPage() {
     }
   }, [tasks, events, view, currentDate])
 
-  // ========== FILTERED DATA - APPLY FILTERS HERE ==========
   const filteredTasks = useMemo(() => {
     if (Object.keys(staffFilters).length === 0) {
       return tasks
@@ -274,7 +262,6 @@ const filteredHolidays = useMemo(() => {
     return Object.values(staffFilters).filter(f => f.tasks || f.events).length + (showHolidays ? 1 : 0)
   }, [staffFilters, showHolidays])
   
-  // ========== VIEW OPTIONS ==========
   const viewOptions = useMemo(() => [
     { value: 'day', label: 'Day' },
     { value: 'week', label: 'Week' },
@@ -283,10 +270,8 @@ const filteredHolidays = useMemo(() => {
     { value: 'schedule', label: 'Schedule' },
   ], [])
 
-  // ========== LOAD ALL STATES FROM LOCALSTORAGE ==========
   useEffect(() => {
     try {
-      // Load staff filters
       const savedStaffFilters = localStorage.getItem(STORAGE_KEYS.STAFF_FILTERS)
       if (savedStaffFilters) {
         const parsed = JSON.parse(savedStaffFilters)
@@ -294,27 +279,23 @@ const filteredHolidays = useMemo(() => {
         console.log('📂 Loaded staff filters:', parsed)
       }
       
-      // Load holidays setting
       const savedHolidays = localStorage.getItem(STORAGE_KEYS.SHOW_HOLIDAYS)
       if (savedHolidays !== null) {
         setShowHolidays(JSON.parse(savedHolidays))
       }
       
-      // Load filter panel state
       const savedShowFilter = localStorage.getItem(STORAGE_KEYS.SHOW_FILTER)
       if (savedShowFilter !== null) {
         setShowFilter(JSON.parse(savedShowFilter))
         console.log('📂 Loaded showFilter:', JSON.parse(savedShowFilter))
       }
       
-      // Load notifications panel state
       const savedShowNotifications = localStorage.getItem(STORAGE_KEYS.SHOW_NOTIFICATIONS)
       if (savedShowNotifications !== null) {
         setShowNotifications(JSON.parse(savedShowNotifications))
         console.log('📂 Loaded showNotifications:', JSON.parse(savedShowNotifications))
       }
       
-      // Load task inbox panel state
       const savedShowTaskInbox = localStorage.getItem(STORAGE_KEYS.SHOW_TASK_INBOX)
       if (savedShowTaskInbox !== null) {
         setShowTaskInbox(JSON.parse(savedShowTaskInbox))
@@ -328,7 +309,6 @@ const filteredHolidays = useMemo(() => {
     }
   }, [])
 
-  // ========== SAVE FILTERS TO LOCALSTORAGE ==========
   useEffect(() => {
     if (!isInitialized) return
     try {
@@ -348,7 +328,6 @@ const filteredHolidays = useMemo(() => {
     }
   }, [showHolidays, isInitialized])
 
-  // ========== SAVE PANEL STATES TO LOCALSTORAGE ==========
   useEffect(() => {
     if (!isInitialized) return
     try {
@@ -379,7 +358,6 @@ const filteredHolidays = useMemo(() => {
     }
   }, [showTaskInbox, isInitialized])
 
-  // ========== NAVIGATION HANDLERS ==========
   const handlePrev = useCallback(() => {
     const newDate = new Date(currentDate)
     switch (view) {
@@ -406,7 +384,6 @@ const filteredHolidays = useMemo(() => {
     setCurrentDate(newDate)
   }, [currentDate, view])
 
-  // ========== GET TITLE ==========
   const getTitle = useCallback(() => {
     switch (view) {
       case 'day':
@@ -433,7 +410,6 @@ const filteredHolidays = useMemo(() => {
     }
   }, [currentDate, view])
 
-  // ========== MODAL HANDLERS ==========
   const handleDateClick = useCallback((date: Date) => {
     const fixedDate = createStableDate(date)
     setCurrentDate(fixedDate)
@@ -473,7 +449,6 @@ const filteredHolidays = useMemo(() => {
     setShowItemModal(true)
   }, [])
 
-  // ========== DRAG & DROP HANDLERS ==========
   const handleDragStart = useCallback((task: UnscheduledTask) => {
     setDraggedTask(task)
     setIsDragging(true)
@@ -515,7 +490,6 @@ const filteredHolidays = useMemo(() => {
     setDraggedOverDate(null)
   }, [])
 
-  // ========== SAVE ITEM HANDLER ==========
   const handleSaveItem = useCallback(async (data: any, type: 'event' | 'task') => {
     if (isSaving) return
     setIsSaving(true)
@@ -563,7 +537,6 @@ const filteredHolidays = useMemo(() => {
     }
   }, [isSaving, prefilledTaskData, saveEvent, saveTask, selectedEvent, selectedTask, refresh, toast])
 
-  // ========== DELETE ITEM HANDLER ==========
   const handleDeleteItem = useCallback(async (id: string, type: 'event' | 'task') => {
     if (isDeleting) return
     setIsDeleting(true)
@@ -596,7 +569,6 @@ const filteredHolidays = useMemo(() => {
     }
   }, [isDeleting, deleteEvent, deleteTask, refresh, toast])
 
-  // ========== FILTER HANDLERS ==========
   const handleStaffTaskToggle = useCallback((staffId: string, value: boolean) => {
     console.log('🎯 Toggle Task for staff:', staffId, value)
     setStaffFilters(prev => {
@@ -631,7 +603,6 @@ const filteredHolidays = useMemo(() => {
     setShowHolidays(prev => !prev)
   }, [])
 
-  // ========== PANEL TOGGLE HANDLERS ==========
   const handleFilterToggle = useCallback(() => {
     setShowFilter(prev => !prev)
   }, [])
@@ -644,22 +615,19 @@ const filteredHolidays = useMemo(() => {
     setShowTaskInbox(prev => !prev)
   }, [])
 
-  // ========== FILTER USERS ==========
-// ========== FILTER USERS ==========
 const filterUsers = useMemo(() => {
   return allUsers.map(user => ({
     id: user.id,
     name: user.name,
-    email: user.email || '', // Add email (required by User type)
-    password: user.password || '', // Add password (required by User type)
+    email: user.email || '',
+    password: user.password || '',
     user_id: user.id,
     role: user.role,
     color: user.color || 'blue',
-    created_at: user.created_at || new Date().toISOString() // Add created_at
+    created_at: user.created_at || new Date().toISOString()
   }))
 }, [allUsers])
 
-  // Debug logs
   useEffect(() => {
     console.log('🔍 Debug - Staff Filters:', staffFilters)
     console.log('🔍 Debug - Total Tasks:', tasks.length)
@@ -668,12 +636,10 @@ const filterUsers = useMemo(() => {
     console.log('🔍 Debug - Filtered Events:', filteredEvents.length)
   }, [staffFilters, tasks, events, filteredTasks, filteredEvents])
 
-  // ========== RENDER ==========
   const title = getTitle()
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
-      {/* HEADER */}
       <div className="bg-white border-b border-gray-200 px-4 py-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -691,7 +657,6 @@ const filterUsers = useMemo(() => {
           </div>
 
           <div className="flex items-center space-x-2">
-            {/* FILTER BUTTON */}
             <Button
               variant={showFilter ? "default" : "outline"}
               onClick={handleFilterToggle}
@@ -706,7 +671,6 @@ const filterUsers = useMemo(() => {
               )}
             </Button>
             
-            {/* VIEW DROPDOWN */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="flex items-center space-x-2 bg-white">
@@ -730,7 +694,6 @@ const filterUsers = useMemo(() => {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* NOTIFICATIONS BUTTON - WITH RED BADGE (KEKAL WALAUPUN REFRESH) */}
             <Button
               variant={showNotifications ? "default" : "outline"}
               onClick={handleNotificationsToggle}
@@ -745,7 +708,6 @@ const filterUsers = useMemo(() => {
               )}
             </Button>
 
-            {/* INBOX BUTTON - WITH RED BADGE (KEKAL WALAUPUN REFRESH) */}
             <Button
               variant={showTaskInbox ? "default" : "outline"}
               onClick={handleTaskInboxToggle}
@@ -763,9 +725,7 @@ const filterUsers = useMemo(() => {
         </div>
       </div>
 
-      {/* MAIN CONTENT */}
       <div className="flex-1 flex min-h-0">
-        {/* FILTER SIDEBAR */}
         {showFilter && (
           <CalendarFilter
             users={filterUsers}
@@ -778,7 +738,6 @@ const filterUsers = useMemo(() => {
           />
         )}
 
-        {/* CALENDAR AREA */}
         <div className="flex-1 flex min-h-0 px-4 py-3 gap-4">
           <div className={`flex flex-col min-h-0 transition-all duration-300 ${
             showTaskInbox && showNotifications ? 'flex-[2]' : 
@@ -815,7 +774,6 @@ const filterUsers = useMemo(() => {
             </div>
           </div>
 
-          {/* RIGHT SIDEBARS */}
           <div className="flex gap-4">
             {showNotifications && (
               <div className="w-80 flex flex-col min-h-0">
@@ -868,7 +826,6 @@ const filterUsers = useMemo(() => {
         </div>
       </div>
 
-      {/* MODAL */}
       <AddCalendarItemModal 
         isOpen={showItemModal}
         onClose={() => {

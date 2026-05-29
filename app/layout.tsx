@@ -14,7 +14,7 @@ import {
   User
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { staffColorMap } from '@/lib/colors'
+import { getColorClass, getSolidClass, getDotClass, getItemBgClass } from '@/lib/colors'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -98,9 +98,14 @@ export default function RootLayout({
     setProfileMenuOpen(false)
   }
 
-  // Get current color style from staffColorMap
-  const currentColor = staffColorMap[userColor] || staffColorMap['blue']
-
+  // Get current color styles from color.ts
+  const currentSolidClass = getSolidClass(userColor)
+  const currentTextClass = getColorClass(userColor, 'text')
+  const currentBgClass = getItemBgClass(userColor)
+  const currentDotClass = getDotClass(userColor)
+  const currentLightBgClass = getItemBgClass(userColor)
+  const currentBorderClass = getColorClass(userColor, 'border')
+  const currentRingClass = getColorClass(userColor, 'ring')
 
   if (pathname === '/login') {
     return (
@@ -177,7 +182,7 @@ export default function RootLayout({
                   <p className="text-sm font-medium text-gray-900">{user.name}</p>
                   <p className="text-xs text-gray-500 capitalize">{user.role}</p>
                 </div>
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-sm ${currentColor.bg}`}>
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-sm ${currentSolidClass}`}>
                   <span className="text-white font-semibold text-sm">
                     {getUserInitials()}
                   </span>
@@ -195,7 +200,7 @@ export default function RootLayout({
                   <div className="absolute right-0 top-14 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-50 py-2">
                     <div className="px-4 py-3 border-b border-gray-200">
                       <div className="flex items-center gap-3 mb-2">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${currentColor.bg}`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${currentSolidClass}`}>
                           {getUserInitials()}
                         </div>
                         <div>
@@ -207,7 +212,7 @@ export default function RootLayout({
                         <span className={`text-xs px-2 py-0.5 rounded-full ${
                           user.role === 'admin' || user.role === 'superadmin'
                             ? 'bg-purple-100 text-purple-700' 
-                            : `${currentColor.light} ${currentColor.text}`
+                            : `${currentLightBgClass} ${currentTextClass}`
                         }`}>
                           {user.role}
                         </span>
@@ -265,7 +270,7 @@ export default function RootLayout({
                     variant="ghost"
                     className={`w-full ${drawerOpen ? 'justify-start' : 'justify-center'} ${
                       pathname === '/calendar' 
-                        ? 'bg-blue-50 text-blue-600' 
+                        ? `bg-blue-50 text-blue-600` 
                         : 'text-gray-700 hover:bg-gray-100'
                     }`}
                     onClick={() => handleNavigation('/calendar')}
@@ -280,7 +285,7 @@ export default function RootLayout({
                     variant="ghost"
                     className={`w-full ${drawerOpen ? 'justify-start' : 'justify-center'} ${
                       pathname === '/job-orders' 
-                        ? 'bg-blue-50 text-blue-600' 
+                        ? `bg-blue-50 text-blue-600` 
                         : 'text-gray-700 hover:bg-gray-100'
                     }`}
                     onClick={() => handleNavigation('/job-orders')}
@@ -295,7 +300,7 @@ export default function RootLayout({
                     variant="ghost"
                     className={`w-full ${drawerOpen ? 'justify-start' : 'justify-center'} ${
                       pathname === '/event-lists' 
-                        ? 'bg-purple-50 text-purple-600' 
+                        ? `bg-purple-50 text-purple-600` 
                         : 'text-gray-700 hover:bg-gray-100'
                     }`}
                     onClick={() => handleNavigation('/event-lists')}
@@ -311,7 +316,7 @@ export default function RootLayout({
                       variant="ghost"
                       className={`w-full ${drawerOpen ? 'justify-start' : 'justify-center'} ${
                         pathname === '/settings' 
-                          ? 'bg-blue-50 text-blue-600' 
+                          ? `bg-blue-50 text-blue-600` 
                           : 'text-gray-700 hover:bg-gray-100'
                       }`}
                       onClick={() => handleNavigation('/settings')}
@@ -360,7 +365,7 @@ export default function RootLayout({
 
                 <div className="p-4 border-b border-gray-200">
                   <div className="flex items-center space-x-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${currentColor.bg}`}>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${currentSolidClass}`}>
                       {getUserInitials()}
                     </div>
                     <div>

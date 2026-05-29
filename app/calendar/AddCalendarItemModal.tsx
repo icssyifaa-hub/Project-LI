@@ -79,14 +79,12 @@ interface Staff {
   color?: string
 }
 
-// ========== AUTO-COMPUTE TASK STATUS ==========
 const computeTaskStatus = (data: {
   dateStart: string | null
   dateStop: string | null
   pdfJobOrderPath: string | null
   pdfFinalReportPath: string | null
 }) => {
-  // ONHOLD: No date assigned (task in inbox)
   if (!data.dateStart) return 'onhold'
   
   const today = new Date()
@@ -99,17 +97,11 @@ const computeTaskStatus = (data: {
   const hasJobOrder = !!data.pdfJobOrderPath
   const hasFinalReport = !!data.pdfFinalReportPath
   
-  // COMPLETED: Both Job Order AND Final Report uploaded
   if (hasJobOrder && hasFinalReport) return 'completed'
-  
-  // INCOMPLETE: Due date passed AND files not complete
   if (isDueDatePassed && (!hasJobOrder || !hasFinalReport)) return 'incomplete'
-  
-  // IN-PROGRESS: Has date, not overdue, files may be partial
   return 'in-progress'
 }
 
-// Status badge colors for display
 const getStatusColor = (status: string) => {
   switch(status) {
     case 'completed': return 'bg-green-100 text-green-800'
@@ -209,18 +201,13 @@ export default function AddCalendarItemModal({
   const [eventData, setEventData] = useState(initialEventData)
   const [taskData, setTaskData] = useState(initialTaskData)
   const [currentUser, setCurrentUser] = useState<any>(null)
-
   const [jobOrderPreviewUrl, setJobOrderPreviewUrl] = useState<string | null>(null)
   const [finalReportPreviewUrl, setFinalReportPreviewUrl] = useState<string | null>(null)
   const [showJobOrderPreview, setShowJobOrderPreview] = useState(false)
   const [showFinalReportPreview, setShowFinalReportPreview] = useState(false)
-  
   const [tempJobOrderFile, setTempJobOrderFile] = useState<File | null>(null)
   const [tempFinalReportFile, setTempFinalReportFile] = useState<File | null>(null)
-
   const initialLoadDone = useRef(false)
-
-  // Get current computed status for display
   const getCurrentTaskStatus = useCallback(() => {
     return computeTaskStatus({
       dateStart: taskData.dateStart || null,

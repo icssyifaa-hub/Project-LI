@@ -299,7 +299,6 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
         const year = targetDate.getFullYear()
         const month = targetDate.getMonth()
         const day = targetDate.getDate()
-        
         router.push(`/calendar?year=${year}&month=${month}&day=${day}&task=${notification.task_id}`)
       } else {
         router.push('/calendar')

@@ -284,7 +284,6 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
         }
       }
     } 
-    // Handle task notification
     else if (notification.task_id) {
       localStorage.setItem('highlight_task_id', notification.task_id)
       

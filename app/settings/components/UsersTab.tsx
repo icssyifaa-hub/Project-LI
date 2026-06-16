@@ -1,4 +1,3 @@
-// app/components/UsersTab.tsx (Updated)
 'use client'
 
 import { useState } from 'react'
@@ -310,7 +309,7 @@ export function UsersTab() {
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
-                placeholder="user@icsconsulting.com"
+                placeholder="ics.user@gmail.com"
                 className="border-gray-300"
                 required
               />

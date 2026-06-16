@@ -1,3 +1,4 @@
+// lib/supabase/notifications.ts
 import { createClient } from './client'
 
 export interface NotificationData {
@@ -9,7 +10,6 @@ export interface NotificationData {
   created_by_name?: string
 }
 
-// Get user from localStorage
 const getCurrentUser = (): any | null => {
   try {
     const userData = localStorage.getItem('user')
@@ -68,7 +68,6 @@ export async function notifyStaffForTask(
   
   const staffToNotify: { id: string; name: string; role: string }[] = []
   
-  // Handle PIC
   const picName = task.taskPicStaff || task.task_pic_name
   if (picName && typeof picName === 'string' && picName.trim()) {
     const { data: picUser } = await supabase
@@ -82,7 +81,6 @@ export async function notifyStaffForTask(
     }
   }
   
-  // Handle Support Staff
   let supportNames: string[] = []
   const supportStaff = task.taskSupportStaff || task.task_support_names
   
@@ -108,7 +106,6 @@ export async function notifyStaffForTask(
     }
   }
   
-  // Format date for message
   const taskDate = task.date_start || task.dateStart
   const formattedDate = taskDate ? new Date(taskDate).toLocaleDateString('en-MY', {
     day: 'numeric',
@@ -116,7 +113,6 @@ export async function notifyStaffForTask(
     year: 'numeric'
   }) : 'Date not set'
   
-  // Create notifications
   for (const staff of staffToNotify) {
     let title = ''
     let message = ''
@@ -160,7 +156,6 @@ export async function notifyStaffForEvent(
   
   const staffToNotify: { id: string; name: string; role: string }[] = []
   
-  // Handle PIC
   const picName = event.eventPicStaff || event.event_pic_name
   if (picName && typeof picName === 'string' && picName.trim()) {
     const { data: picUser } = await supabase
@@ -174,7 +169,6 @@ export async function notifyStaffForEvent(
     }
   }
   
-  // Handle Support Staff
   let supportNames: string[] = []
   const supportStaff = event.eventSupportStaff || event.event_support_names
   
@@ -200,7 +194,6 @@ export async function notifyStaffForEvent(
     }
   }
   
-  // Format date for message
   const eventDate = event.date_start || event.dateStart
   const formattedDate = eventDate ? new Date(eventDate).toLocaleDateString('en-MY', {
     day: 'numeric',
@@ -208,7 +201,6 @@ export async function notifyStaffForEvent(
     year: 'numeric'
   }) : 'Date not set'
   
-  // Create notifications
   for (const staff of staffToNotify) {
     let title = ''
     let message = ''

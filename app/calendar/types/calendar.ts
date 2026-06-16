@@ -10,7 +10,6 @@ export interface User {
   updated_at?: string
   phone?: string
   color?: string
-  notification_settings?: any
 
 }
 

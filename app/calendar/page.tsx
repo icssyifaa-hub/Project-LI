@@ -246,17 +246,16 @@ export default function CalendarPage() {
     })
   }, [events, staffFilters])
 
-const filteredHolidays = useMemo(() => {
-  if (!showHolidays) return []
-  
-  
-  return allHolidays.map(holiday => ({
-    id: holiday.id,
-    name: holiday.name,
-    date: holiday.date,
-    states: holiday.states || undefined
-  }))
-}, [allHolidays, showHolidays])
+  const filteredHolidays = useMemo(() => {
+    if (!showHolidays) return []
+    
+    return allHolidays.map(holiday => ({
+      id: holiday.id,
+      name: holiday.name,
+      date: holiday.date,
+      states: holiday.states || undefined
+    }))
+  }, [allHolidays, showHolidays])
 
   const activeFilterCount = useMemo(() => {
     return Object.values(staffFilters).filter(f => f.tasks || f.events).length + (showHolidays ? 1 : 0)
@@ -490,6 +489,7 @@ const filteredHolidays = useMemo(() => {
     setDraggedOverDate(null)
   }, [])
 
+  // ========== FIXED handleSaveItem - NO reminders ==========
   const handleSaveItem = useCallback(async (data: any, type: 'event' | 'task') => {
     if (isSaving) return
     setIsSaving(true)
@@ -615,18 +615,18 @@ const filteredHolidays = useMemo(() => {
     setShowTaskInbox(prev => !prev)
   }, [])
 
-const filterUsers = useMemo(() => {
-  return allUsers.map(user => ({
-    id: user.id,
-    name: user.name,
-    email: user.email || '',
-    password: user.password || '',
-    user_id: user.id,
-    role: user.role,
-    color: user.color || 'blue',
-    created_at: user.created_at || new Date().toISOString()
-  }))
-}, [allUsers])
+  const filterUsers = useMemo(() => {
+    return allUsers.map(user => ({
+      id: user.id,
+      name: user.name,
+      email: user.email || '',
+      password: user.password || '',
+      user_id: user.id,
+      role: user.role,
+      color: user.color || 'blue',
+      created_at: user.created_at || new Date().toISOString()
+    }))
+  }, [allUsers])
 
   useEffect(() => {
     console.log('🔍 Debug - Staff Filters:', staffFilters)

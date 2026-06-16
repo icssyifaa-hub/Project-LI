@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/theme-toggle'
 import {
   Card,
   CardContent,
@@ -122,7 +123,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4 dark:from-gray-950 dark:to-gray-900">
+      <div className="fixed right-4 top-4 z-10">
+        <ThemeToggle />
+      </div>
       <Card className="w-full max-w-md shadow-xl border-0">
         <CardHeader className="space-y-2 text-center pb-6">
           <div className="flex justify-center mb-4">
@@ -130,8 +134,8 @@ export default function LoginPage() {
               <span className="text-2xl font-bold text-white">ICS</span>
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold text-gray-900">Welcome Back</CardTitle>
-          <CardDescription className="text-gray-500">
+          <CardTitle className="text-2xl font-bold text-gray-900 dark:text-gray-100">Welcome Back</CardTitle>
+          <CardDescription className="text-gray-500 dark:text-gray-400">
             Sign in to your account to continue
           </CardDescription>
         </CardHeader>
@@ -140,7 +144,7 @@ export default function LoginPage() {
           <CardContent className="space-y-4">
             {/* Email */}
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-gray-700">Email</Label>
+              <Label htmlFor="email" className="text-gray-700 dark:text-gray-200">Email</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
@@ -159,7 +163,7 @@ export default function LoginPage() {
 
             {/* Password */}
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-gray-700">Password</Label>
+              <Label htmlFor="password" className="text-gray-700 dark:text-gray-200">Password</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
@@ -176,7 +180,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -204,14 +208,14 @@ export default function LoginPage() {
             </Button>
           </CardFooter>
         </form>
-        <div className="px-6 pb-6 text-center text-xs text-gray-400">
+        <div className="px-6 pb-6 text-center text-xs text-gray-400 dark:text-gray-500">
           <p>ICS Consulting Sdn. Bhd. © 2026</p>
         </div>
       </Card>
 
       {/* Deactivated Account Dialog - FIXED VERSION */}
       <Dialog open={showDeactivatedDialog} onOpenChange={setShowDeactivatedDialog}>
-        <DialogContent className="sm:max-w-md bg-white">
+        <DialogContent className="sm:max-w-md bg-white dark:bg-gray-900">
           <DialogHeader>
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 mb-4">
               <Ban className="h-6 w-6 text-red-600" />
@@ -222,10 +226,10 @@ export default function LoginPage() {
             <DialogDescription asChild>
               <div className="text-center pt-2">
                 <div className="space-y-3">
-                  <div className="text-gray-700">
+                  <div className="text-gray-700 dark:text-gray-200">
                     Dear <span className="font-semibold">{deactivatedUser?.name}</span>,
                   </div>
-                  <div className="text-gray-600">
+                  <div className="text-gray-600 dark:text-gray-300">
                     Your account <span className="font-semibold">({deactivatedUser?.email})</span> has been deactivated.
                   </div>
                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-2">

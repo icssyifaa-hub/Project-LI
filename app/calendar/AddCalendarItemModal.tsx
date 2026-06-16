@@ -176,6 +176,7 @@ export default function AddCalendarItemModal({
   onSave,
   onDelete
 }: AddCalendarItemModalProps) {
+  // ========== ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURN ==========
   const [activeTab, setActiveTab] = useState<'event' | 'task'>(() => {
     return selectedType || 'event'
   })
@@ -208,6 +209,10 @@ export default function AddCalendarItemModal({
   const [tempJobOrderFile, setTempJobOrderFile] = useState<File | null>(null)
   const [tempFinalReportFile, setTempFinalReportFile] = useState<File | null>(null)
   const initialLoadDone = useRef(false)
+  const [isCheckingRunningNumber, setIsCheckingRunningNumber] = useState(false)
+  const [runningNumberValid, setRunningNumberValid] = useState<boolean | null>(null)
+  const [runningNumberError, setRunningNumberError] = useState<string>('')
+  
   const getCurrentTaskStatus = useCallback(() => {
     return computeTaskStatus({
       dateStart: taskData.dateStart || null,
@@ -217,40 +222,78 @@ export default function AddCalendarItemModal({
     })
   }, [taskData.dateStart, taskData.dateStop, taskData.pdfJobOrderPath, taskData.pdfFinalReportPath])
 
-  const getNextRunningNumber = useCallback(async (date: Date) => {
-    const year = date.getFullYear().toString().slice(-2)
-    const month = (date.getMonth() + 1).toString().padStart(2, '0')
-    const prefix = `JOB${year}${month}`
+  // ========== FUNCTION TO CHECK IF RUNNING NUMBER EXISTS ==========
+  const checkRunningNumberExists = useCallback(async (runningNumber: string): Promise<boolean> => {
+    if (!runningNumber || runningNumber.trim() === '') return false
     
     try {
       const { data, error } = await supabase
         .from('tasks')
-        .select('running_number')
-        .like('running_number', `${prefix}%`)
-        .order('running_number', { ascending: false })
-        .limit(1)
+        .select('running_number, id')
+        .eq('running_number', runningNumber.trim())
+        .maybeSingle()
       
       if (error) throw error
       
-      let nextNumber = 1
-      if (data && data.length > 0) {
-        const lastNumber = data[0].running_number
-        const lastSeq = parseInt(lastNumber.slice(-3))
-        if (!isNaN(lastSeq)) {
-          nextNumber = lastSeq + 1
-        }
+      // If editing an existing task, allow the same running number
+      if (selectedItem && selectedItem.id && data?.id === selectedItem.id) {
+        return false
       }
       
-      const seq = nextNumber.toString().padStart(3, '0')
-      return `${prefix}${seq}`
-      
+      return !!data
     } catch (error) {
-      console.error('Error getting next running number:', error)
-      return `${prefix}001`
+      console.error('Error checking running number:', error)
+      return false
     }
-  }, [supabase])
+  }, [supabase, selectedItem])
 
-  const sendTaskNotifications = async (data: any, taskId: string, action: 'created' | 'updated' = 'created') => {
+  // Function to validate running number in real-time
+  const validateRunningNumber = useCallback(async (runningNumber: string) => {
+    if (!runningNumber || runningNumber.trim() === '') {
+      setRunningNumberValid(null)
+      setRunningNumberError('')
+      setErrors(prev => {
+        const newErrors = { ...prev }
+        delete newErrors.runningNumber
+        return newErrors
+      })
+      return false
+    }
+    
+    // Basic format validation
+    if (runningNumber.length < 3) {
+      setRunningNumberValid(false)
+      setRunningNumberError('Running number must be at least 3 characters')
+      setErrors(prev => ({ ...prev, runningNumber: 'Running number must be at least 3 characters' }))
+      return false
+    }
+    
+    setIsCheckingRunningNumber(true)
+    const exists = await checkRunningNumberExists(runningNumber)
+    setIsCheckingRunningNumber(false)
+    
+    const isValid = !exists
+    
+    setRunningNumberValid(isValid)
+    
+    if (exists) {
+      const errorMsg = `Running number "${runningNumber}" already exists. Please use a different number.`
+      setRunningNumberError(errorMsg)
+      setErrors(prev => ({ ...prev, runningNumber: errorMsg }))
+    } else {
+      setRunningNumberError('')
+      setErrors(prev => {
+        const newErrors = { ...prev }
+        delete newErrors.runningNumber
+        return newErrors
+      })
+    }
+    
+    return isValid
+  }, [checkRunningNumberExists])
+
+  // ========== NOTIFICATION FUNCTIONS ==========
+  const sendTaskNotifications = useCallback(async (data: any, taskId: string, action: 'created' | 'updated' = 'created') => {
     console.log('🔔 TASK NOTIFICATION CALLED:', { task_pic_id: data.task_pic_id, task_support_ids: data.task_support_ids, taskId, action })
     
     try {
@@ -290,7 +333,7 @@ export default function AddCalendarItemModal({
         year: 'numeric'
       }) : 'Date not set'
       
-      const notifications = users.map ((user: { id: string; name: string }) => {
+      const notifications = users.map((user: { id: string; name: string }) => {
         const role = user.id === data.task_pic_id ? 'PIC' : 'Support'
         const type = action === 'created' ? 'task_assignment' : 'task_update'
         const title = action === 'created' ? '📋 New Task Assignment' : '✏️ Task Assignment Updated'
@@ -327,9 +370,9 @@ export default function AddCalendarItemModal({
     } catch (error) {
       console.error('❌ Error in sendTaskNotifications:', error)
     }
-  }
+  }, [currentUser, supabase])
 
-  const sendEventNotifications = async (data: any, eventId: string, action: 'created' | 'updated' = 'created') => {
+  const sendEventNotifications = useCallback(async (data: any, eventId: string, action: 'created' | 'updated' = 'created') => {
     console.log('🔔 EVENT NOTIFICATION CALLED:', { event_pic_id: data.event_pic_id, event_support_ids: data.event_support_ids, eventId, action })
     
     try {
@@ -369,7 +412,7 @@ export default function AddCalendarItemModal({
         year: 'numeric'
       }) : 'Date not set'
       
-      const notifications = users.map ((user: { id:string; name: string })=> {
+      const notifications = users.map((user: { id: string; name: string }) => {
         const role = user.id === data.event_pic_id ? 'PIC' : 'Support'
         const type = action === 'created' ? 'event_assignment' : 'event_update'
         const title = action === 'created' ? '📅 New Event Assignment' : '✏️ Event Assignment Updated'
@@ -406,7 +449,7 @@ export default function AddCalendarItemModal({
     } catch (error) {
       console.error('❌ Error in sendEventNotifications:', error)
     }
-  }
+  }, [currentUser, supabase])
 
   useEffect(() => {
     try {
@@ -431,6 +474,9 @@ export default function AddCalendarItemModal({
     setShowEventSupport(false)
     setErrors({})
     setTouched({})
+    setRunningNumberValid(null)
+    setRunningNumberError('')
+    setIsCheckingRunningNumber(false)
     
     if (jobOrderPreviewUrl) {
       URL.revokeObjectURL(jobOrderPreviewUrl)
@@ -446,7 +492,7 @@ export default function AddCalendarItemModal({
     setTempFinalReportFile(null)
   }, [jobOrderPreviewUrl, finalReportPreviewUrl])
 
-  const fetchJobTasks = async () => {
+  const fetchJobTasks = useCallback(async () => {
     setLoadingTasks(true)
     try {
       const { data, error } = await supabase
@@ -460,9 +506,9 @@ export default function AddCalendarItemModal({
     } finally {
       setLoadingTasks(false)
     }
-  }
+  }, [supabase])
 
-  const fetchStaff = async () => {
+  const fetchStaff = useCallback(async () => {
     setLoadingStaff(true)
     try {
       const { data, error } = await supabase
@@ -488,7 +534,7 @@ export default function AddCalendarItemModal({
     } finally {
       setLoadingStaff(false)
     }
-  }
+  }, [supabase])
 
   const populateTaskForm = useCallback((item: any) => {
     let taskSupportIdsArray: string[] = []
@@ -548,6 +594,8 @@ export default function AddCalendarItemModal({
     setShowDescription(!!(item.additional_remark || item.additionalRemark))
     setShowSupport(taskSupportIdsArray.length > 0 || taskSupportNamesArray.length > 0)
     setShowFinalReport(!!(item.pdf_final_report_path))
+    setRunningNumberValid(true)
+    setRunningNumberError('')
   }, [])
 
   const populateEventForm = useCallback((item: any) => {
@@ -604,6 +652,19 @@ export default function AddCalendarItemModal({
     setShowEventSupport(eventSupportIdsArray.length > 0 || eventSupportNamesArray.length > 0)
   }, [])
 
+  // Auto-validate running number when user types (for new tasks only)
+  useEffect(() => {
+    if (activeTab === 'task' && !selectedItem && taskData.runningNumber && !isCheckingRunningNumber) {
+      const timer = setTimeout(() => {
+        if (taskData.runningNumber) {
+          validateRunningNumber(taskData.runningNumber)
+        }
+      }, 500)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [taskData.runningNumber, activeTab, selectedItem, validateRunningNumber, isCheckingRunningNumber])
+
   useEffect(() => {
     if (!isOpen) {
       initialLoadDone.current = false
@@ -628,11 +689,6 @@ export default function AddCalendarItemModal({
         
         setEventData(prev => ({ ...prev, dateStart: dateStr, dateStop: '' }))
         setTaskData(prev => ({ ...prev, dateStart: dateStr, dateStop: '' }))
-        
-        if (activeTab === 'task') {
-          const runningNum = await getNextRunningNumber(selectedDate)
-          setTaskData(prev => ({ ...prev, runningNumber: runningNum }))
-        }
       }
       
       initialLoadDone.current = true
@@ -644,10 +700,59 @@ export default function AddCalendarItemModal({
       resetForm()
       initialLoadDone.current = false
     }
-  }, [isOpen, selectedItem, selectedDate, selectedType, activeTab, getNextRunningNumber, populateEventForm, populateTaskForm, resetForm])
+  }, [isOpen, selectedItem, selectedDate, selectedType, activeTab, populateEventForm, populateTaskForm, resetForm, fetchJobTasks, fetchStaff])
 
+  // ========== CONDITIONAL RETURN AFTER ALL HOOKS ==========
   if (!isOpen) return null
 
+  // ========== CHECK IF SAVE BUTTON SHOULD BE DISABLED ==========
+  const isSaveDisabled = (): boolean => {
+    if (isSaving) return true
+    
+    if (activeTab === 'event') {
+      // For event: check required fields
+      return !eventData.title || !eventData.dateStart || !eventData.event_pic_id
+    }
+    
+    // For task
+    if (selectedItem) {
+      // Edit mode - allow save as long as required fields are filled
+      return !taskData.clientName || !taskData.task_pic_id
+    }
+    
+    // New task mode - MUST have valid running number
+    const hasRequiredFields = !!taskData.clientName && !!taskData.task_pic_id
+    const hasValidRunningNumber = !!taskData.runningNumber && runningNumberValid === true
+    
+    // Button disabled if:
+    // 1. Missing required fields OR
+    // 2. No running number OR
+    // 3. Running number is not valid (duplicate or checking)
+    return !hasRequiredFields || !hasValidRunningNumber
+  }
+
+  const getSaveButtonTitle = (): string => {
+    if (activeTab === 'task' && !selectedItem) {
+      if (!taskData.runningNumber) {
+        return 'Please enter a running number'
+      }
+      if (runningNumberValid === false) {
+        return 'This running number already exists. Please use a different number.'
+      }
+      if (isCheckingRunningNumber) {
+        return 'Checking running number availability...'
+      }
+      if (!taskData.clientName) {
+        return 'Please enter client name'
+      }
+      if (!taskData.task_pic_id) {
+        return 'Please select a PIC'
+      }
+    }
+    return ''
+  }
+
+  // Rest of component functions (handlers, validators, etc.)
   const handleTaskSupportToggle = (staffId: string) => {
     const selectedStaff = staffList.find(s => s.id === staffId)
     
@@ -734,10 +839,13 @@ export default function AddCalendarItemModal({
         if (value.length < 2) return 'Client name must be at least 2 characters'
         if (value.length > 100) return 'Client name cannot exceed 100 characters'
         break
+      case 'runningNumber':
+        if (!value?.trim()) return 'Running Number is required'
+        if (value.length < 3) return 'Running number must be at least 3 characters'
+        break
       case 'task_pic_id':
         if (!value) return 'PIC Staff is required'
         break
-      // REMOVED: dateStart validation - now OPTIONAL
       case 'dateStop':
         if (taskData.dateStart && value) {
           const start = new Date(taskData.dateStart)
@@ -783,9 +891,10 @@ export default function AddCalendarItemModal({
     const newErrors: {[key: string]: string} = {}
     const clientNameError = validateTaskField('clientName', taskData.clientName)
     if (clientNameError) newErrors.clientName = clientNameError
+    const runningNumberError = validateTaskField('runningNumber', taskData.runningNumber)
+    if (runningNumberError) newErrors.runningNumber = runningNumberError
     const picStaffError = validateTaskField('task_pic_id', taskData.task_pic_id)
     if (picStaffError) newErrors.task_pic_id = picStaffError
-    // REMOVED: dateStart validation
     if (taskData.dateStop) {
       const dateStopError = validateTaskField('dateStop', taskData.dateStop)
       if (dateStopError) newErrors.dateStop = dateStopError
@@ -810,6 +919,10 @@ export default function AddCalendarItemModal({
     } else {
       const error = validateTaskField(field, taskData[field as keyof typeof taskData])
       setErrors(prev => ({ ...prev, [field]: error }))
+      
+      if (field === 'runningNumber' && !selectedItem && taskData.runningNumber) {
+        validateRunningNumber(taskData.runningNumber)
+      }
     }
   }
 
@@ -874,7 +987,6 @@ export default function AddCalendarItemModal({
     toast({ title: "File Removed", description: "PDF file has been removed" })
   }
 
-  // ========== HANDLE REMOVE DATE - move task to inbox ==========
   const handleRemoveDate = () => {
     setTaskData(prev => ({ 
       ...prev, 
@@ -892,6 +1004,17 @@ export default function AddCalendarItemModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Double check - if save is disabled, don't proceed
+    if (isSaveDisabled()) {
+      toast({ 
+        title: "Validation Error", 
+        description: getSaveButtonTitle() || "Please complete all required fields correctly.", 
+        variant: "destructive" 
+      })
+      return
+    }
+    
     if (isSaving) return
     
     setErrors({})
@@ -904,6 +1027,26 @@ export default function AddCalendarItemModal({
         toast({ title: "Validation Error", description: firstError, variant: "destructive" })
       }
       return
+    }
+
+    if (activeTab === 'task' && !selectedItem) {
+      const currentRunningNumber = taskData.runningNumber
+      if (currentRunningNumber && currentRunningNumber.trim() !== '') {
+        setIsCheckingRunningNumber(true)
+        const exists = await checkRunningNumberExists(currentRunningNumber)
+        setIsCheckingRunningNumber(false)
+        
+        if (exists) {
+          toast({ 
+            title: "Validation Error", 
+            description: `Running number "${currentRunningNumber}" already exists. Please use a different number.`, 
+            variant: "destructive" 
+          })
+          setRunningNumberValid(false)
+          setRunningNumberError(`Running number "${currentRunningNumber}" already exists`)
+          return
+        }
+      }
     }
 
     const saveFunction = async () => {
@@ -948,15 +1091,13 @@ export default function AddCalendarItemModal({
           })
 
         } else {
-          // ============ TASK SAVE ============
           const runningNumber = taskData.runningNumber
-          if (!runningNumber) throw new Error("Running number not generated")
-
+          if (!runningNumber) throw new Error("Running number is required")
+          
           let pdfJobOrderPath = taskData.pdfJobOrderPath
           let pdfJobOrderUrl = taskData.pdfJobOrderUrl
           let pdfFinalReportPath = taskData.pdfFinalReportPath
           let pdfFinalReportUrl = taskData.pdfFinalReportUrl
-
           const jobOrderFileToUpload = tempJobOrderFile || taskData.pdfJobOrder
           const finalReportFileToUpload = tempFinalReportFile || taskData.pdfFinalReport
 
@@ -988,7 +1129,6 @@ export default function AddCalendarItemModal({
             }
           }
 
-          // ========== AUTO-COMPUTE STATUS (handles empty date = onhold) ==========
           const computedStatus = computeTaskStatus({
             dateStart: taskData.dateStart || null,
             dateStop: taskData.dateStop || null,
@@ -1000,7 +1140,7 @@ export default function AddCalendarItemModal({
             client_name: taskData.clientName,
             running_number: runningNumber,
             job_task: taskData.jobTask || 'General Task',
-            date_start: taskData.dateStart || null,  // ← Can be NULL
+            date_start: taskData.dateStart || null,
             date_stop: taskData.dateStop || null,
             time_start: taskData.timeStart || '',
             time_stop: taskData.timeStop || '',
@@ -1154,6 +1294,7 @@ export default function AddCalendarItemModal({
   const currentTaskStatus = activeTab === 'task' ? getCurrentTaskStatus() : null
   const hasDate = activeTab === 'task' && taskData.dateStart
 
+  // ========== RENDER COMPONENT ==========
   return (
     <>
       <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -1170,16 +1311,16 @@ export default function AddCalendarItemModal({
               </div>
 
               <div className="flex items-center space-x-4 mt-2 border-b border-gray-200 pb-2">
-                <button type="button" onClick={() => { setActiveTab('event'); setErrors({}); setTouched({}) }} disabled={isSaving}
+                <button type="button" onClick={() => { setActiveTab('event'); setErrors({}); setTouched({}); setRunningNumberValid(null); setRunningNumberError(''); }} disabled={isSaving}
                   className={`pb-1 px-1 text-sm font-medium transition-colors relative flex items-center space-x-2 ${
                     activeTab === 'event' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500 hover:text-gray-700'
                   } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
                   <CalendarCheck className="h-4 w-4" />
                   <span>Event</span>
                 </button>
-                <button type="button" onClick={() => { setActiveTab('task'); setErrors({}); setTouched({}) }} disabled={isSaving}
+                <button type="button" onClick={() => { setActiveTab('task'); setErrors({}); setTouched({}); }} disabled={isSaving}
                   className={`pb-1 px-1 text-sm font-medium transition-colors relative flex items-center space-x-2 ${
-                    activeTab === 'task' ? 'text-blue-400 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'
+                    activeTab === 'task' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'
                   } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
                   <Briefcase className="h-4 w-4" />
                   <span>Task</span>
@@ -1198,7 +1339,6 @@ export default function AddCalendarItemModal({
 
                 {activeTab === 'task' && (
                   <>
-                    {/* Auto-status display (read-only) */}
                     <div className="flex justify-between items-center mb-2 p-3 bg-gray-50 rounded-lg">
                       <span className="text-sm font-medium text-gray-600">Current Status:</span>
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(currentTaskStatus || 'in-progress')}`}>
@@ -1226,43 +1366,102 @@ export default function AddCalendarItemModal({
                       <ErrorMessage field="clientName" />
                     </div>
 
+                    {/* RUNNING NUMBER - USER INPUT WITH REAL-TIME VALIDATION */}
                     <div className="space-y-2">
-                      <Label className="text-gray-700 font-medium">Running Number</Label>
-                      <Input value={taskData.runningNumber} placeholder="Loading..." className="border-gray-300 bg-gray-50 font-mono text-sm" disabled={true} readOnly />
-                      <p className="text-xs text-gray-500">Format: JOB + Year(2 digits) + Month(2 digits) + Number(001) - Resets every month</p>
+                      <Label className="text-gray-700 font-medium">
+                        Running Number <span className="text-red-500">*</span>
+                      </Label>
+                      <div className="relative">
+                        <Input 
+                          value={taskData.runningNumber} 
+                          onChange={(e) => { 
+                            const value = e.target.value.toUpperCase()
+                            setTaskData(prev => ({...prev, runningNumber: value}))
+                            setTouched(prev => ({ ...prev, runningNumber: true }))
+                            if (runningNumberValid === false) {
+                              setRunningNumberValid(null)
+                              setRunningNumberError('')
+                            }
+                          }} 
+                          onBlur={() => {
+                            if (!selectedItem && taskData.runningNumber) {
+                              validateRunningNumber(taskData.runningNumber)
+                            }
+                          }}
+                          placeholder="e.g., JOB2401001, INV-001, etc." 
+                          className={`border-gray-300 bg-white font-mono text-sm pr-10 ${
+                            !selectedItem && taskData.runningNumber && runningNumberValid === true 
+                              ? 'border-green-500 border-2 bg-green-50' 
+                              : !selectedItem && runningNumberValid === false
+                              ? 'border-red-500 border-2 bg-red-50'
+                              : touched.runningNumber && errors.runningNumber
+                              ? 'border-red-500'
+                              : ''
+                          }`}
+                          disabled={isSaving} 
+                        />
+                        {!selectedItem && isCheckingRunningNumber && (
+                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                            <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                          </div>
+                        )}
+                        {!selectedItem && runningNumberValid === true && !isCheckingRunningNumber && taskData.runningNumber && (
+                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                            <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
+                              <span className="text-white text-[10px]">✓</span>
+                            </div>
+                          </div>
+                        )}
+                        {!selectedItem && runningNumberValid === false && !isCheckingRunningNumber && taskData.runningNumber && (
+                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                            <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center">
+                              <span className="text-white text-[10px]">✗</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      {!selectedItem && runningNumberValid === true && taskData.runningNumber && (
+                        <p className="text-xs text-green-600 flex items-center">
+                          <AlertCircle className="h-3 w-3 mr-1" />
+                          ✓ Running number is available
+                        </p>
+                      )}
+                      {!selectedItem && (runningNumberValid === false || runningNumberError) && (
+                        <p className="text-xs text-red-600 flex items-center">
+                          <AlertCircle className="h-3 w-3 mr-1" />
+                          {runningNumberError || 'This running number already exists! Please use a different number.'}
+                        </p>
+                      )}
+                      <ErrorMessage field="runningNumber" />
                     </div>
                     
-                     {/* Job Task - Searchable Combobox */}
-                      <div className="space-y-2">
-                        <Label className="text-gray-700 font-medium">Job Task</Label>
-                        {loadingTasks ? (
-                          <div className="flex items-center space-x-2 border border-gray-300 rounded-md p-2 bg-gray-50">
-                            <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                            <span className="text-sm text-gray-500">Loading job tasks...</span>
-                          </div>
-                        ) : (
-                          <Combobox
-                            options={[
-                                              ...jobTasks.map(task => ({ value: task.name, label: task.name }))
-                                            ]}
-                            value={taskData.jobTask || ""}
-                            onValueChange={(value) => {
-                              setTaskData(prev => ({ ...prev, jobTask: value }))
-                              if (touched.jobTask) {
-                                const error = validateTaskField('jobTask', value)
-                                setErrors(prev => ({ ...prev, jobTask: error }))
-                              }
-                            }}
-                            placeholder="Select job task"
-                            emptyMessage="No job tasks found."
-                            disabled={isSaving}
-                            className={touched.jobTask && errors.jobTask ? 'border-red-500' : ''}
-                          />
-                        )}
-                        <ErrorMessage field="jobTask" />
-                      </div>
+                    <div className="space-y-2">
+                      <Label className="text-gray-700 font-medium">Job Task</Label>
+                      {loadingTasks ? (
+                        <div className="flex items-center space-x-2 border border-gray-300 rounded-md p-2 bg-gray-50">
+                          <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                          <span className="text-sm text-gray-500">Loading job tasks...</span>
+                        </div>
+                      ) : (
+                        <Combobox
+                          options={jobTasks.map(task => ({ value: task.name, label: task.name }))}
+                          value={taskData.jobTask || ""}
+                          onValueChange={(value) => {
+                            setTaskData(prev => ({ ...prev, jobTask: value }))
+                            if (touched.jobTask) {
+                              const error = validateTaskField('jobTask', value)
+                              setErrors(prev => ({ ...prev, jobTask: error }))
+                            }
+                          }}
+                          placeholder="Select job task"
+                          emptyMessage="No job tasks found."
+                          disabled={isSaving}
+                          className={touched.jobTask && errors.jobTask ? 'border-red-500' : ''}
+                        />
+                      )}
+                      <ErrorMessage field="jobTask" />
+                    </div>
 
-                    {/* DATE SECTION - with Remove Date button */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-gray-700 font-medium">Start Date (Optional)</Label>
@@ -1546,7 +1745,6 @@ export default function AddCalendarItemModal({
                 )}
 
                 {activeTab === 'event' && (
-                  // Event form (date is required for events)
                   <>
                     <div className="space-y-2">
                       <Label className="text-gray-700 font-medium">Title <span className="text-red-500">*</span></Label>
@@ -1766,7 +1964,13 @@ export default function AddCalendarItemModal({
                     <X className="h-4 w-4 mr-2" />Cancel
                   </Button>
                 </div>
-                <Button type="submit" size="sm" className={activeTab === 'event' ? 'bg-purple-300 hover:bg-purple-300' : 'bg-blue-300 hover:bg-blue-300'} disabled={isSaving}>
+                <Button 
+                  type="submit" 
+                  size="sm" 
+                  className={activeTab === 'event' ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'} 
+                  disabled={isSaveDisabled()}
+                  title={getSaveButtonTitle()}
+                >
                   {isSaving ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</>) : (<><Save className="h-4 w-4 mr-2" />Save</>)}
                 </Button>
               </CardFooter>
@@ -1775,7 +1979,7 @@ export default function AddCalendarItemModal({
         </div>
       </div>
 
-      {/* PDF Preview - Job Order */}
+      {/* PDF Preview Modals */}
       {showJobOrderPreview && (
         <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col">
@@ -1803,7 +2007,6 @@ export default function AddCalendarItemModal({
         </div>
       )}
 
-      {/* PDF Preview - Final Report */}
       {showFinalReportPreview && (
         <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col">
@@ -1872,7 +2075,7 @@ export default function AddCalendarItemModal({
               <Button type="button" variant="outline" onClick={() => { setShowConfirmDialog(false); setPendingSubmit(null) }} disabled={isSaving}>
                 Cancel
               </Button>
-              <Button type="button" onClick={async () => { if (pendingSubmit) await pendingSubmit() }} disabled={isSaving} className={activeTab === 'event' ? 'bg-purple-300 hover:bg-purple-300' : 'bg-blue-300 hover:bg-blue-300'}>
+              <Button type="button" onClick={async () => { if (pendingSubmit) await pendingSubmit() }} disabled={isSaving} className={activeTab === 'event' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}>
                 {isSaving ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</>) : (<><Save className="h-4 w-4 mr-2" />Confirm & Save</>)}
               </Button>
             </div>

@@ -200,14 +200,12 @@ export default function JobOrdersPage() {
         }
       })
       
-      // Sort staff names alphabetically
       staffNamesForFilter.sort()
       setStaffList(staffNamesForFilter)
       setStaffStatusMap(statusMap)
       
       console.log(`📋 Found ${staffNamesForFilter.length} staff members for filter (including inactive)`)
       
-      // STEP 3: Fetch tasks from database
       const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
         .select('*')

@@ -13,18 +13,6 @@ const getCurrentUserId = (): string | null => {
   return null
 }
 
-const getCurrentUser = (): any | null => {
-  try {
-    const userData = localStorage.getItem('user')
-    if (userData) {
-      return JSON.parse(userData)
-    }
-  } catch (e) {
-    console.error('Error getting user from localStorage:', e)
-  }
-  return null
-}
-
 // ==================== TASKS ====================
 
 export async function getTasks(startDate: string, endDate: string) {
@@ -419,43 +407,5 @@ export async function getHolidays(startDate: string, endDate: string) {
   } catch (error) {
     console.error('Error fetching holidays:', error)
     return []
-  }
-}
-
-// ==================== STAFF / USERS ====================
-
-export async function getAllActiveUsers() {
-  const supabase = createClient()
-  
-  try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, name, email, role, color, is_active')
-      .eq('is_active', true)
-      .order('name', { ascending: true })
-    
-    if (error) throw error
-    return data || []
-  } catch (error) {
-    console.error('Error fetching users:', error)
-    return []
-  }
-}
-
-export async function getUserById(userId: string) {
-  const supabase = createClient()
-  
-  try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, name, email, role, color')
-      .eq('id', userId)
-      .single()
-    
-    if (error) throw error
-    return data
-  } catch (error) {
-    console.error('Error fetching user:', error)
-    return null
   }
 }

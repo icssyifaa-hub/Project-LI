@@ -93,7 +93,6 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
       
       data?.forEach((user: { id: string; name: string; color?: string; role?: string; email?: string }) => {
         if (user.id && user.name) {
-          const validRole = user.role === 'admin' ? 'admin' : 'staff'
           const staffInfo: StaffInfo = {
             id: user.id,
             name: user.name,
@@ -187,6 +186,7 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
       lastFetchRef.current = now
       
       const staffData = await fetchAllStaff()
+      
       const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
         .select('*')
@@ -203,18 +203,20 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
       
       if (eventsError) throw eventsError
       
-      const  holidaysData = await getHolidays (start, end)
+      const holidaysData = await getHolidays(start, end)
+      
       const tasksInRange = tasksData?.filter((task: any) => 
         task.date_start && task.date_start >= start && task.date_start <= end
       ) || []
 
       console.log('📊 Data received:', {
-        tasks: tasksInRange.length,
+        allTasks: tasksData?.length || 0,
+        tasksInRange: tasksInRange.length,
         events: eventsData?.length || 0,
         holidays: holidaysData?.length || 0
       })
 
-      const formattedTasks: Task[] = tasksInRange.map((task: any) => {
+      const formattedTasks: Task[] = tasksData?.map((task: any) => {
         const supportIds = task.task_support_ids 
           ? (typeof task.task_support_ids === 'string' ? task.task_support_ids.split(',') : task.task_support_ids)
           : []
@@ -232,7 +234,6 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
           picInfo = staffData[task.task_pic_name]
         }
         
-        // Auto-compute status
         const computedStatus = computeTaskStatus({
           dateStart: task.date_start,
           dateStop: task.date_stop,
@@ -265,7 +266,7 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
           createdAt: task.created_at,
           updatedAt: task.updated_at
         }
-      })
+      }) || []
 
       const formattedEvents: Event[] = eventsData?.map((event: any) => {
         const supportIds = event.event_support_ids 
@@ -327,36 +328,27 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
     fetchData()
   }, [fetchData])
 
-  const generateRunningNumber = useCallback(async (date: Date) => {
-    const year = date.getFullYear().toString().slice(-2)
-    const month = (date.getMonth() + 1).toString().padStart(2, '0')
-    const prefix = `JOB${year}${month}`
+  // Function to check if running number exists
+  const checkRunningNumberExists = useCallback(async (runningNumber: string, excludeTaskId?: string): Promise<boolean> => {
+    if (!runningNumber || runningNumber.trim() === '') return false
     
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('tasks')
-        .select('running_number')
-        .like('running_number', `${prefix}%`)
-        .order('running_number', { ascending: false })
-        .limit(1)
+        .select('running_number, id')
+        .eq('running_number', runningNumber.trim())
       
-      if (error) throw error
-      
-      let nextNumber = 1
-      if (data && data.length > 0) {
-        const lastNumber = data[0].running_number
-        const lastSeq = parseInt(lastNumber.slice(-3))
-        if (!isNaN(lastSeq)) {
-          nextNumber = lastSeq + 1
-        }
+      if (excludeTaskId) {
+        query = query.neq('id', excludeTaskId)
       }
       
-      const seq = nextNumber.toString().padStart(3, '0')
-      return `${prefix}${seq}`
+      const { data, error } = await query.maybeSingle()
       
+      if (error) throw error
+      return !!data
     } catch (error) {
-      console.error('Error getting next running number:', error)
-      return `${prefix}001`
+      console.error('Error checking running number:', error)
+      return false
     }
   }, [supabase])
 
@@ -364,15 +356,30 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
     try {
       console.log('💾 Saving task:', taskData)
       
-      // Date is now OPTIONAL - can be null
       const startDate = taskData.date_start || taskData.dateStart || null
 
+      // Get running number from user input - NO AUTO-GENERATION
       let runningNumber = taskData.running_number || taskData.runningNumber
-      if (!runningNumber && startDate) {
-        runningNumber = await generateRunningNumber(new Date(startDate))
-      } else if (!runningNumber) {
-        // If no date, use current date for running number generation
-        runningNumber = await generateRunningNumber(new Date())
+      
+      // Validate running number is provided
+      if (!runningNumber || runningNumber.trim() === '') {
+        throw new Error('Running number is required')
+      }
+      
+      // Validate running number is unique (for new tasks)
+      if (!selectedTask) {
+        const exists = await checkRunningNumberExists(runningNumber)
+        if (exists) {
+          throw new Error(`Running number "${runningNumber}" already exists. Please use a different number.`)
+        }
+      } else {
+        // For edit, check if different from original
+        if (runningNumber !== selectedTask.runningNumber) {
+          const exists = await checkRunningNumberExists(runningNumber, selectedTask.id)
+          if (exists) {
+            throw new Error(`Running number "${runningNumber}" already exists. Please use a different number.`)
+          }
+        }
       }
 
       let pdfJobOrderPath = taskData.pdf_job_order_path || taskData.pdfJobOrderPath || null
@@ -409,7 +416,6 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
         ? (Array.isArray(taskData.task_support_colors) ? taskData.task_support_colors.join(',') : taskData.task_support_colors)
         : null
 
-      // Auto-compute status (handles null date = onhold)
       const computedStatus = computeTaskStatus({
         dateStart: startDate,
         dateStop: taskData.date_stop || taskData.dateStop || null,
@@ -454,7 +460,6 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
 
       console.log('✅ TASK SAVED RESULT:', result)
       
-      // Send notifications only if there's a date and staff assigned
       if (result && result.id && startDate) {
         const assignedByName = user?.name || user?.email || 'Someone'
         
@@ -484,7 +489,10 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
       return result
       
     } catch (error: any) {
-      console.error('Error saving task:', error)
+      // Only log unexpected errors, not validation errors
+      if (!error.message?.includes('already exists')) {
+        console.error('Error saving task:', error)
+      }
       toast({ 
         title: "Error", 
         description: error?.message || "Failed to save task", 
@@ -492,7 +500,7 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
       })
       throw error
     }
-  }, [user, generateRunningNumber, fetchData, toast, supabase])
+  }, [user, fetchData, toast, checkRunningNumberExists])
 
   const deleteTask = useCallback(async (id: string, pdfPath?: string) => {
     try {
@@ -654,6 +662,7 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
     saveEvent,
     deleteTask,
     deleteEvent,
-    refresh: fetchData
+    refresh: fetchData,
+    checkRunningNumberExists
   }
 }

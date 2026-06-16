@@ -21,6 +21,7 @@ interface ComboboxProps {
   options: { value: string; label: string }[]
   value: string
   onValueChange: (value: string) => void
+  onBlur?: () => void
   placeholder?: string
   emptyMessage?: string
   disabled?: boolean
@@ -31,6 +32,7 @@ export function Combobox({
   options,
   value,
   onValueChange,
+  onBlur,
   placeholder = "Select...",
   emptyMessage = "No options found.",
   disabled = false,
@@ -38,13 +40,25 @@ export function Combobox({
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (open && !nextOpen) {
+      onBlur?.()
+    }
+    setOpen(nextOpen)
+  }
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          onBlur={() => {
+            if (!open) {
+              onBlur?.()
+            }
+          }}
           className={cn(
             "w-full justify-between bg-white font-normal h-10 px-3 py-2 text-sm border-gray-300 hover:bg-white hover:border-gray-400",
             className
@@ -79,6 +93,7 @@ export function Combobox({
                 onSelect={(currentValue) => {
                   onValueChange(currentValue === value ? "" : currentValue)
                   setOpen(false)
+                  onBlur?.()
                 }}
                 className="py-2 cursor-pointer hover:bg-gray-100"
               >

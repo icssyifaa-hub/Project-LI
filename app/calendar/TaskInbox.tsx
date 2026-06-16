@@ -24,7 +24,8 @@ import {
   Edit2,
   FileText,
   Calendar,
-  Eye
+  Eye,
+  AlertCircle
 } from 'lucide-react'
 import {
   DndContext,
@@ -278,60 +279,96 @@ function AddTaskModal({
 }) {
   const [formData, setFormData] = useState({
     clientName: '',
+    runningNumber: '',
     jobTask: '',
     task_pic_id: '',
     pdfFile: null as File | null,
   })
   const [saving, setSaving] = useState(false)
+  const [errors, setErrors] = useState<{[key: string]: string}>({})
+  const [touched, setTouched] = useState<{[key: string]: boolean}>({})
+  const [isCheckingRunningNumber, setIsCheckingRunningNumber] = useState(false)
+  const [runningNumberValid, setRunningNumberValid] = useState<boolean | null>(null)
+  
   const { toast } = useToast()
   const supabase = createClient()
 
-  useEffect(() => {
-    if (isOpen) {
-      setFormData({
-        clientName: '',
-        jobTask: '',
-        task_pic_id: '',
-        pdfFile: null,
-      })
-    }
-  }, [isOpen])
-
-  const generateRunningNumber = async (date: Date) => {
-    const year = date.getFullYear().toString().slice(-2)
-    const month = (date.getMonth() + 1).toString().padStart(2, '0')
-    const prefix = `JOB${year}${month}`
+  // Function to check if running number exists
+  const checkRunningNumberExists = async (runningNumber: string): Promise<boolean> => {
+    if (!runningNumber || runningNumber.trim() === '') return false
     
     try {
       const { data, error } = await supabase
         .from('tasks')
         .select('running_number')
-        .like('running_number', `${prefix}%`)
-        .order('running_number', { ascending: false })
-        .limit(1)
+        .eq('running_number', runningNumber.trim())
+        .maybeSingle()
       
-      if (error) {
-        console.error('Error fetching last running number:', error)
-        return `${prefix}001`
-      }
-      
-      let nextNumber = 1
-      if (data && data.length > 0) {
-        const lastNumber = data[0].running_number
-        const lastSeq = parseInt(lastNumber.slice(-3))
-        if (!isNaN(lastSeq)) {
-          nextNumber = lastSeq + 1
-        }
-      }
-      
-      const seq = nextNumber.toString().padStart(3, '0')
-      return `${prefix}${seq}`
-      
+      if (error) throw error
+      return !!data
     } catch (error) {
-      console.error('Error in generateRunningNumber:', error)
-      return `${prefix}001`
+      console.error('Error checking running number:', error)
+      return false
     }
   }
+
+  // Function to validate running number
+  const validateRunningNumber = async (runningNumber: string) => {
+    if (!runningNumber || runningNumber.trim() === '') {
+      setRunningNumberValid(null)
+      setErrors(prev => {
+        const newErrors = { ...prev }
+        delete newErrors.runningNumber
+        return newErrors
+      })
+      return
+    }
+    
+    setIsCheckingRunningNumber(true)
+    const exists = await checkRunningNumberExists(runningNumber)
+    setIsCheckingRunningNumber(false)
+    
+    setRunningNumberValid(!exists)
+    
+    if (exists) {
+      setErrors(prev => ({ 
+        ...prev, 
+        runningNumber: `Running number "${runningNumber}" already exists. Please use a different number.` 
+      }))
+    } else {
+      setErrors(prev => {
+        const newErrors = { ...prev }
+        delete newErrors.runningNumber
+        return newErrors
+      })
+    }
+  }
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        clientName: '',
+        runningNumber: '',
+        jobTask: '',
+        task_pic_id: '',
+        pdfFile: null,
+      })
+      setErrors({})
+      setTouched({})
+      setRunningNumberValid(null)
+      setIsCheckingRunningNumber(false)
+    }
+  }, [isOpen])
+
+  // Auto-validate running number when user types (with debounce)
+  useEffect(() => {
+    if (formData.runningNumber && !isCheckingRunningNumber) {
+      const timer = setTimeout(() => {
+        validateRunningNumber(formData.runningNumber)
+      }, 800)
+      return () => clearTimeout(timer)
+    }
+  }, [formData.runningNumber])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -356,13 +393,68 @@ function AddTaskModal({
     }
   }
 
+  const validateField = (field: string, value: string): string => {
+    switch (field) {
+      case 'clientName':
+        if (!value.trim()) return 'Client Name is required'
+        if (value.length < 2) return 'Client name must be at least 2 characters'
+        return ''
+      case 'runningNumber':
+        if (!value.trim()) return 'Running Number is required'
+        if (value.length < 3) return 'Running number must be at least 3 characters'
+        return ''
+      case 'jobTask':
+        if (!value.trim()) return 'Job Task is required'
+        return ''
+      case 'task_pic_id':
+        if (!value) return 'PIC is required'
+        return ''
+      default:
+        return ''
+    }
+  }
+
+  const handleBlur = (field: string) => {
+    setTouched(prev => ({ ...prev, [field]: true }))
+    const error = validateField(field, formData[field as keyof typeof formData] as string)
+    setErrors(prev => ({ ...prev, [field]: error }))
+    
+    if (field === 'runningNumber' && formData.runningNumber) {
+      validateRunningNumber(formData.runningNumber)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.clientName || !formData.jobTask || !formData.task_pic_id) {
+    // Validate all fields
+    const newErrors: {[key: string]: string} = {}
+    const clientNameError = validateField('clientName', formData.clientName)
+    if (clientNameError) newErrors.clientName = clientNameError
+    const runningNumberError = validateField('runningNumber', formData.runningNumber)
+    if (runningNumberError) newErrors.runningNumber = runningNumberError
+    const jobTaskError = validateField('jobTask', formData.jobTask)
+    if (jobTaskError) newErrors.jobTask = jobTaskError
+    const picError = validateField('task_pic_id', formData.task_pic_id)
+    if (picError) newErrors.task_pic_id = picError
+    
+    // Check if running number already exists
+    if (formData.runningNumber && !runningNumberError) {
+      const exists = await checkRunningNumberExists(formData.runningNumber)
+      if (exists) {
+        newErrors.runningNumber = `Running number "${formData.runningNumber}" already exists. Please use a different number.`
+        setRunningNumberValid(false)
+      } else {
+        setRunningNumberValid(true)
+      }
+    }
+    
+    setErrors(newErrors)
+    
+    if (Object.keys(newErrors).length > 0) {
       toast({
         title: "Validation Error",
-        description: "Client Name, Job Task, and PIC are required",
+        description: Object.values(newErrors)[0],
         variant: "destructive",
       })
       return
@@ -371,16 +463,15 @@ function AddTaskModal({
     setSaving(true)
     try {
       const selectedStaff = staffList.find(s => s.id === formData.task_pic_id)
-      const runningNumber = await generateRunningNumber(new Date())
 
       const newTask: UnscheduledTask = {
         id: `temp-${Date.now()}`,
         clientName: formData.clientName,
+        runningNumber: formData.runningNumber.toUpperCase(),
         jobTask: formData.jobTask,
         task_pic_id: formData.task_pic_id,
         task_pic_name: selectedStaff?.name,
         task_pic_color: selectedStaff?.color || 'blue',
-        runningNumber: runningNumber,
         createdAt: new Date()
       }
 
@@ -403,6 +494,16 @@ function AddTaskModal({
     }
   }
 
+  const ErrorMessage = ({ field }: { field: string }) => {
+    if (!touched[field] || !errors[field]) return null
+    return (
+      <p className="text-xs text-red-500 mt-1 flex items-center">
+        <AlertCircle className="h-3 w-3 mr-1" />
+        {errors[field]}
+      </p>
+    )
+  }
+
   if (!isOpen) return null
 
   return (
@@ -422,12 +523,87 @@ function AddTaskModal({
             </Label>
             <Input
               value={formData.clientName}
-              onChange={(e) => setFormData({...formData, clientName: e.target.value})}
+              onChange={(e) => {
+                setFormData({...formData, clientName: e.target.value})
+                if (touched.clientName) {
+                  const error = validateField('clientName', e.target.value)
+                  setErrors(prev => ({ ...prev, clientName: error }))
+                }
+              }}
+              onBlur={() => handleBlur('clientName')}
               placeholder="Enter client name"
-              className="border-gray-300 bg-white"
+              className={`border-gray-300 bg-white ${touched.clientName && errors.clientName ? 'border-red-500' : ''}`}
               required
               autoFocus
             />
+            <ErrorMessage field="clientName" />
+          </div>
+
+          {/* RUNNING NUMBER - USER INPUT WITH VALIDATION */}
+          <div className="space-y-2">
+            <Label className="text-gray-700 font-medium">
+              Running Number <span className="text-red-500">*</span>
+              <span className="text-xs text-blue-500 ml-2">(Must be unique)</span>
+            </Label>
+            <div className="relative">
+              <Input
+                value={formData.runningNumber}
+                onChange={(e) => {
+                  const value = e.target.value.toUpperCase()
+                  setFormData({...formData, runningNumber: value})
+                  if (touched.runningNumber) {
+                    const error = validateField('runningNumber', value)
+                    setErrors(prev => ({ ...prev, runningNumber: error }))
+                  }
+                }}
+                onBlur={() => handleBlur('runningNumber')}
+                placeholder="e.g., JOB2401001, INV-001, TASK-001"
+                className={`border-gray-300 bg-white font-mono text-sm pr-10 ${
+                  formData.runningNumber && runningNumberValid === true 
+                    ? 'border-green-500 border-2 bg-green-50' 
+                    : formData.runningNumber && runningNumberValid === false
+                    ? 'border-red-500 border-2 bg-red-50'
+                    : touched.runningNumber && errors.runningNumber
+                    ? 'border-red-500'
+                    : ''
+                }`}
+              />
+              {isCheckingRunningNumber && (
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                </div>
+              )}
+              {runningNumberValid === true && !isCheckingRunningNumber && formData.runningNumber && (
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
+                    <span className="text-white text-[10px]">✓</span>
+                  </div>
+                </div>
+              )}
+              {runningNumberValid === false && !isCheckingRunningNumber && formData.runningNumber && (
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center">
+                    <span className="text-white text-[10px]">✗</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            {runningNumberValid === true && formData.runningNumber && (
+              <p className="text-xs text-green-600 flex items-center">
+                <AlertCircle className="h-3 w-3 mr-1" />
+                ✓ Running number is available
+              </p>
+            )}
+            {runningNumberValid === false && formData.runningNumber && (
+              <p className="text-xs text-red-600 flex items-center">
+                <AlertCircle className="h-3 w-3 mr-1" />
+                ✗ This running number already exists! Please use a different number.
+              </p>
+            )}
+            <ErrorMessage field="runningNumber" />
+            <p className="text-xs text-gray-500">
+              Enter a unique running number for this task. Cannot be duplicate with existing tasks.
+            </p>
           </div>
 
           {/* Job Task - SEARCHABLE COMBOBOX */}
@@ -438,11 +614,20 @@ function AddTaskModal({
             <Combobox
               options={jobTasks.map(jt => ({ value: jt.name, label: jt.name }))}
               value={formData.jobTask}
-              onValueChange={(value) => setFormData({...formData, jobTask: value})}
+              onValueChange={(value) => {
+                setFormData({...formData, jobTask: value})
+                if (touched.jobTask) {
+                  const error = validateField('jobTask', value)
+                  setErrors(prev => ({ ...prev, jobTask: error }))
+                }
+              }}
+              onBlur={() => handleBlur('jobTask')}
               placeholder="Select job task"
               emptyMessage="No job tasks found."
               disabled={saving}
+              className={touched.jobTask && errors.jobTask ? 'border-red-500' : ''}
             />
+            <ErrorMessage field="jobTask" />
           </div>
 
           <div className="space-y-2">
@@ -451,9 +636,16 @@ function AddTaskModal({
             </Label>
             <Select
               value={formData.task_pic_id}
-              onValueChange={(value) => setFormData({...formData, task_pic_id: value})}
+              onValueChange={(value) => {
+                setFormData({...formData, task_pic_id: value})
+                if (touched.task_pic_id) {
+                  const error = validateField('task_pic_id', value)
+                  setErrors(prev => ({ ...prev, task_pic_id: error }))
+                }
+              }}
+              onOpenChange={() => handleBlur('task_pic_id')}
             >
-              <SelectTrigger className="bg-white border-gray-300">
+              <SelectTrigger className={`bg-white border-gray-300 ${touched.task_pic_id && errors.task_pic_id ? 'border-red-500' : ''}`}>
                 <SelectValue placeholder="Select PIC" />
               </SelectTrigger>
               <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
@@ -467,6 +659,7 @@ function AddTaskModal({
                 ))}
               </SelectContent>
             </Select>
+            <ErrorMessage field="task_pic_id" />
           </div>
 
           <div className="space-y-2">
@@ -476,7 +669,11 @@ function AddTaskModal({
           </div>
 
           <div className="flex gap-2 pt-2">
-            <Button type="submit" disabled={saving} className="flex-1 bg-blue-300 hover:bg-blue-300">
+            <Button 
+              type="submit" 
+              disabled={saving || runningNumberValid === false || (!formData.runningNumber && touched.runningNumber)} 
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+            >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Create Task
             </Button>
@@ -510,6 +707,8 @@ function EditTaskModal({
     pdfFile: null as File | null,
   })
   const [saving, setSaving] = useState(false)
+  const [errors, setErrors] = useState<{[key: string]: string}>({})
+  const [touched, setTouched] = useState<{[key: string]: boolean}>({})
   const { toast } = useToast()
 
   useEffect(() => {
@@ -531,8 +730,33 @@ function EditTaskModal({
         task_pic_id: picId,
         pdfFile: null,
       })
+      setErrors({})
+      setTouched({})
     }
   }, [task, isOpen, staffList])
+
+  const validateField = (field: string, value: string): string => {
+    switch (field) {
+      case 'clientName':
+        if (!value.trim()) return 'Client Name is required'
+        if (value.length < 2) return 'Client name must be at least 2 characters'
+        return ''
+      case 'jobTask':
+        if (!value.trim()) return 'Job Task is required'
+        return ''
+      case 'task_pic_id':
+        if (!value) return 'PIC is required'
+        return ''
+      default:
+        return ''
+    }
+  }
+
+  const handleBlur = (field: string) => {
+    setTouched(prev => ({ ...prev, [field]: true }))
+    const error = validateField(field, formData[field as keyof typeof formData] as string)
+    setErrors(prev => ({ ...prev, [field]: error }))
+  }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -559,10 +783,22 @@ function EditTaskModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.clientName || !formData.jobTask || !formData.task_pic_id) {
+    
+    // Validate all fields
+    const newErrors: {[key: string]: string} = {}
+    const clientNameError = validateField('clientName', formData.clientName)
+    if (clientNameError) newErrors.clientName = clientNameError
+    const jobTaskError = validateField('jobTask', formData.jobTask)
+    if (jobTaskError) newErrors.jobTask = jobTaskError
+    const picError = validateField('task_pic_id', formData.task_pic_id)
+    if (picError) newErrors.task_pic_id = picError
+    
+    setErrors(newErrors)
+    
+    if (Object.keys(newErrors).length > 0) {
       toast({
         title: "Validation Error",
-        description: "Client Name, Job Task, and PIC are required",
+        description: Object.values(newErrors)[0],
         variant: "destructive",
       })
       return
@@ -583,6 +819,11 @@ function EditTaskModal({
 
       await onSave(updatedTask)
       onClose()
+      
+      toast({
+        title: "Success",
+        description: "Task updated successfully",
+      })
     } catch (error: any) {
       console.error('Error saving task:', error)
       toast({
@@ -593,6 +834,16 @@ function EditTaskModal({
     } finally {
       setSaving(false)
     }
+  }
+
+  const ErrorMessage = ({ field }: { field: string }) => {
+    if (!touched[field] || !errors[field]) return null
+    return (
+      <p className="text-xs text-red-500 mt-1 flex items-center">
+        <AlertCircle className="h-3 w-3 mr-1" />
+        {errors[field]}
+      </p>
+    )
   }
 
   if (!isOpen || !task) return null
@@ -612,11 +863,19 @@ function EditTaskModal({
             <Label className="text-gray-700 font-medium">Client Name <span className="text-red-500">*</span></Label>
             <Input
               value={formData.clientName}
-              onChange={(e) => setFormData({...formData, clientName: e.target.value})}
+              onChange={(e) => {
+                setFormData({...formData, clientName: e.target.value})
+                if (touched.clientName) {
+                  const error = validateField('clientName', e.target.value)
+                  setErrors(prev => ({ ...prev, clientName: error }))
+                }
+              }}
+              onBlur={() => handleBlur('clientName')}
               placeholder="Enter client name"
-              className="border-gray-300 bg-white"
+              className={`border-gray-300 bg-white ${touched.clientName && errors.clientName ? 'border-red-500' : ''}`}
               required
             />
+            <ErrorMessage field="clientName" />
           </div>
 
           <div className="space-y-2">
@@ -624,20 +883,36 @@ function EditTaskModal({
             <Combobox
               options={jobTasks.map(jt => ({ value: jt.name, label: jt.name }))}
               value={formData.jobTask}
-              onValueChange={(value) => setFormData({...formData, jobTask: value})}
+              onValueChange={(value) => {
+                setFormData({...formData, jobTask: value})
+                if (touched.jobTask) {
+                  const error = validateField('jobTask', value)
+                  setErrors(prev => ({ ...prev, jobTask: error }))
+                }
+              }}
+              onBlur={() => handleBlur('jobTask')}
               placeholder="Select job task"
               emptyMessage="No job tasks found."
               disabled={saving}
+              className={touched.jobTask && errors.jobTask ? 'border-red-500' : ''}
             />
+            <ErrorMessage field="jobTask" />
           </div>
 
           <div className="space-y-2">
             <Label className="text-gray-700 font-medium">PIC (Person In Charge) <span className="text-red-500">*</span></Label>
             <Select
               value={formData.task_pic_id}
-              onValueChange={(value) => setFormData({...formData, task_pic_id: value})}
+              onValueChange={(value) => {
+                setFormData({...formData, task_pic_id: value})
+                if (touched.task_pic_id) {
+                  const error = validateField('task_pic_id', value)
+                  setErrors(prev => ({ ...prev, task_pic_id: error }))
+                }
+              }}
+              onOpenChange={() => handleBlur('task_pic_id')}
             >
-              <SelectTrigger className="bg-white border-gray-300">
+              <SelectTrigger className={`bg-white border-gray-300 ${touched.task_pic_id && errors.task_pic_id ? 'border-red-500' : ''}`}>
                 <SelectValue placeholder="Select PIC" />
               </SelectTrigger>
               <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
@@ -651,6 +926,7 @@ function EditTaskModal({
                 ))}
               </SelectContent>
             </Select>
+            <ErrorMessage field="task_pic_id" />
             {formData.task_pic_id && (
               <div className="mt-1 text-xs text-green-600">
                 Selected: {staffList.find(s => s.id === formData.task_pic_id)?.name || 'Unknown'}
@@ -680,7 +956,7 @@ function EditTaskModal({
           </div>
 
           <div className="flex gap-2 pt-2">
-            <Button type="submit" disabled={saving} className="flex-1 bg-blue-300 hover:bg-blue-300">
+            <Button type="submit" disabled={saving} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Save Changes
             </Button>
@@ -928,7 +1204,18 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
     
     try {
       if (!newTask.runningNumber) {
-        throw new Error('Failed to generate running number')
+        throw new Error('Running number is required')
+      }
+
+      // Double-check running number uniqueness before saving
+      const { data: existingTask } = await supabase
+        .from('tasks')
+        .select('running_number')
+        .eq('running_number', newTask.runningNumber)
+        .maybeSingle()
+      
+      if (existingTask) {
+        throw new Error(`Running number "${newTask.runningNumber}" already exists. Please use a different number.`)
       }
 
       const savedTask = await saveTaskToDatabase(newTask, true, null)
@@ -1029,7 +1316,8 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
 
   const filteredTasks = tasks.filter(task => {
     const matchesSearch = task.clientName.toLowerCase().includes(filter.toLowerCase()) ||
-                         task.jobTask.toLowerCase().includes(filter.toLowerCase())
+                         task.jobTask.toLowerCase().includes(filter.toLowerCase()) ||
+                         (task.runningNumber && task.runningNumber.toLowerCase().includes(filter.toLowerCase()))
     return matchesSearch
   })
 
@@ -1062,7 +1350,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
           <div className="relative">
             <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
-              placeholder="Search by client or job task..."
+              placeholder="Search by client, running number, or job task..."
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               className="pl-8 text-sm bg-white"

@@ -111,7 +111,7 @@ export function JobTasksTab() {
                 Manage job tasks list - All tasks will appear in calendar form dropdown
               </CardDescription>
             </div>
-            <Button onClick={handleAdd} className="bg-blue-300 hover:bg-blue-300">
+            <Button onClick={handleAdd} className="bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-400">
               <Plus className="h-4 w-4 mr-2" />
               Add Task
             </Button>
@@ -206,7 +206,7 @@ export function JobTasksTab() {
             </Button>
             <Button 
               type="button" 
-              className="bg-blue-300 hover:bg-blue-300" 
+              className="bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-400" 
               onClick={handleSave}
               disabled={saving}
             >

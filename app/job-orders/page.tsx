@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
 import {
   Calendar,
-  FileText,
   ArrowUpDown,
   Download,
   ChevronLeft,
@@ -34,7 +33,7 @@ interface JobOrder {
   time_start?: string
   time_stop?: string
   additional_remark?: string
-  pdf_job_order?: string
+  job_order_number?: string | null
   task_pic_staff: string
   task_pic_name?: string
   task_pic_color?: string
@@ -42,14 +41,13 @@ interface JobOrder {
   task_support_color?: string
   task_support_names_array?: string[]
   task_support_colors_array?: string[]
-  pdf_final_report?: string
+  final_report_number?: string | null
   job_status: 'completed' | 'in-progress' | 'incomplete' | 'onhold'
   created_by?: string
   created_at?: string
   updated_at?: string
 }
 
-// ========== STATUS HELPER FUNCTIONS ==========
 const getStatusColor = (status: string) => {
   switch(status) {
     case 'completed':
@@ -113,8 +111,8 @@ const getReminderText = (dateStart: string, dateStop: string, hasFinalReport: bo
 const computeTaskStatus = (data: {
   date_start: string | null
   date_stop: string | null
-  pdf_job_order_path: string | null
-  pdf_final_report_path: string | null
+  job_order_number: string | null
+  final_report_number: string | null
 }) => {
   if (!data.date_start) return 'onhold'
   
@@ -124,8 +122,8 @@ const computeTaskStatus = (data: {
   dueDate.setHours(0, 0, 0, 0)
   
   const isDueDatePassed = dueDate < today
-  const hasJobOrder = !!data.pdf_job_order_path
-  const hasFinalReport = !!data.pdf_final_report_path
+  const hasJobOrder = !!data.job_order_number
+  const hasFinalReport = !!data.final_report_number
   
   if (hasJobOrder && hasFinalReport) return 'completed'
   if (isDueDatePassed && (!hasJobOrder || !hasFinalReport)) return 'incomplete'
@@ -291,8 +289,8 @@ export default function JobOrdersPage() {
         const computedStatus = computeTaskStatus({
           date_start: task.date_start,
           date_stop: task.date_stop,
-          pdf_job_order_path: task.pdf_job_order_path,
-          pdf_final_report_path: task.pdf_final_report_path,
+          job_order_number: task.job_order_number,
+          final_report_number: task.final_report_number,
         })
         
         return {
@@ -305,7 +303,7 @@ export default function JobOrdersPage() {
           time_start: task.time_start,
           time_stop: task.time_stop,
           additional_remark: task.additional_remark,
-          pdf_job_order: task.pdf_job_order_url || task.pdf_job_order,
+          job_order_number: task.job_order_number || task.jobOrderNumber || null,
           task_pic_staff: picId || picName || '',
           task_pic_name: picInfo?.name || picName || task.task_pic_name || 'Unassigned',
           task_pic_color: picInfo?.color || task.task_pic_color || 'blue',
@@ -313,7 +311,7 @@ export default function JobOrdersPage() {
           task_support_color: supportDisplayColor || 'gray',
           task_support_names_array: supportNamesArray,
           task_support_colors_array: supportColorsArray,
-          pdf_final_report: task.pdf_final_report_url || task.pdf_final_report,
+          final_report_number: task.final_report_number || task.finalReportNumber || null,
           job_status: computedStatus,
           created_by: task.created_by,
           created_at: task.created_at,
@@ -374,7 +372,9 @@ export default function JobOrdersPage() {
       const matchesSearch = 
         (job.client_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (job.running_number?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-        (job.job_task?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+        (job.job_task?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (job.job_order_number?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (job.final_report_number?.toLowerCase() || '').includes(searchTerm.toLowerCase())
       const matchesStaff = matchesStaffFilter(job, filterStaff)
       const matchesStatus = filterStatus === 'all' || job.job_status === filterStatus
       return matchesSearch && matchesStaff && matchesStatus
@@ -424,7 +424,7 @@ export default function JobOrdersPage() {
               variant="outline" 
               className="border-gray-300"
               onClick={() => {
-                const headers = ['Running Number', 'Client Name', 'Job Task', 'Start Date', 'End Date', 'Status', 'PIC', 'Support Staff']
+                const headers = ['Running Number', 'Client Name', 'Job Task', 'Start Date', 'End Date', 'Job Order Number', 'Final Report Number', 'Status', 'PIC', 'Support Staff']
                 const csvRows = [headers]
                 filteredAndSortedJobs.forEach(job => {
                   const row = [
@@ -433,6 +433,8 @@ export default function JobOrdersPage() {
                     job.job_task,
                     new Date(job.date_start).toLocaleDateString('en-GB'),
                     new Date(job.date_stop).toLocaleDateString('en-GB'),
+                    job.job_order_number || '',
+                    job.final_report_number || '',
                     getStatusText(job.job_status),
                     job.task_pic_name || '',
                     job.task_support_name || ''
@@ -450,7 +452,7 @@ export default function JobOrdersPage() {
                 toast({ title: "Report exported successfully" })
               }}
             >
-              <Download className="h-4 w-4 mr-2" /> Export Report
+              <Download className="h-4 w-4 mr-2" /> Report
             </Button>
           </div>
         </div>
@@ -458,7 +460,7 @@ export default function JobOrdersPage() {
         {/* Filters */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Input
-            placeholder="Search by client, running num, or task..."
+            placeholder="Search by client, running num, task, or report..."
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1) }}
             className="bg-white border-gray-300"
@@ -522,19 +524,19 @@ export default function JobOrdersPage() {
             <thead className="bg-gray-100">
               <tr className="border-b-2 border-gray-300">
                 <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase w-12">No</th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-200" onClick={() => handleSort('running_number')}>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('running_number')}>
                   <div className="flex items-center space-x-1">Running Num <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-200" onClick={() => handleSort('client_name')}>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('client_name')}>
                   <div className="flex items-center space-x-1">Client Name <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-200" onClick={() => handleSort('job_task')}>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('job_task')}>
                   <div className="flex items-center space-x-1">Job Task <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-200" onClick={() => handleSort('date_start')}>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('date_start')}>
                   <div className="flex items-center space-x-1">Start Date <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-200" onClick={() => handleSort('date_stop')}>
+                <th className="border-r border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('date_stop')}>
                   <div className="flex items-center space-x-1">End Date <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
                 <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Reminder (25d)</th>
@@ -569,7 +571,7 @@ export default function JobOrdersPage() {
                 </tr>
               ) : (
                 paginatedJobs.map((job, index) => {
-                  const reminderText = getReminderText(job.date_start, job.date_stop, !!job.pdf_final_report)
+                  const reminderText = getReminderText(job.date_start, job.date_stop, !!job.final_report_number)
                   const isOverdue = reminderText?.startsWith('Overdue') || false
                   const isDueToday = reminderText === 'Due today!'
                   
@@ -634,17 +636,17 @@ export default function JobOrdersPage() {
                         ) : <span className="text-gray-400 text-sm">-</span>}
                       </td>
                       <td className="border-r border-gray-200 px-4 py-3">
-                        {job.pdf_job_order ? (
-                          <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" onClick={() => window.open(job.pdf_job_order, '_blank')}>
-                            <FileText className="h-4 w-4" />
-                          </Button>
+                        {job.job_order_number ? (
+                          <span className="font-mono text-xs text-gray-800 bg-blue-50 border border-blue-100 px-2 py-1 rounded">
+                            {job.job_order_number}
+                          </span>
                         ) : <span className="text-gray-300">-</span>}
                       </td>
                       <td className="border-r border-gray-200 px-4 py-3">
-                        {job.pdf_final_report ? (
-                          <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" onClick={() => window.open(job.pdf_final_report, '_blank')}>
-                            <FileText className="h-4 w-4" />
-                          </Button>
+                        {job.final_report_number ? (
+                          <span className="font-mono text-xs text-gray-800 bg-green-50 border border-green-100 px-2 py-1 rounded">
+                            {job.final_report_number}
+                          </span>
                         ) : <span className="text-gray-300">-</span>}
                       </td>
                       <td className="px-4 py-3">
@@ -706,10 +708,11 @@ export default function JobOrdersPage() {
         {/* Info Section */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white rounded-lg border-2 border-gray-300">
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">📄 PDF Indicators:</h4>
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">Number Indicators:</h4>
             <div className="space-y-1 text-xs">
-              <div className="flex items-center"><FileText className="h-4 w-4 text-green-600 mr-2" /><span className="text-gray-600">= PDF Available (click to view)</span></div>
-              <div className="flex items-center"><span className="w-4 h-4 mr-2 text-gray-300">-</span><span className="text-gray-600">= No PDF / Not Uploaded</span></div>
+              <div className="flex items-center"><span className="font-mono text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded mr-2">JO-001</span><span className="text-gray-600">= Job order number entered</span></div>
+              <div className="flex items-center"><span className="font-mono text-green-700 bg-green-50 border border-green-100 px-2 py-0.5 rounded mr-2">FR-001</span><span className="text-gray-600">= Final report number entered</span></div>
+              <div className="flex items-center"><span className="w-4 h-4 mr-2 text-gray-300">-</span><span className="text-gray-600">= Number not entered</span></div>
             </div>
           </div>
           <div>

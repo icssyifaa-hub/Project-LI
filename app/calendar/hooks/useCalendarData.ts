@@ -7,15 +7,15 @@ import {
 } from '@/lib/supabase/calendar'
 import { useToast } from '@/components/ui/use-toast'
 import { createClient } from '@/lib/supabase/client'
-import { uploadPDF, deletePDF } from '@/lib/pdf-service'
+// PDF upload/delete removed — using job order number/final report number instead
 import { notifyStaffForTask, notifyStaffForEvent } from '@/lib/supabase/notifications'
 import type { Task, Event, Holiday, ViewType, StaffInfo } from '@/app/calendar/types/calendar'
 
 const computeTaskStatus = (data: {
   dateStart: string | null
   dateStop: string | null
-  pdfJobOrderPath: string | null
-  pdfFinalReportPath: string | null
+  jobOrderNumber: string | null
+  finalReportNumber: string | null
 }) => {
   if (!data.dateStart) return 'onhold'
   
@@ -26,8 +26,8 @@ const computeTaskStatus = (data: {
   dueDate.setHours(0, 0, 0, 0)
   
   const isDueDatePassed = dueDate < today
-  const hasJobOrder = !!data.pdfJobOrderPath
-  const hasFinalReport = !!data.pdfFinalReportPath
+  const hasJobOrder = !!data.jobOrderNumber
+  const hasFinalReport = !!data.finalReportNumber
   
   if (hasJobOrder && hasFinalReport) return 'completed'
   if (isDueDatePassed && (!hasJobOrder || !hasFinalReport)) return 'incomplete'
@@ -237,8 +237,8 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
         const computedStatus = computeTaskStatus({
           dateStart: task.date_start,
           dateStop: task.date_stop,
-          pdfJobOrderPath: task.pdf_job_order_path,
-          pdfFinalReportPath: task.pdf_final_report_path,
+          jobOrderNumber: task.job_order_number,
+          finalReportNumber: task.final_report_number,
         })
         
         return {
@@ -251,16 +251,14 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
           timeStart: task.time_start,
           timeStop: task.time_stop,
           additionalRemark: task.additional_remark,
-          pdfJobOrderPath: task.pdf_job_order_path || '',
-          pdfJobOrderUrl: task.pdf_job_order_url || '',
+          jobOrderNumber: task.job_order_number || '',
           task_pic_id: task.task_pic_id || '',
           task_pic_name: picInfo?.name || task.task_pic_name || '',
           task_pic_color: picInfo?.color || task.task_pic_color || 'blue',
           task_support_ids: supportIds,
           task_support_names: supportNames,
           task_support_colors: supportColors,
-          pdfFinalReportPath: task.pdf_final_report_path || '',
-          pdfFinalReportUrl: task.pdf_final_report_url || '',
+          finalReportNumber: task.final_report_number || '',
           jobStatus: computedStatus,
           createdby: task.created_by,
           createdAt: task.created_at,
@@ -382,29 +380,8 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
         }
       }
 
-      let pdfJobOrderPath = taskData.pdf_job_order_path || taskData.pdfJobOrderPath || null
-      let pdfJobOrderUrl = taskData.pdf_job_order_url || taskData.pdfJobOrderUrl || null
-
-      if (pdfFile) {
-        if (selectedTask && selectedTask.pdfJobOrderPath) {
-          try {
-            await deletePDF(selectedTask.pdfJobOrderPath)
-          } catch (error) {
-            console.error('Failed to delete old PDF:', error)
-          }
-        }
-        
-        const uploadResult = await uploadPDF(
-          pdfFile,
-          `task_${selectedTask?.id || 'new'}_${Date.now()}`,
-          'job_order'
-        )
-        
-        if (uploadResult) {
-          pdfJobOrderPath = uploadResult.path
-          pdfJobOrderUrl = uploadResult.publicUrl
-        }
-      }
+      const jobOrderNumber = taskData.job_order_number || taskData.jobOrderNumber || null
+      const finalReportNumber = taskData.final_report_number || taskData.finalReportNumber || null
 
       const supportIds = taskData.task_support_ids 
         ? (Array.isArray(taskData.task_support_ids) ? taskData.task_support_ids.join(',') : taskData.task_support_ids)
@@ -419,8 +396,8 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
       const computedStatus = computeTaskStatus({
         dateStart: startDate,
         dateStop: taskData.date_stop || taskData.dateStop || null,
-        pdfJobOrderPath: pdfJobOrderPath,
-        pdfFinalReportPath: taskData.pdf_final_report_path || taskData.pdfFinalReportPath || null,
+        jobOrderNumber: jobOrderNumber,
+        finalReportNumber: finalReportNumber,
       })
 
       const data = {
@@ -432,16 +409,14 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
         time_start: taskData.time_start || taskData.timeStart || null,
         time_stop: taskData.time_stop || taskData.timeStop || null,
         additional_remark: taskData.additional_remark || taskData.additionalRemark || null,
-        pdf_job_order_path: pdfJobOrderPath,
-        pdf_job_order_url: pdfJobOrderUrl,
+        job_order_number: jobOrderNumber,
         task_pic_id: taskData.task_pic_id || null,
         task_pic_name: taskData.task_pic_name || null,
         task_pic_color: taskData.task_pic_color || 'blue',
         task_support_ids: supportIds,
         task_support_names: supportNames,
         task_support_colors: supportColors,
-        pdf_final_report_path: taskData.pdf_final_report_path || taskData.pdfFinalReportPath || null,
-        pdf_final_report_url: taskData.pdf_final_report_url || taskData.pdfFinalReportUrl || null,
+        final_report_number: finalReportNumber || null,
         job_status: computedStatus,
         created_by: user?.id,
         updated_at: new Date().toISOString()
@@ -502,16 +477,8 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
     }
   }, [user, fetchData, toast, checkRunningNumberExists])
 
-  const deleteTask = useCallback(async (id: string, pdfPath?: string) => {
+  const deleteTask = useCallback(async (id: string) => {
     try {
-      if (pdfPath) {
-        try {
-          await deletePDF(pdfPath)
-        } catch (error) {
-          console.error('Failed to delete PDF:', error)
-        }
-      }
-      
       const { error } = await supabase.from('tasks').delete().eq('id', id)
       if (error) throw error
       

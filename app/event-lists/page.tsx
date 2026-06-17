@@ -562,13 +562,13 @@ export default function EventsPage() {
             <thead className="bg-gray-100">
               <tr className="border-b-2 border-gray-300">
                 <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase w-12">No</th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-200" onClick={() => handleSort('title')}>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('title')}>
                   <div className="flex items-center space-x-1">Event Title <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-200" onClick={() => handleSort('date_start')}>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('date_start')}>
                   <div className="flex items-center space-x-1">Start Date <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-200" onClick={() => handleSort('date_stop')}>
+                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('date_stop')}>
                   <div className="flex items-center space-x-1">End Date <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
                 <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Location</th>

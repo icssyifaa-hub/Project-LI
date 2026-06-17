@@ -9,7 +9,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import { Combobox } from '@/components/ui/combobox'
 import { 
@@ -47,7 +46,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/use-toast'
-import { uploadPDF, deletePDF } from '@/lib/pdf-service'
+// PDFs removed per request: use job order number/final report number instead
 import { getDotClass } from '@/lib/colors'
 
 export interface UnscheduledTask {
@@ -57,10 +56,7 @@ export interface UnscheduledTask {
   task_pic_id: string
   task_pic_name?: string
   task_pic_color?: string
-  pdfJobOrderPath?: string
-  pdfJobOrderUrl?: string
-  pdfFinalReportPath?: string
-  pdfFinalReportUrl?: string
+  jobOrderNumber?: string
   runningNumber?: string
   createdAt: Date
   notes?: string
@@ -85,47 +81,7 @@ interface Staff {
   color?: string
 }
 
-function PDFViewerModal({ url, fileName, isOpen, onClose }: { 
-  url: string | null, 
-  fileName: string, 
-  isOpen: boolean, 
-  onClose: () => void 
-}) {
-  if (!url) return null
-
-  return (
-    <div className={`fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 ${!isOpen && 'hidden'}`}>
-      <div className="bg-white rounded-lg w-full max-w-4xl h-[80vh] flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="font-semibold">{fileName}</h3>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.open(url, '_blank')}
-            >
-              Open in New Tab
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-        <div className="flex-1 p-4">
-          <iframe
-            src={`${url}#toolbar=0`}
-            className="w-full h-full"
-            title={fileName}
-          />
-        </div>
-      </div>
-    </div>
-  )
-}
+// PDF viewer removed — using job order number/final report number fields instead
 
 function SortableTaskItem({ 
   task, 
@@ -156,7 +112,7 @@ function SortableTaskItem({
     zIndex: isSortableDragging ? 999 : 'auto',
   }
 
-  const [showPDF, setShowPDF] = useState(false)
+  // PDFs removed; no preview state needed
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -208,28 +164,17 @@ function SortableTaskItem({
                 <div className={`w-2 h-2 rounded-full mr-1 ${getDotClass(task.task_pic_color)}`}></div>
                 <span className="truncate">{task.task_pic_name || 'No PIC'}</span>
               </span>
-              {task.pdfJobOrderUrl && (
-                <span className="flex items-center">
-                  <FileText className="h-3 w-3 mr-1" />
-                  <span className="truncate">PDF</span>
-                </span>
+              {task.jobOrderNumber && (
+                  <span className="flex items-center">
+                    <FileText className="h-3 w-3 mr-1" />
+                    <span className="truncate">Job Order: {task.jobOrderNumber}</span>
+                  </span>
               )}
             </div>
           </div>
 
           <div className="flex items-center gap-1 flex-shrink-0">
-            {task.pdfJobOrderUrl && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setShowPDF(true)
-                }}
-                className="p-1 hover:bg-gray-100 rounded transition-colors"
-                title="View PDF"
-              >
-                <Eye className="h-3.5 w-3.5 text-blue-500" />
-              </button>
-            )}
+            {/* No PDF preview button when using job order number/final report number */}
             <button
               onClick={handleEdit}
               className="p-1 hover:bg-gray-100 rounded transition-colors"
@@ -252,14 +197,7 @@ function SortableTaskItem({
         </div>
       </div>
 
-      {showPDF && task.pdfJobOrderUrl && (
-        <PDFViewerModal
-          url={task.pdfJobOrderUrl}
-          fileName="Job Order Document.pdf"
-          isOpen={showPDF}
-          onClose={() => setShowPDF(false)}
-        />
-      )}
+      {/* No PDF viewer — using job order number/final report number instead */}
     </>
   )
 }
@@ -282,7 +220,7 @@ function AddTaskModal({
     runningNumber: '',
     jobTask: '',
     task_pic_id: '',
-    pdfFile: null as File | null,
+    jobOrderNumber: '',
   })
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<{[key: string]: string}>({})
@@ -351,7 +289,7 @@ function AddTaskModal({
         runningNumber: '',
         jobTask: '',
         task_pic_id: '',
-        pdfFile: null,
+        jobOrderNumber: '',
       })
       setErrors({})
       setTouched({})
@@ -370,28 +308,7 @@ function AddTaskModal({
     }
   }, [formData.runningNumber])
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0]
-      if (file.type !== 'application/pdf') {
-        toast({
-          title: "Invalid File",
-          description: "Only PDF files are allowed",
-          variant: "destructive",
-        })
-        return
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        toast({
-          title: "File Too Large",
-          description: "File size cannot exceed 10MB",
-          variant: "destructive",
-        })
-        return
-      }
-      setFormData({ ...formData, pdfFile: file })
-    }
-  }
+  // No file inputs: using jobOrderNumber instead
 
   const validateField = (field: string, value: string): string => {
     switch (field) {
@@ -408,6 +325,8 @@ function AddTaskModal({
         return ''
       case 'task_pic_id':
         if (!value) return 'PIC is required'
+        return ''
+      case 'jobOrderNumber':
         return ''
       default:
         return ''
@@ -448,7 +367,7 @@ function AddTaskModal({
         setRunningNumberValid(true)
       }
     }
-    
+
     setErrors(newErrors)
     
     if (Object.keys(newErrors).length > 0) {
@@ -472,6 +391,7 @@ function AddTaskModal({
         task_pic_id: formData.task_pic_id,
         task_pic_name: selectedStaff?.name,
         task_pic_color: selectedStaff?.color || 'blue',
+        jobOrderNumber: formData.jobOrderNumber || undefined,
         createdAt: new Date()
       }
 
@@ -543,7 +463,6 @@ function AddTaskModal({
           <div className="space-y-2">
             <Label className="text-gray-700 font-medium">
               Running Number <span className="text-red-500">*</span>
-              <span className="text-xs text-blue-500 ml-2">(Must be unique)</span>
             </Label>
             <div className="relative">
               <Input
@@ -601,9 +520,6 @@ function AddTaskModal({
               </p>
             )}
             <ErrorMessage field="runningNumber" />
-            <p className="text-xs text-gray-500">
-              Enter a unique running number for this task. Cannot be duplicate with existing tasks.
-            </p>
           </div>
 
           {/* Job Task - SEARCHABLE COMBOBOX */}
@@ -646,11 +562,17 @@ function AddTaskModal({
               onOpenChange={() => handleBlur('task_pic_id')}
             >
               <SelectTrigger className={`bg-white border-gray-300 ${touched.task_pic_id && errors.task_pic_id ? 'border-red-500' : ''}`}>
-                <SelectValue placeholder="Select PIC" />
+                {formData.task_pic_id ? (
+                  <span className="truncate">
+                    {staffList.find(s => s.id === formData.task_pic_id)?.name || 'Select PIC'}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">Select PIC</span>
+                )}
               </SelectTrigger>
               <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
                 {staffList.map((staff) => (
-                  <SelectItem key={staff.id} value={staff.id}>
+                  <SelectItem key={staff.id} value={staff.id} textValue={staff.name}>
                     <div className="flex items-center gap-2">
                       <div className={`w-3 h-3 rounded-full ${getDotClass(staff.color)}`}></div>
                       <span>{staff.name}</span>
@@ -663,9 +585,13 @@ function AddTaskModal({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-gray-700 font-medium">PDF Job Order (Optional)</Label>
-            <Input type="file" accept=".pdf" onChange={handleFileChange} className="border-gray-300 bg-white" />
-            <p className="text-xs text-gray-500">Upload job order PDF (max 10MB)</p>
+            <Label className="text-gray-700 font-medium">Job Order Number (Optional)</Label>
+            <Input
+              value={formData.jobOrderNumber}
+              onChange={(e) => setFormData({...formData, jobOrderNumber: e.target.value})}
+              placeholder="Enter job order number"
+              className="border-gray-300 bg-white"
+            />
           </div>
 
           <div className="flex gap-2 pt-2">
@@ -704,7 +630,7 @@ function EditTaskModal({
     clientName: '',
     jobTask: '',
     task_pic_id: '',
-    pdfFile: null as File | null,
+    jobOrderNumber: '',
   })
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<{[key: string]: string}>({})
@@ -714,8 +640,9 @@ function EditTaskModal({
   useEffect(() => {
     if (task && isOpen) {
       let picId = task.task_pic_id || ''
+      const currentStaff = picId ? staffList.find(s => s.id === picId) : null
       
-      if (!picId && task.task_pic_name) {
+      if (!currentStaff && task.task_pic_name) {
         const foundStaff = staffList.find(s => s.name === task.task_pic_name)
         if (foundStaff) {
           picId = foundStaff.id
@@ -728,7 +655,7 @@ function EditTaskModal({
         clientName: task.clientName || '',
         jobTask: jobTaskValue,
         task_pic_id: picId,
-        pdfFile: null,
+        jobOrderNumber: task.jobOrderNumber || '',
       })
       setErrors({})
       setTouched({})
@@ -758,28 +685,7 @@ function EditTaskModal({
     setErrors(prev => ({ ...prev, [field]: error }))
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0]
-      if (file.type !== 'application/pdf') {
-        toast({
-          title: "Invalid File",
-          description: "Only PDF files are allowed",
-          variant: "destructive",
-        })
-        return
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        toast({
-          title: "File Too Large",
-          description: "File size cannot exceed 10MB",
-          variant: "destructive",
-        })
-        return
-      }
-      setFormData({ ...formData, pdfFile: file })
-    }
-  }
+  // No file inputs for edit modal; using number fields instead
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -815,6 +721,7 @@ function EditTaskModal({
         task_pic_id: formData.task_pic_id,
         task_pic_name: selectedStaff?.name,
         task_pic_color: selectedStaff?.color || 'blue',
+        jobOrderNumber: formData.jobOrderNumber || undefined,
       }
 
       await onSave(updatedTask)
@@ -913,11 +820,17 @@ function EditTaskModal({
               onOpenChange={() => handleBlur('task_pic_id')}
             >
               <SelectTrigger className={`bg-white border-gray-300 ${touched.task_pic_id && errors.task_pic_id ? 'border-red-500' : ''}`}>
-                <SelectValue placeholder="Select PIC" />
+                {formData.task_pic_id ? (
+                  <span className="truncate">
+                    {staffList.find(s => s.id === formData.task_pic_id)?.name || task.task_pic_name || 'Select PIC'}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">Select PIC</span>
+                )}
               </SelectTrigger>
               <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
                 {staffList.map((staff) => (
-                  <SelectItem key={staff.id} value={staff.id}>
+                  <SelectItem key={staff.id} value={staff.id} textValue={staff.name}>
                     <div className="flex items-center gap-2">
                       <div className={`w-3 h-3 rounded-full ${getDotClass(staff.color)}`}></div>
                       <span>{staff.name}</span>
@@ -929,30 +842,19 @@ function EditTaskModal({
             <ErrorMessage field="task_pic_id" />
             {formData.task_pic_id && (
               <div className="mt-1 text-xs text-green-600">
-                Selected: {staffList.find(s => s.id === formData.task_pic_id)?.name || 'Unknown'}
+                Selected: {staffList.find(s => s.id === formData.task_pic_id)?.name || task.task_pic_name || 'Unknown'}
               </div>
             )}
           </div>
 
           <div className="space-y-2">
-            <Label className="text-gray-700 font-medium">PDF Job Order (Optional)</Label>
-            {task.pdfJobOrderUrl && (
-              <div className="mb-2 p-2 bg-blue-50 rounded border border-blue-200 text-sm">
-                <p className="text-blue-700 flex items-center justify-between">
-                  <span className="flex items-center">
-                    <FileText className="h-4 w-4 mr-2" />
-                    Current PDF attached
-                  </span>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => window.open(task.pdfJobOrderUrl!, '_blank')} className="text-blue-600">
-                    <Eye className="h-3 w-3 mr-1" /> View
-                  </Button>
-                </p>
-              </div>
-            )}
-            <Input type="file" accept=".pdf" onChange={handleFileChange} className="border-gray-300 bg-white" />
-            <p className="text-xs text-gray-500">
-              {task.pdfJobOrderUrl ? 'Upload new PDF to replace existing file' : 'Upload job order PDF (max 10MB)'}
-            </p>
+            <Label className="text-gray-700 font-medium">Job Order Number (Optional)</Label>
+            <Input
+              value={formData.jobOrderNumber}
+              onChange={(e) => setFormData({...formData, jobOrderNumber: e.target.value})}
+              placeholder="Enter job order number"
+              className="border-gray-300 bg-white"
+            />
           </div>
 
           <div className="flex gap-2 pt-2">
@@ -1023,10 +925,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
         task_pic_id: string;
         task_pic_name: string;
         task_pic_color: string;
-        pdf_job_order_path: string;
-        pdf_job_order_url: string;
-        pdf_final_report_path: string;
-        pdf_final_report_url: string;
+        job_order_number: string;
         running_number: string;
         created_at: string;
         additional_remark: string;
@@ -1044,10 +943,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
           task_pic_id: staffInfo?.id || task.task_pic_id || '',
           task_pic_name: staffInfo?.name || task.task_pic_name,
           task_pic_color: staffInfo?.color || task.task_pic_color || 'blue',
-          pdfJobOrderPath: task.pdf_job_order_path,
-          pdfJobOrderUrl: task.pdf_job_order_url,
-          pdfFinalReportPath: task.pdf_final_report_path,
-          pdfFinalReportUrl: task.pdf_final_report_url,
+          jobOrderNumber: task.job_order_number,
           runningNumber: task.running_number,
           createdAt: new Date(task.created_at),
           notes: task.additional_remark
@@ -1107,21 +1003,8 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
     }
   }
 
-  const uploadTaskPDF = async (file: File, taskId: string): Promise<{ path: string, url: string } | null> => {
-    try {
-      const result = await uploadPDF(file, taskId, 'job_order')
-      if (!result) return null
-      return {
-        path: result.path,
-        url: result.publicUrl
-      }
-    } catch (error) {
-      console.error('Error uploading PDF:', error)
-      return null
-    }
-  }
 
-  const saveTaskToDatabase = async (taskData: UnscheduledTask, isNew: boolean = true, pdfFile?: File | null) => {
+  const saveTaskToDatabase = async (taskData: UnscheduledTask, isNew: boolean = true) => {
     const userData = localStorage.getItem('user')
     const currentUser = userData ? JSON.parse(userData) : null
     
@@ -1134,10 +1017,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
       task_pic_id: taskData.task_pic_id,
       task_pic_name: selectedStaff?.name || taskData.task_pic_name,
       task_pic_color: selectedStaff?.color || taskData.task_pic_color || 'blue',
-      pdf_job_order_path: taskData.pdfJobOrderPath || null,
-      pdf_job_order_url: taskData.pdfJobOrderUrl || null,
-      pdf_final_report_path: taskData.pdfFinalReportPath || null,
-      pdf_final_report_url: taskData.pdfFinalReportUrl || null,
+      job_order_number: taskData.jobOrderNumber || null,
       job_status: 'onhold',
       date_start: null,
       date_stop: null,
@@ -1171,26 +1051,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
         savedTask = data
       }
 
-      if (pdfFile && savedTask?.id) {
-        if (taskData.pdfJobOrderPath) {
-          await deletePDF(taskData.pdfJobOrderPath)
-        }
-        
-        const uploadResult = await uploadTaskPDF(pdfFile, savedTask.id)
-        
-        if (uploadResult) {
-          await supabase
-            .from('tasks')
-            .update({
-              pdf_job_order_path: uploadResult.path,
-              pdf_job_order_url: uploadResult.url
-            })
-            .eq('id', savedTask.id)
-          
-          savedTask.pdf_job_order_path = uploadResult.path
-          savedTask.pdf_job_order_url = uploadResult.url
-        }
-      }
+      // No PDF upload handling
 
       return savedTask
     } catch (error: any) {
@@ -1218,14 +1079,13 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
         throw new Error(`Running number "${newTask.runningNumber}" already exists. Please use a different number.`)
       }
 
-      const savedTask = await saveTaskToDatabase(newTask, true, null)
+      const savedTask = await saveTaskToDatabase(newTask, true)
 
       const finalTask: UnscheduledTask = {
         ...newTask,
         id: savedTask.id,
         runningNumber: savedTask.running_number,
-        pdfJobOrderPath: savedTask.pdf_job_order_path,
-        pdfJobOrderUrl: savedTask.pdf_job_order_url
+        jobOrderNumber: savedTask.job_order_number,
       }
 
       setTasks([finalTask, ...tasks])
@@ -1251,12 +1111,11 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
 
   const handleUpdateTask = async (updatedTask: UnscheduledTask) => {
     try {
-      const savedTask = await saveTaskToDatabase(updatedTask, false, null)
+      const savedTask = await saveTaskToDatabase(updatedTask, false)
       
       const finalTask: UnscheduledTask = {
         ...updatedTask,
-        pdfJobOrderPath: savedTask.pdf_job_order_path,
-        pdfJobOrderUrl: savedTask.pdf_job_order_url
+        jobOrderNumber: savedTask.job_order_number,
       }
       
       setTasks(tasks.map(t => t.id === finalTask.id ? finalTask : t))
@@ -1283,10 +1142,6 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
     
     setDeletingId(id)
     try {
-      if (taskToDelete?.pdfJobOrderPath) {
-        await deletePDF(taskToDelete.pdfJobOrderPath)
-      }
-      
       const { error } = await supabase
         .from('tasks')
         .delete()
@@ -1295,12 +1150,12 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
       if (error) throw error
 
       setTasks(tasks.filter(t => t.id !== id))
-      
+
       toast({
         title: "Success",
         description: "Task deleted successfully",
       })
-      
+
       onTaskSaved?.()
     } catch (error: any) {
       console.error('Error deleting task:', error)

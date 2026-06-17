@@ -469,8 +469,7 @@ export default function CalendarPage() {
         task_pic_id: draggedTask.task_pic_id,     
         task_pic_name: draggedTask.task_pic_name, 
         task_pic_color: draggedTask.task_pic_color,
-        pdfJobOrderPath: draggedTask.pdfJobOrderPath,
-        pdfJobOrderUrl: draggedTask.pdfJobOrderUrl,
+        jobOrderNumber: draggedTask.jobOrderNumber,
         runningNumber: draggedTask.runningNumber,
       })
       
@@ -500,15 +499,14 @@ export default function CalendarPage() {
       if (prefilledTaskData && type === 'task') {
         finalData = {
           ...data,
-          client_name: prefilledTaskData.clientName,
-          job_task: prefilledTaskData.jobTask,
-          task_pic_id: prefilledTaskData.task_pic_id,
-          task_pic_name: prefilledTaskData.task_pic_name,
-          task_pic_color: prefilledTaskData.task_pic_color,
-          running_number: prefilledTaskData.runningNumber,
-          pdf_job_order_path: prefilledTaskData.pdfJobOrderPath,
-          pdf_job_order_url: prefilledTaskData.pdfJobOrderUrl,
-          ...data
+          client_name: data.client_name || prefilledTaskData.clientName,
+          job_task: data.job_task || prefilledTaskData.jobTask,
+          task_pic_id: data.task_pic_id || prefilledTaskData.task_pic_id,
+          task_pic_name: data.task_pic_name || prefilledTaskData.task_pic_name,
+          task_pic_color: data.task_pic_color || prefilledTaskData.task_pic_color,
+          running_number: data.running_number || prefilledTaskData.runningNumber,
+          job_order_number: data.job_order_number || prefilledTaskData.jobOrderNumber,
+          // PDFs removed: job order URL no longer used
         }
       }
       
@@ -801,10 +799,7 @@ export default function CalendarPage() {
                       timeStart: '',
                       timeStop: '',
                       additionalRemark: task.notes || '',
-                      pdfJobOrderPath: task.pdfJobOrderPath || '',
-                      pdfJobOrderUrl: task.pdfJobOrderUrl || '',
-                      pdfFinalReportPath: '',
-                      pdfFinalReportUrl: '',
+                      jobOrderNumber: task.jobOrderNumber || '',
                       jobStatus: 'in-progress',
                       task_pic_id: task.task_pic_id || '',
                       task_pic_name: task.task_pic_name || '',

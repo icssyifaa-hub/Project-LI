@@ -191,7 +191,7 @@ export default function LoginPage() {
           <CardFooter>
             <Button 
               type="submit" 
-              className="w-full bg-blue-300 hover:bg-blue-700 h-11" 
+              className="w-full bg-blue-600 text-white hover:bg-blue-700 h-11 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-400" 
               disabled={loading}
             >
               {loading ? (

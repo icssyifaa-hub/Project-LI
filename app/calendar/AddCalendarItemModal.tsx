@@ -41,7 +41,7 @@ import {
     Eye
 } from 'lucide-react'
 import { useCallback, useEffect, useState, useRef } from 'react'
-import { uploadPDF, deletePDF } from '@/lib/pdf-service'
+// PDF upload/delete removed — using job order number/final report number instead
 import { Combobox } from '@/components/ui/combobox'
 
 interface AddCalendarItemModalProps {
@@ -54,11 +54,10 @@ interface AddCalendarItemModalProps {
   prefilledData?: {
     clientName?: string
     jobTask?: string
-    taskPicId?: string
-    taskPicName?: string
-    taskPicColor?: string
-    pdfJobOrderPath?: string
-    pdfJobOrderUrl?: string
+    task_pic_id?: string
+    task_pic_name?: string
+    task_pic_color?: string
+    jobOrderNumber?: string
     runningNumber?: string
   } | null
   onSuccess?: () => void
@@ -82,8 +81,8 @@ interface Staff {
 const computeTaskStatus = (data: {
   dateStart: string | null
   dateStop: string | null
-  pdfJobOrderPath: string | null
-  pdfFinalReportPath: string | null
+  jobOrderNumber: string | null
+  finalReportNumber: string | null
 }) => {
   if (!data.dateStart) return 'onhold'
   
@@ -94,8 +93,8 @@ const computeTaskStatus = (data: {
   dueDate.setHours(0, 0, 0, 0)
   
   const isDueDatePassed = dueDate < today
-  const hasJobOrder = !!data.pdfJobOrderPath
-  const hasFinalReport = !!data.pdfFinalReportPath
+  const hasJobOrder = !!data.jobOrderNumber
+  const hasFinalReport = !!data.finalReportNumber
   
   if (hasJobOrder && hasFinalReport) return 'completed'
   if (isDueDatePassed && (!hasJobOrder || !hasFinalReport)) return 'incomplete'
@@ -152,14 +151,10 @@ const initialTaskData = {
   timeStart: '',
   timeStop: '',
   additionalRemark: '',
-  pdfJobOrder: null as File | null,
-  pdfJobOrderPath: '',
-  pdfJobOrderUrl: '', 
+  jobOrderNumber: '',
   task_pic_id: '',            
   task_support_ids: [] as string[],  
-  pdfFinalReport: null as File | null,
-  pdfFinalReportPath: '',
-  pdfFinalReportUrl: '',
+  finalReportNumber: '',
   task_pic_name: '',           
   task_pic_color: '',          
   task_support_names: [] as string[],  
@@ -172,6 +167,7 @@ export default function AddCalendarItemModal({
   selectedDate, 
   selectedItem,
   selectedType,
+  prefilledData,
   onSuccess,
   onSave,
   onDelete
@@ -202,12 +198,7 @@ export default function AddCalendarItemModal({
   const [eventData, setEventData] = useState(initialEventData)
   const [taskData, setTaskData] = useState(initialTaskData)
   const [currentUser, setCurrentUser] = useState<any>(null)
-  const [jobOrderPreviewUrl, setJobOrderPreviewUrl] = useState<string | null>(null)
-  const [finalReportPreviewUrl, setFinalReportPreviewUrl] = useState<string | null>(null)
-  const [showJobOrderPreview, setShowJobOrderPreview] = useState(false)
-  const [showFinalReportPreview, setShowFinalReportPreview] = useState(false)
-  const [tempJobOrderFile, setTempJobOrderFile] = useState<File | null>(null)
-  const [tempFinalReportFile, setTempFinalReportFile] = useState<File | null>(null)
+  
   const initialLoadDone = useRef(false)
   const [isCheckingRunningNumber, setIsCheckingRunningNumber] = useState(false)
   const [runningNumberValid, setRunningNumberValid] = useState<boolean | null>(null)
@@ -217,10 +208,10 @@ export default function AddCalendarItemModal({
     return computeTaskStatus({
       dateStart: taskData.dateStart || null,
       dateStop: taskData.dateStop || null,
-      pdfJobOrderPath: taskData.pdfJobOrderPath || null,
-      pdfFinalReportPath: taskData.pdfFinalReportPath || null,
+      jobOrderNumber: taskData.jobOrderNumber || null,
+      finalReportNumber: taskData.finalReportNumber || null,
     })
-  }, [taskData.dateStart, taskData.dateStop, taskData.pdfJobOrderPath, taskData.pdfFinalReportPath])
+  }, [taskData.dateStart, taskData.dateStop, taskData.jobOrderNumber, taskData.finalReportNumber])
 
   // ========== FUNCTION TO CHECK IF RUNNING NUMBER EXISTS ==========
   const checkRunningNumberExists = useCallback(async (runningNumber: string): Promise<boolean> => {
@@ -478,19 +469,7 @@ export default function AddCalendarItemModal({
     setRunningNumberError('')
     setIsCheckingRunningNumber(false)
     
-    if (jobOrderPreviewUrl) {
-      URL.revokeObjectURL(jobOrderPreviewUrl)
-      setJobOrderPreviewUrl(null)
-    }
-    if (finalReportPreviewUrl) {
-      URL.revokeObjectURL(finalReportPreviewUrl)
-      setFinalReportPreviewUrl(null)
-    }
-    setShowJobOrderPreview(false)
-    setShowFinalReportPreview(false)
-    setTempJobOrderFile(null)
-    setTempFinalReportFile(null)
-  }, [jobOrderPreviewUrl, finalReportPreviewUrl])
+  }, [])
 
   const fetchJobTasks = useCallback(async () => {
     setLoadingTasks(true)
@@ -574,14 +553,10 @@ export default function AddCalendarItemModal({
       timeStart: item.time_start || item.timeStart || '',
       timeStop: item.time_stop || item.timeStop || '',
       additionalRemark: item.additional_remark || item.additionalRemark || '',
-      pdfJobOrder: null,
-      pdfJobOrderPath: item.pdf_job_order_path || '',
-      pdfJobOrderUrl: item.pdf_job_order_url || '',
+      jobOrderNumber: item.job_order_number || item.jobOrderNumber || '',
       task_pic_id: item.task_pic_id || '',
       task_support_ids: taskSupportIdsArray,
-      pdfFinalReport: null,
-      pdfFinalReportPath: item.pdf_final_report_path || '',
-      pdfFinalReportUrl: item.pdf_final_report_url || '',
+      finalReportNumber: item.final_report_number || item.finalReportNumber || '',
       task_pic_name: item.task_pic_name || '',
       task_pic_color: item.task_pic_color || '',
       task_support_names: taskSupportNamesArray,
@@ -593,7 +568,7 @@ export default function AddCalendarItemModal({
     setShowTime(!!(timeStart || timeStop))
     setShowDescription(!!(item.additional_remark || item.additionalRemark))
     setShowSupport(taskSupportIdsArray.length > 0 || taskSupportNamesArray.length > 0)
-    setShowFinalReport(!!(item.pdf_final_report_path))
+    setShowFinalReport(!!(item.final_report_number))
     setRunningNumberValid(true)
     setRunningNumberError('')
   }, [])
@@ -688,7 +663,18 @@ export default function AddCalendarItemModal({
         const dateStr = formatDateToString(selectedDate)
         
         setEventData(prev => ({ ...prev, dateStart: dateStr, dateStop: '' }))
-        setTaskData(prev => ({ ...prev, dateStart: dateStr, dateStop: '' }))
+        setTaskData(prev => ({
+          ...prev,
+          clientName: prefilledData?.clientName || prev.clientName,
+          runningNumber: prefilledData?.runningNumber || prev.runningNumber,
+          jobTask: prefilledData?.jobTask || prev.jobTask,
+          task_pic_id: prefilledData?.task_pic_id || prev.task_pic_id,
+          task_pic_name: prefilledData?.task_pic_name || prev.task_pic_name,
+          task_pic_color: prefilledData?.task_pic_color || prev.task_pic_color,
+          jobOrderNumber: prefilledData?.jobOrderNumber || prev.jobOrderNumber,
+          dateStart: dateStr,
+          dateStop: '',
+        }))
       }
       
       initialLoadDone.current = true
@@ -700,7 +686,7 @@ export default function AddCalendarItemModal({
       resetForm()
       initialLoadDone.current = false
     }
-  }, [isOpen, selectedItem, selectedDate, selectedType, activeTab, populateEventForm, populateTaskForm, resetForm, fetchJobTasks, fetchStaff])
+  }, [isOpen, selectedItem, selectedDate, selectedType, activeTab, prefilledData, populateEventForm, populateTaskForm, resetForm, fetchJobTasks, fetchStaff])
 
   // ========== CONDITIONAL RETURN AFTER ALL HOOKS ==========
   if (!isOpen) return null
@@ -926,66 +912,7 @@ export default function AddCalendarItemModal({
     }
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'JobOrder' | 'FinalReport') => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0]
-      
-      if (file.type !== 'application/pdf') {
-        toast({ title: "Invalid File", description: "Only PDF files are allowed", variant: "destructive" })
-        return
-      }
-      
-      if (file.size > 10 * 1024 * 1024) {
-        toast({ title: "File Too Large", description: "File size cannot exceed 10MB", variant: "destructive" })
-        return
-      }
-      
-      if (field === 'JobOrder' && jobOrderPreviewUrl) URL.revokeObjectURL(jobOrderPreviewUrl)
-      if (field === 'FinalReport' && finalReportPreviewUrl) URL.revokeObjectURL(finalReportPreviewUrl)
-      
-      const previewUrl = URL.createObjectURL(file)
-      
-      if (field === 'JobOrder') {
-        setJobOrderPreviewUrl(previewUrl)
-        setTempJobOrderFile(file)
-        setShowJobOrderPreview(true)
-      } else {
-        setFinalReportPreviewUrl(previewUrl)
-        setTempFinalReportFile(file)
-        setShowFinalReportPreview(true)
-      }
-    }
-  }
-
-  const handleRemoveTempFile = (field: 'JobOrder' | 'FinalReport') => {
-    if (field === 'JobOrder') {
-      if (jobOrderPreviewUrl) { URL.revokeObjectURL(jobOrderPreviewUrl); setJobOrderPreviewUrl(null) }
-      setTempJobOrderFile(null)
-      setShowJobOrderPreview(false)
-    } else {
-      if (finalReportPreviewUrl) { URL.revokeObjectURL(finalReportPreviewUrl); setFinalReportPreviewUrl(null) }
-      setTempFinalReportFile(null)
-      setShowFinalReportPreview(false)
-    }
-  }
-
-  const handleRemoveExistingFile = async (field: 'JobOrder' | 'FinalReport') => {
-    if (!confirm(`Remove this ${field === 'JobOrder' ? 'Job Order' : 'Final Report'} PDF?`)) return
-    
-    if (field === 'JobOrder') {
-      if (taskData.pdfJobOrderPath) {
-        try { await deletePDF(taskData.pdfJobOrderPath) } catch (error) { console.error('Failed to delete PDF:', error) }
-      }
-      setTaskData(prev => ({ ...prev, pdfJobOrderPath: '', pdfJobOrderUrl: '', pdfJobOrder: null }))
-    } else {
-      if (taskData.pdfFinalReportPath) {
-        try { await deletePDF(taskData.pdfFinalReportPath) } catch (error) { console.error('Failed to delete PDF:', error) }
-      }
-      setTaskData(prev => ({ ...prev, pdfFinalReportPath: '', pdfFinalReportUrl: '', pdfFinalReport: null }))
-    }
-    
-    toast({ title: "File Removed", description: "PDF file has been removed" })
-  }
+  // File upload/preview handlers removed. Using job order number/final report number fields instead.
 
   const handleRemoveDate = () => {
     setTaskData(prev => ({ 
@@ -1094,46 +1021,11 @@ export default function AddCalendarItemModal({
           const runningNumber = taskData.runningNumber
           if (!runningNumber) throw new Error("Running number is required")
           
-          let pdfJobOrderPath = taskData.pdfJobOrderPath
-          let pdfJobOrderUrl = taskData.pdfJobOrderUrl
-          let pdfFinalReportPath = taskData.pdfFinalReportPath
-          let pdfFinalReportUrl = taskData.pdfFinalReportUrl
-          const jobOrderFileToUpload = tempJobOrderFile || taskData.pdfJobOrder
-          const finalReportFileToUpload = tempFinalReportFile || taskData.pdfFinalReport
-
-          if (jobOrderFileToUpload) {
-            if (selectedItem && taskData.pdfJobOrderPath) {
-              try { await deletePDF(taskData.pdfJobOrderPath) } catch (error) { console.error('Failed to delete old job order PDF:', error) }
-            }
-            
-            const uploadResult = await uploadPDF(jobOrderFileToUpload, 'task-job-orders', `task_${selectedItem?.id || 'new'}_${Date.now()}`)
-            if (uploadResult) {
-              pdfJobOrderPath = uploadResult.path
-              pdfJobOrderUrl = uploadResult.publicUrl
-            } else {
-              throw new Error("Failed to upload Job Order PDF")
-            }
-          }
-
-          if (finalReportFileToUpload) {
-            if (selectedItem && taskData.pdfFinalReportPath) {
-              try { await deletePDF(taskData.pdfFinalReportPath) } catch (error) { console.error('Failed to delete old final report PDF:', error) }
-            }
-            
-            const uploadResult = await uploadPDF(finalReportFileToUpload, 'task-final-reports', `task_${selectedItem?.id || 'new'}_${Date.now()}`)
-            if (uploadResult) {
-              pdfFinalReportPath = uploadResult.path
-              pdfFinalReportUrl = uploadResult.publicUrl
-            } else {
-              throw new Error("Failed to upload Final Report PDF")
-            }
-          }
-
           const computedStatus = computeTaskStatus({
             dateStart: taskData.dateStart || null,
             dateStop: taskData.dateStop || null,
-            pdfJobOrderPath: pdfJobOrderPath || null,
-            pdfFinalReportPath: pdfFinalReportPath || null,
+            jobOrderNumber: taskData.jobOrderNumber || null,
+            finalReportNumber: taskData.finalReportNumber || null,
           })
 
           const dataToSave = {
@@ -1145,16 +1037,14 @@ export default function AddCalendarItemModal({
             time_start: taskData.timeStart || '',
             time_stop: taskData.timeStop || '',
             additional_remark: taskData.additionalRemark || '',
-            pdf_job_order_path: pdfJobOrderPath || null,
-            pdf_job_order_url: pdfJobOrderUrl || null,
+            job_order_number: taskData.jobOrderNumber || null,
             task_pic_id: taskData.task_pic_id || null,
             task_pic_name: taskData.task_pic_name || '',
             task_pic_color: taskData.task_pic_color || '',
             task_support_ids: taskData.task_support_ids.length > 0 ? taskData.task_support_ids.join(',') : null,
             task_support_names: taskData.task_support_names.length > 0 ? taskData.task_support_names.join(',') : null,
             task_support_colors: taskData.task_support_colors.length > 0 ? taskData.task_support_colors.join(',') : null,
-            pdf_final_report_path: pdfFinalReportPath || null,
-            pdf_final_report_url: pdfFinalReportUrl || null,
+            final_report_number: taskData.finalReportNumber || null,
             job_status: computedStatus,
             created_by: currentUser?.id
           }
@@ -1173,8 +1063,7 @@ export default function AddCalendarItemModal({
             }
           }
 
-          if (jobOrderPreviewUrl) { URL.revokeObjectURL(jobOrderPreviewUrl); setJobOrderPreviewUrl(null) }
-          if (finalReportPreviewUrl) { URL.revokeObjectURL(finalReportPreviewUrl); setFinalReportPreviewUrl(null) }
+          // no preview URLs to clean up
 
           toast({
             title: "Success",
@@ -1210,20 +1099,13 @@ export default function AddCalendarItemModal({
   const handleDelete = async () => {
     if (!selectedItem) return
     
-    const confirmDelete = window.confirm(`Are you sure you want to delete this ${selectedType}? This will also delete all associated PDF files.`)
+    const confirmDelete = window.confirm(`Are you sure you want to delete this ${selectedType}?`)
     if (!confirmDelete) return
     
     setIsSaving(true)
     
     try {
-      if (selectedType === 'task') {
-        if (selectedItem.pdf_job_order_path) {
-          try { await deletePDF(selectedItem.pdf_job_order_path) } catch (error) { console.error('Failed to delete job order PDF:', error) }
-        }
-        if (selectedItem.pdf_final_report_path) {
-          try { await deletePDF(selectedItem.pdf_final_report_path) } catch (error) { console.error('Failed to delete final report PDF:', error) }
-        }
-      }
+      // No PDF files to delete — job order number/final report number stored as text
       
       if (onDelete) {
         await onDelete(selectedItem.id, activeTab)
@@ -1558,46 +1440,21 @@ export default function AddCalendarItemModal({
                       <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center justify-between">
                         <div className="flex items-center">
                           <FileText className="h-4 w-4 mr-2 text-blue-600" />
-                          PDF File (Job Order)
+                          Job Order Number
                         </div>
-                        {(taskData.pdfJobOrderUrl || jobOrderPreviewUrl) && (
-                          <div className="flex gap-2">
-                            <Button type="button" variant="ghost" size="sm" onClick={() => setShowJobOrderPreview(true)} className="text-blue-600">
-                              <Eye className="h-4 w-4 mr-1" /> Preview
-                            </Button>
-                            {taskData.pdfJobOrderUrl && !tempJobOrderFile && (
-                              <Button type="button" variant="ghost" size="sm" onClick={() => window.open(taskData.pdfJobOrderUrl, '_blank')} className="text-green-600">
-                                <ExternalLink className="h-4 w-4 mr-1" /> Open
-                              </Button>
-                            )}
-                          </div>
+                        {taskData.jobOrderNumber && (
+                          <div className="text-sm text-gray-700">Current: {taskData.jobOrderNumber}</div>
                         )}
                       </h4>
                       
-                      {taskData.pdfJobOrderPath && taskData.pdfJobOrderUrl && !tempJobOrderFile && (
-                        <div className="mb-2 p-3 bg-blue-50 rounded border border-blue-200">
-                          <p className="text-blue-700 flex items-center justify-between">
-                            <span className="flex items-center"><FileText className="h-4 w-4 mr-2" />Current: PDF attached</span>
-                            <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveExistingFile('JobOrder')} className="text-red-600 hover:text-red-700 hover:bg-red-50" disabled={isSaving}>
-                              <X className="h-4 w-4 mr-1" /> Remove
-                            </Button>
-                          </p>
-                        </div>
-                      )}
-                      
-                      {tempJobOrderFile && (
-                        <div className="mb-2 p-3 bg-yellow-50 rounded border border-yellow-200">
-                          <p className="text-yellow-700 flex items-center justify-between">
-                            <span className="flex items-center"><FileText className="h-4 w-4 mr-2" />New file ready: {tempJobOrderFile.name}</span>
-                            <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveTempFile('JobOrder')} className="text-red-600 hover:text-red-700 hover:bg-red-50" disabled={isSaving}>
-                              <X className="h-4 w-4 mr-1" /> Remove
-                            </Button>
-                          </p>
-                        </div>
-                      )}
-                      
-                      <Input type="file" accept=".pdf" onChange={(e) => handleFileChange(e, 'JobOrder')} className="border-gray-300 bg-white" disabled={isSaving} />
-                      <p className="text-xs text-gray-500 mt-1">📎 Upload job order PDF (max 10MB, PDF only)</p>
+                      <Input
+                        value={taskData.jobOrderNumber}
+                        onChange={(e) => setTaskData(prev => ({ ...prev, jobOrderNumber: e.target.value }))}
+                        placeholder="Enter job order number"
+                        className="border-gray-300 bg-white"
+                        disabled={isSaving}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Enter job order number (optional)</p>
                     </div>
 
                     {/* PIC */}
@@ -1696,49 +1553,23 @@ export default function AddCalendarItemModal({
                       <div className="space-y-4 border-t border-gray-200 pt-4">
                         <div className="flex items-center justify-between">
                           <h4 className="text-sm font-semibold text-gray-800 flex items-center">
-                            <FileText className="h-4 w-4 mr-2 text-green-600" />PDF File (Final Report)
+                            <FileText className="h-4 w-4 mr-2 text-green-600" />Final Report Number
                           </h4>
                           <div className="flex gap-2">
-                            {(taskData.pdfFinalReportUrl || finalReportPreviewUrl) && (
-                              <Button type="button" variant="ghost" size="sm" onClick={() => setShowFinalReportPreview(true)} className="text-blue-600">
-                                <Eye className="h-4 w-4 mr-1" /> Preview
-                              </Button>
-                            )}
-                            {taskData.pdfFinalReportUrl && !tempFinalReportFile && (
-                              <Button type="button" variant="ghost" size="sm" onClick={() => window.open(taskData.pdfFinalReportUrl, '_blank')} className="text-green-600">
-                                <ExternalLink className="h-4 w-4 mr-1" /> Open
-                              </Button>
-                            )}
                             <Button type="button" variant="ghost" size="sm" onClick={() => setShowFinalReport(false)} className="h-6 w-6 p-0 text-gray-500" disabled={isSaving}>
                               <X className="h-3 w-3" />
                             </Button>
                           </div>
                         </div>
                         
-                        {taskData.pdfFinalReportPath && taskData.pdfFinalReportUrl && !tempFinalReportFile && (
-                          <div className="p-3 bg-green-50 rounded border border-green-200">
-                            <p className="text-green-700 flex items-center justify-between">
-                              <span className="flex items-center"><FileText className="h-4 w-4 mr-2" />Current: Final Report PDF</span>
-                              <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveExistingFile('FinalReport')} className="text-red-600 hover:text-red-700 hover:bg-red-50" disabled={isSaving}>
-                                <X className="h-4 w-4 mr-1" /> Remove
-                              </Button>
-                            </p>
-                          </div>
-                        )}
-                        
-                        {tempFinalReportFile && (
-                          <div className="p-3 bg-yellow-50 rounded border border-yellow-200">
-                            <p className="text-yellow-700 flex items-center justify-between">
-                              <span className="flex items-center"><FileText className="h-4 w-4 mr-2" />New file ready: {tempFinalReportFile.name}</span>
-                              <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveTempFile('FinalReport')} className="text-red-600 hover:text-red-700 hover:bg-red-50" disabled={isSaving}>
-                                <X className="h-4 w-4 mr-1" /> Remove
-                              </Button>
-                            </p>
-                          </div>
-                        )}
-                        
-                        <Input type="file" accept=".pdf" onChange={(e) => handleFileChange(e, 'FinalReport')} className="border-gray-300 bg-white" disabled={isSaving} />
-                        <p className="text-xs text-gray-500">📎 Upload final report PDF (max 10MB, PDF only)</p>
+                        <Input
+                          value={taskData.finalReportNumber}
+                          onChange={(e) => setTaskData(prev => ({ ...prev, finalReportNumber: e.target.value }))}
+                          placeholder="Enter final report number"
+                          className="border-gray-300 bg-white"
+                          disabled={isSaving}
+                        />
+                        <p className="text-xs text-gray-500">Enter final report number (optional)</p>
                       </div>
                     )}
                   </>
@@ -1979,60 +1810,7 @@ export default function AddCalendarItemModal({
         </div>
       </div>
 
-      {/* PDF Preview Modals */}
-      {showJobOrderPreview && (
-        <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-semibold">Preview: {tempJobOrderFile?.name || 'Job Order PDF'}</h3>
-              <Button variant="ghost" size="icon" onClick={() => setShowJobOrderPreview(false)}><X className="h-4 w-4" /></Button>
-            </div>
-            <div className="flex-1 p-4 overflow-auto bg-gray-100">
-              {(jobOrderPreviewUrl || taskData.pdfJobOrderUrl) ? (
-                <div className="w-full h-[70vh]">
-                  <embed src={jobOrderPreviewUrl || taskData.pdfJobOrderUrl} type="application/pdf" className="w-full h-full" />
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-[70vh] text-gray-500">
-                  <FileText className="h-16 w-16 mb-4" />
-                  <p>No PDF file to preview</p>
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end gap-2 p-4 border-t">
-              <Button variant="outline" onClick={() => setShowJobOrderPreview(false)}>Close</Button>
-              {jobOrderPreviewUrl && <Button onClick={() => window.open(jobOrderPreviewUrl, '_blank')}>Open in New Tab</Button>}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showFinalReportPreview && (
-        <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-semibold">Preview: {tempFinalReportFile?.name || 'Final Report PDF'}</h3>
-              <Button variant="ghost" size="icon" onClick={() => setShowFinalReportPreview(false)}><X className="h-4 w-4" /></Button>
-            </div>
-            <div className="flex-1 p-4 overflow-auto bg-gray-100">
-              {(finalReportPreviewUrl || taskData.pdfFinalReportUrl) ? (
-                <div className="w-full h-[70vh]">
-                  <embed src={finalReportPreviewUrl || taskData.pdfFinalReportUrl} type="application/pdf" className="w-full h-full" />
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-[70vh] text-gray-500">
-                  <FileText className="h-16 w-16 mb-4" />
-                  <p>No PDF file to preview</p>
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end gap-2 p-4 border-t">
-              <Button variant="outline" onClick={() => setShowFinalReportPreview(false)}>Close</Button>
-              {finalReportPreviewUrl && <Button onClick={() => window.open(finalReportPreviewUrl, '_blank')}>Open in New Tab</Button>}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* PDF preview removed — using numbers instead */}
 
       {/* Confirmation Dialog */}
       {showConfirmDialog && (

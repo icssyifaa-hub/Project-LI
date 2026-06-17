@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Holiday, HolidayFormData } from '../types'
+import { Holiday, HolidayFormData, MALAYSIA_STATES } from '../types'
 import { useToast } from '@/components/ui/use-toast'
 
 export function useHolidays() {
@@ -10,6 +10,10 @@ export function useHolidays() {
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
   const supabase = createClient()
+
+  const normalizeStates = (states: string[]) => {
+    return states.length === 0 || states.length === MALAYSIA_STATES.length ? null : states
+  }
 
   const fetchHolidays = async () => {
     setLoading(true)
@@ -39,7 +43,7 @@ export function useHolidays() {
         .insert([{
           name: holidayData.name,
           date: holidayData.date,
-          states: holidayData.states.length === 0 ? null : holidayData.states,
+          states: normalizeStates(holidayData.states),
           created_at: new Date().toISOString()
         }])
         .select()
@@ -66,7 +70,7 @@ export function useHolidays() {
       const updateData = {
         name: holidayData.name,
         date: holidayData.date,
-        states: holidayData.states.length === 0 ? null : holidayData.states
+        states: normalizeStates(holidayData.states)
       }
 
       const { error } = await supabase

@@ -4,10 +4,10 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Users, Calendar, FileText, Briefcase, UserCog, Settings as SettingsIcon, LogOut } from 'lucide-react'
+import { Users, Calendar, Hash, Briefcase, UserCog, Settings as SettingsIcon, LogOut } from 'lucide-react'
 import { UsersTab } from './components/UsersTab'
 import { HolidaysTab } from './components/HolidaysTab'
-import { PDFTab } from './components/PDFTab'
+import { NumberFieldsTab } from './components/NumberFieldsTab'
 import { JobTasksTab } from './components/JobTasksTab'
 import { StaffTab } from './components/StaffTab'
 import { Button } from '@/components/ui/button'
@@ -50,7 +50,7 @@ export default function SettingsPage() {
   // Get tab from URL hash or default to users
   useEffect(() => {
     const hash = window.location.hash.replace('#', '')
-    if (hash && ['users', 'holidays', 'pdf', 'job-tasks', 'staff'].includes(hash)) {
+    if (hash && ['users', 'holidays', 'number-fields', 'job-tasks', 'staff'].includes(hash)) {
       setActiveTab(hash)
     }
   }, [])
@@ -120,11 +120,11 @@ export default function SettingsPage() {
               Holidays
             </TabsTrigger>
             <TabsTrigger 
-              value="pdf" 
+              value="number-fields" 
               className="flex items-center data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700"
             >
-              <FileText className="h-4 w-4 mr-2" />
-              PDF Files
+              <Hash className="h-4 w-4 mr-2" />
+              Number Fields
             </TabsTrigger>
             <TabsTrigger 
               value="job-tasks" 
@@ -151,8 +151,8 @@ export default function SettingsPage() {
             <HolidaysTab />
           </TabsContent>
 
-          <TabsContent value="pdf" className="mt-6">
-            <PDFTab />
+          <TabsContent value="number-fields" className="mt-6">
+            <NumberFieldsTab />
           </TabsContent>
 
           <TabsContent value="job-tasks" className="mt-6">

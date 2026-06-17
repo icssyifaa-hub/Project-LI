@@ -155,7 +155,7 @@ export function UsersTab() {
                 Manage system users - All changes saved to database
               </CardDescription>
             </div>
-            <Button onClick={handleAdd} className="bg-blue-300 hover:bg-blue-300">
+            <Button onClick={handleAdd} className="bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-400">
               <Plus className="h-4 w-4 mr-2" />
               Add User
             </Button>
@@ -350,7 +350,7 @@ export function UsersTab() {
             </Button>
             <Button 
               type="button" 
-              className="bg-blue-300 hover:bg-blue-300"
+              className="bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-400"
               onClick={handleSave}
               disabled={saving}
             >

@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { StaffInfo, Holiday } from '@/app/calendar/types/calendar'
-import { getColorClass, getDotClass, getBadgeClass, getItemBgClass } from '@/lib/colors'
+import { colorClasses, getColorClass, getDotClass, getBadgeClass, getItemBgClass, type ColorKey } from '@/lib/colors'
 
 interface StaffFilters {
   [staffId: string]: {
@@ -59,9 +59,15 @@ export default function CalendarFilter({
 
   const getUserColorClasses = (user: StaffInfo) => {
     const colorKey = user.color || 'blue'
+    const isPaletteColor = colorKey in colorClasses
+    const customColorStyle = isPaletteColor ? undefined : { color: colorKey }
+    const customDotStyle = isPaletteColor ? undefined : { backgroundColor: colorKey }
+
     return {
-      bg: getDotClass(colorKey),
-      text: getColorClass(colorKey, 'text'),
+      bg: isPaletteColor ? getDotClass(colorKey as ColorKey) : 'bg-gray-400',
+      dotStyle: customDotStyle,
+      text: isPaletteColor ? getColorClass(colorKey as ColorKey, 'text') : '',
+      iconStyle: customColorStyle,
       badge: getBadgeClass(colorKey),
       lightBg: getItemBgClass(colorKey),
       solid: getColorClass(colorKey, 'solid'),
@@ -276,9 +282,15 @@ export default function CalendarFilter({
                       >
                         {/* Staff Name */}
                         <div className="col-span-5 flex items-center gap-2 min-w-0">
-                          <div className={cn("w-2 h-2 rounded-full flex-shrink-0", colors.bg)} />
-                          <UserRound className={cn("h-3 w-3 flex-shrink-0", colors.text)} />
-                          <span className={cn("text-sm font-medium truncate", colors.text)}>
+                          <div
+                            className={cn("w-2 h-2 rounded-full flex-shrink-0 ring-1 ring-black/10 dark:ring-white/20", colors.bg)}
+                            style={colors.dotStyle}
+                          />
+                          <UserRound
+                            className={cn("h-3 w-3 flex-shrink-0", colors.text || 'text-muted-foreground')}
+                            style={colors.iconStyle}
+                          />
+                          <span className="text-sm font-medium truncate text-foreground">
                             {staff.name}
                           </span>
                         </div>

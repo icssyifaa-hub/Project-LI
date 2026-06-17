@@ -61,13 +61,14 @@ export function HolidaysTab() {
   const filteredHolidays = holidays.filter(holiday => {
     const holidayYear = new Date(holiday.date).getFullYear()
     const matchesYear = holidayYear === filterYear
+    const isAllStatesHoliday = !holiday.states || holiday.states.length === 0 || holiday.states.length === MALAYSIA_STATES.length
     
     let matchesState = true
     if (filterState !== 'all') {
       if (filterState === 'national') {
-        matchesState = !holiday.states || holiday.states.length === 0
+        matchesState = isAllStatesHoliday
       } else {
-        matchesState = holiday.states?.includes(filterState) || false
+        matchesState = isAllStatesHoliday || holiday.states?.includes(filterState) || false
       }
     }
     
@@ -89,7 +90,7 @@ export function HolidaysTab() {
     setFormData({
       name: holiday.name,
       date: holiday.date,
-      states: holiday.states || []
+      states: holiday.states?.length === MALAYSIA_STATES.length ? [] : holiday.states || []
     })
     setIsDialogOpen(true)
   }
@@ -106,10 +107,15 @@ export function HolidaysTab() {
 
     setSaving(true)
     try {
+      const normalizedFormData = {
+        ...formData,
+        states: formData.states.length === MALAYSIA_STATES.length ? [] : formData.states
+      }
+
       if (editingHoliday) {
-        await updateHoliday(editingHoliday.id, formData)
+        await updateHoliday(editingHoliday.id, normalizedFormData)
       } else {
-        await addHoliday(formData)
+        await addHoliday(normalizedFormData)
       }
       setIsDialogOpen(false)
     } catch (error) {
@@ -136,7 +142,7 @@ export function HolidaysTab() {
   }
 
   const getStatesLabel = (stateCodes?: string[] | null) => {
-    if (!stateCodes || stateCodes.length === 0) return 'All States (National)'
+    if (!stateCodes || stateCodes.length === 0 || stateCodes.length === MALAYSIA_STATES.length) return 'All States'
     if (stateCodes.length === 1) {
       const state = MALAYSIA_STATES.find(s => s.value === stateCodes[0])
       return state ? state.label : stateCodes[0]
@@ -169,7 +175,7 @@ export function HolidaysTab() {
                 Add, edit, or remove holidays - Will appear in calendar
               </CardDescription>
             </div>
-            <Button onClick={handleAdd} className="bg-blue-300 hover:bg-blue-700">
+            <Button onClick={handleAdd} className="bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-400">
               <Plus className="h-4 w-4 mr-2" />
               Add Holiday
             </Button>
@@ -205,7 +211,7 @@ export function HolidaysTab() {
                 </SelectTrigger>
                 <SelectContent className="bg-white">
                   <SelectItem value="all">All States</SelectItem>
-                  <SelectItem value="national">National Only</SelectItem>
+                  <SelectItem value="national">All States Only</SelectItem>
                   {MALAYSIA_STATES.map(state => (
                     <SelectItem key={state.value} value={state.value}>
                       {state.label}
@@ -248,9 +254,9 @@ export function HolidaysTab() {
                       </td>
                       <td className="px-4 py-3 text-gray-900">{holiday.name}</td>
                       <td className="px-4 py-3 text-gray-600">
-                        {!holiday.states || holiday.states.length === 0 ? (
+                        {!holiday.states || holiday.states.length === 0 || holiday.states.length === MALAYSIA_STATES.length ? (
                           <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                            National
+                            All States
                           </Badge>
                         ) : (
                           <div className="flex flex-wrap gap-1">
@@ -339,7 +345,7 @@ export function HolidaysTab() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-gray-700">States (Leave empty for National holiday)</Label>
+              <Label className="text-gray-700">States</Label>
               <Popover open={isStatePopoverOpen} onOpenChange={setIsStatePopoverOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -348,7 +354,7 @@ export function HolidaysTab() {
                     className="w-full justify-between border-gray-300 bg-white hover:bg-gray-50"
                   >
                     {formData.states.length === 0 ? (
-                      <span className="text-gray-500">All States (National)</span>
+                      <span className="text-gray-500">All States</span>
                     ) : (
                       <span className="text-gray-900">
                         {getStatesLabel(formData.states)}
@@ -362,14 +368,9 @@ export function HolidaysTab() {
                     <div className="flex items-center space-x-2 border-b pb-2">
                       <Checkbox
                         id="select-all"
-                        checked={formData.states.length === MALAYSIA_STATES.length}
+                        checked={formData.states.length === 0}
                         onCheckedChange={(checked) => {
                           if (checked) {
-                            setFormData({
-                              ...formData,
-                              states: MALAYSIA_STATES.map(s => s.value)
-                            })
-                          } else {
                             setFormData({
                               ...formData,
                               states: []
@@ -381,7 +382,7 @@ export function HolidaysTab() {
                         htmlFor="select-all"
                         className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                       >
-                        Select All States
+                        All States
                       </label>
                     </div>
                     
@@ -410,7 +411,7 @@ export function HolidaysTab() {
                         size="sm"
                         onClick={() => setFormData({...formData, states: []})}
                       >
-                        Clear All
+                        All States
                       </Button>
                       <Button
                         type="button"
@@ -424,7 +425,7 @@ export function HolidaysTab() {
                 </PopoverContent>
               </Popover>
               <p className="text-xs text-gray-500">
-                Select multiple states where this holiday is observed. Leave empty for national holiday.
+                Choose All States, or select specific states only.
               </p>
             </div>
           </div>
@@ -435,7 +436,7 @@ export function HolidaysTab() {
             </Button>
             <Button 
               type="button" 
-              className="bg-blue-300 hover:bg-blue-300" 
+              className="bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-400" 
               onClick={handleSave}
               disabled={saving}
             >

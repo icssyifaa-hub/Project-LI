@@ -23,10 +23,8 @@ export interface Task {
   timeStart?: string
   timeStop?: string
   additionalRemark?: string
-  pdfJobOrderPath: string
-  pdfJobOrderUrl?: string    
-  pdfFinalReportPath: string
-  pdfFinalReportUrl?: string
+  jobOrderNumber?: string
+  finalReportNumber?: string
   jobStatus: 'onhold' | 'in-progress' | 'completed' | 'incomplete'
   createdby?: string              
   createdAt?: string
@@ -88,8 +86,8 @@ export interface UnscheduledTask {
   task_pic_id?: string          
   task_pic_name?: string         
   task_pic_color?: string        
-  pdfJobOrderPath?: string
-  pdfJobOrderUrl?: string
+  jobOrderNumber?: string
+  finalReportNumber?: string
   runningNumber?: string
   createdAt: Date
 }

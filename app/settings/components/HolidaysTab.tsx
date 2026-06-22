@@ -37,6 +37,29 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import { Plus, Edit, Trash2, Loader2, Save, Calendar, ChevronDown } from 'lucide-react'
+import {
+  settingsCardClass,
+  settingsContentClass,
+  settingsDescriptionClass,
+  settingsDialogContentClass,
+  settingsEmptyCellClass,
+  settingsFooterNoteClass,
+  settingsHeaderCellClass,
+  settingsHeaderClass,
+  settingsHeaderRowClass,
+  settingsInputClass,
+  settingsLabelClass,
+  settingsMutedCellClass,
+  settingsPrimaryButtonClass,
+  settingsSelectContentClass,
+  settingsStrongCellClass,
+  settingsTableBodyClass,
+  settingsTableClass,
+  settingsTableHeaderClass,
+  settingsTableRowClass,
+  settingsTableWrapperClass,
+  settingsTitleClass,
+} from './settings-styles'
 
 export function HolidaysTab() {
   const { holidays, loading, addHoliday, updateHoliday, deleteHoliday } = useHolidays()
@@ -166,34 +189,37 @@ export function HolidaysTab() {
 
   return (
     <>
-      <Card className="border border-gray-200">
-        <CardHeader className="border-b border-gray-200 bg-gray-50/50">
-          <div className="flex items-center justify-between">
+      <Card className={settingsCardClass}>
+        <CardHeader className={settingsHeaderClass}>
+          <div className={settingsHeaderRowClass}>
             <div>
-              <CardTitle className="text-gray-900">Holiday Management</CardTitle>
-              <CardDescription className="text-gray-500">
+              <CardTitle className={settingsTitleClass}>
+                <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                Holiday Management
+              </CardTitle>
+              <CardDescription className={settingsDescriptionClass}>
                 Add, edit, or remove holidays - Will appear in calendar
               </CardDescription>
             </div>
-            <Button onClick={handleAdd} className="bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-400">
+            <Button onClick={handleAdd} className={settingsPrimaryButtonClass}>
               <Plus className="h-4 w-4 mr-2" />
               Add Holiday
             </Button>
           </div>
         </CardHeader>
 
-        <CardContent className="pt-6">
+        <CardContent className={settingsContentClass}>
           {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50/70 p-3 sm:flex-row dark:border-gray-800 dark:bg-gray-950/40">
             <div className="flex gap-2">
               <Select
                 value={filterYear.toString()}
                 onValueChange={(value) => setFilterYear(parseInt(value))}
               >
-                <SelectTrigger className="w-32">
+                <SelectTrigger className={`w-32 ${settingsInputClass}`}>
                   <SelectValue placeholder="Year" />
                 </SelectTrigger>
-                <SelectContent className="bg-white">
+                <SelectContent className={settingsSelectContentClass}>
                   {years.map(year => (
                     <SelectItem key={year} value={year.toString()}>
                       {year}
@@ -206,10 +232,10 @@ export function HolidaysTab() {
                 value={filterState}
                 onValueChange={setFilterState}
               >
-                <SelectTrigger className="w-40">
+                <SelectTrigger className={`w-40 ${settingsInputClass}`}>
                   <SelectValue placeholder="State" />
                 </SelectTrigger>
-                <SelectContent className="bg-white">
+                <SelectContent className={settingsSelectContentClass}>
                   <SelectItem value="all">All States</SelectItem>
                   <SelectItem value="national">All States Only</SelectItem>
                   {MALAYSIA_STATES.map(state => (
@@ -223,39 +249,40 @@ export function HolidaysTab() {
           </div>
 
           {/* Holidays Table */}
-          <div className="rounded-lg border border-gray-200 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+          <div className={settingsTableWrapperClass}>
+            <div className="overflow-x-auto">
+            <table className={settingsTableClass}>
+              <thead className={settingsTableHeaderClass}>
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-16">No</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Holiday Name</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">States</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-24">Actions</th>
+                  <th className={`${settingsHeaderCellClass} w-16`}>No</th>
+                  <th className={settingsHeaderCellClass}>Date</th>
+                  <th className={settingsHeaderCellClass}>Holiday Name</th>
+                  <th className={settingsHeaderCellClass}>States</th>
+                  <th className={`${settingsHeaderCellClass} w-24`}>Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className={settingsTableBodyClass}>
                 {filteredHolidays.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                    <td colSpan={5} className={settingsEmptyCellClass}>
                       No holidays found for this filter
                     </td>
                   </tr>
                 ) : (
                   filteredHolidays.map((holiday, index) => (
-                    <tr key={holiday.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-600">{index + 1}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">
+                    <tr key={holiday.id} className={settingsTableRowClass}>
+                      <td className={settingsMutedCellClass}>{index + 1}</td>
+                      <td className={settingsStrongCellClass}>
                         {new Date(holiday.date).toLocaleDateString('en-GB', {
                           day: '2-digit',
                           month: 'short',
                           year: 'numeric'
                         })}
                       </td>
-                      <td className="px-4 py-3 text-gray-900">{holiday.name}</td>
-                      <td className="px-4 py-3 text-gray-600">
+                      <td className={settingsStrongCellClass}>{holiday.name}</td>
+                      <td className={settingsMutedCellClass}>
                         {!holiday.states || holiday.states.length === 0 || holiday.states.length === MALAYSIA_STATES.length ? (
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                          <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700 dark:border-green-900/60 dark:bg-green-950/50 dark:text-green-300">
                             All States
                           </Badge>
                         ) : (
@@ -263,7 +290,7 @@ export function HolidaysTab() {
                             {holiday.states.map(stateCode => {
                               const state = MALAYSIA_STATES.find(s => s.value === stateCode)
                               return state ? (
-                                <Badge key={stateCode} variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                <Badge key={stateCode} variant="outline" className="border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/50 dark:text-blue-300">
                                   {state.label}
                                 </Badge>
                               ) : null
@@ -298,9 +325,10 @@ export function HolidaysTab() {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
 
-          <p className="text-xs text-gray-500 mt-4 flex items-center">
+          <p className={settingsFooterNoteClass}>
             <Calendar className="h-3 w-3 mr-1" />
             Holidays added here will automatically appear in the calendar with a green background.
           </p>

@@ -9,7 +9,26 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { ChevronLeft, ChevronRight, Hash, Loader2, Search, X } from 'lucide-react'
+import {
+  settingsCardClass,
+  settingsContentClass,
+  settingsDescriptionClass,
+  settingsEmptyCellClass,
+  settingsHeaderCellClass,
+  settingsHeaderClass,
+  settingsMutedCellClass,
+  settingsStrongCellClass,
+  settingsTableBodyClass,
+  settingsTableClass,
+  settingsTableHeaderClass,
+  settingsTableRowClass,
+  settingsTableWrapperClass,
+  settingsTitleClass,
+  settingsInputClass,
+} from './settings-styles'
 
 type TaskNumberRow = {
   id: string
@@ -30,6 +49,44 @@ export function NumberFieldsTab() {
   const [rows, setRows] = useState<TaskNumberRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [searchInput, setSearchInput] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const rowsPerPage = 10
+
+  const filteredRows = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase()
+    if (!query) return rows
+
+    return rows.filter((row) => {
+      return [
+        row.client_name,
+        row.job_task,
+        row.job_order_number,
+        row.final_report_number,
+        formatDate(row.date_start),
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query))
+    })
+  }, [rows, searchTerm])
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / rowsPerPage))
+  const pageStart = (currentPage - 1) * rowsPerPage
+  const visibleRows = filteredRows.slice(pageStart, pageStart + rowsPerPage)
+  const showingStart = filteredRows.length === 0 ? 0 : pageStart + 1
+  const showingEnd = Math.min(pageStart + rowsPerPage, filteredRows.length)
+
+  const handleSearch = () => {
+    setSearchTerm(searchInput)
+    setCurrentPage(1)
+  }
+
+  const handleClearSearch = () => {
+    setSearchInput('')
+    setSearchTerm('')
+    setCurrentPage(1)
+  }
 
   useEffect(() => {
     let isMounted = true
@@ -73,105 +130,141 @@ export function NumberFieldsTab() {
   }
 
   return (
-    <Card className="border border-gray-200">
-      <CardHeader>
-        <CardTitle className="text-gray-900">Number Fields</CardTitle>
-        <CardDescription className="text-gray-500">
-          Job Order Number and Final Report Number
-        </CardDescription>
+    <Card className={settingsCardClass}>
+      <CardHeader className={settingsHeaderClass}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className={settingsTitleClass}>
+              <Hash className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              Number Fields
+            </CardTitle>
+            <CardDescription className={settingsDescriptionClass}>
+              Job Order Number and Final Report Number
+            </CardDescription>
+          </div>
+          <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/50 dark:text-blue-300">
+            {rows.length} records
+          </span>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className={settingsContentClass}>
         {error && (
-          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
             {error}
           </div>
         )}
 
-        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr className="border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="px-4 py-3">Field</th>
-                <th className="px-4 py-3">Fill In</th>
-                <th className="px-4 py-3">Example</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              <tr>
-                <td className="px-4 py-3 font-medium text-gray-900">Job Order Number</td>
-                <td className="px-4 py-3 text-gray-600">Job order reference</td>
-                <td className="px-4 py-3">
-                  <span className="rounded bg-blue-50 px-2 py-1 font-medium text-blue-700">JO-2026-001</span>
-                </td>
-              </tr>
-              <tr>
-                <td className="px-4 py-3 font-medium text-gray-900">Final Report Number</td>
-                <td className="px-4 py-3 text-gray-600">Final report reference</td>
-                <td className="px-4 py-3">
-                  <span className="rounded bg-emerald-50 px-2 py-1 font-medium text-emerald-700">FR-2026-001</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50/70 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800 dark:bg-gray-950/40">
+          <div className="flex w-full flex-col gap-2 sm:max-w-xl sm:flex-row">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
+              <Input
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') handleSearch()
+                }}
+                placeholder="Search client, task, JO number, FR number..."
+                className={`pl-9 ${settingsInputClass}`}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" onClick={handleSearch} className="w-full sm:w-auto">
+                <Search className="h-4 w-4" />
+                Search
+              </Button>
+              {searchTerm && (
+                <Button type="button" variant="outline" onClick={handleClearSearch} className="w-full sm:w-auto">
+                  <X className="h-4 w-4" />
+                  Clear
+                </Button>
+              )}
+            </div>
+          </div>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            Showing {showingStart}-{showingEnd} of {filteredRows.length}
+          </span>
         </div>
 
-        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-          <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-            <h3 className="font-medium text-gray-900">Existing Numbers</h3>
-            <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">
-              {rows.length}
-            </span>
-          </div>
-
+        <div className={settingsTableWrapperClass}>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-sm">
-              <thead className="bg-gray-50">
-                <tr className="border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  <th className="px-4 py-3">Client</th>
-                  <th className="px-4 py-3">Job Task</th>
-                  <th className="px-4 py-3">Job Order Number</th>
-                  <th className="px-4 py-3">Final Report Number</th>
-                  <th className="px-4 py-3">Date</th>
+            <table className={`${settingsTableClass} min-w-[840px]`}>
+              <thead className={settingsTableHeaderClass}>
+                <tr>
+                  <th className={`${settingsHeaderCellClass} w-16`}>No</th>
+                  <th className={settingsHeaderCellClass}>Client</th>
+                  <th className={settingsHeaderCellClass}>Job Task</th>
+                  <th className={settingsHeaderCellClass}>Job Order Number</th>
+                  <th className={settingsHeaderCellClass}>Final Report Number</th>
+                  <th className={settingsHeaderCellClass}>Date</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
-                {rows.length === 0 ? (
+              <tbody className={settingsTableBodyClass}>
+                {visibleRows.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-8 text-center text-gray-500" colSpan={5}>
-                      No numbers found.
+                    <td className={settingsEmptyCellClass} colSpan={6}>
+                      {searchTerm ? 'No numbers match your search.' : 'No numbers found.'}
                     </td>
                   </tr>
                 ) : (
-                  rows.map((row) => (
-                    <tr key={row.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-900">
+                  visibleRows.map((row, index) => (
+                    <tr key={row.id} className={settingsTableRowClass}>
+                      <td className={settingsMutedCellClass}>{pageStart + index + 1}</td>
+                      <td className={settingsStrongCellClass}>
                         {row.client_name || 'Unknown Client'}
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{row.job_task || '-'}</td>
+                      <td className={settingsMutedCellClass}>{row.job_task || '-'}</td>
                       <td className="px-4 py-3">
                         {row.job_order_number ? (
-                          <span className="rounded bg-blue-50 px-2 py-1 font-medium text-blue-700">
+                          <span className="rounded bg-blue-50 px-2 py-1 font-medium text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
                             {row.job_order_number}
                           </span>
                         ) : (
-                          <span className="text-gray-400">-</span>
+                          <span className="text-gray-400 dark:text-gray-500">-</span>
                         )}
                       </td>
                       <td className="px-4 py-3">
                         {row.final_report_number ? (
-                          <span className="rounded bg-emerald-50 px-2 py-1 font-medium text-emerald-700">
+                          <span className="rounded bg-emerald-50 px-2 py-1 font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
                             {row.final_report_number}
                           </span>
                         ) : (
-                          <span className="text-gray-400">-</span>
+                          <span className="text-gray-400 dark:text-gray-500">-</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{formatDate(row.date_start)}</td>
+                      <td className={settingsMutedCellClass}>{formatDate(row.date_start)}</td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
+          </div>
+          <div className="flex flex-col gap-3 border-t border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Page {currentPage} of {totalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </CardContent>

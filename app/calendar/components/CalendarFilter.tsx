@@ -50,8 +50,7 @@ export default function CalendarFilter({
   const [staffSearch, setStaffSearch] = useState('')
   const [internalFilters, setInternalFilters] = useState<StaffFilters>({})
   const hasExternalHandlers = !!externalTaskToggle && !!externalEventToggle
-  const hasExternalFilters = Object.keys(externalFilters).length > 0
-  const staffFilters = hasExternalFilters ? externalFilters : internalFilters
+  const staffFilters = hasExternalHandlers ? externalFilters : internalFilters
   const staffList = users.filter((staff) => staff.role === 'staff')
   const filteredStaff = staffList.filter((staff) =>
     staff.name?.toLowerCase().includes(staffSearch.toLowerCase())
@@ -149,11 +148,15 @@ export default function CalendarFilter({
     getStaffEventsChecked(staff.id)
   ).length
 
+  const totalActiveSelections = staffList.reduce((count, staff) => {
+    return count + (getStaffTasksChecked(staff.id) ? 1 : 0) + (getStaffEventsChecked(staff.id) ? 1 : 0)
+  }, 0)
+
   const allTasksSelected = filteredStaff.length > 0 && totalTasksSelected === filteredStaff.length
   const allEventsSelected = filteredStaff.length > 0 && totalEventsSelected === filteredStaff.length
 
   return (
-    <div className="w-80 h-full bg-background border-r flex flex-col">
+    <div className="flex h-full min-h-0 w-full flex-col border-b bg-background lg:border-b-0 lg:border-r">
       {/* Header */}
       <div className="p-4 border-b">
         <Button
@@ -178,7 +181,7 @@ export default function CalendarFilter({
             <>
               {/* Holidays Section */}
               <div className="space-y-2">
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center gap-3">
                   <Checkbox 
                     id="holidays" 
                     checked={showHolidays}
@@ -205,7 +208,7 @@ export default function CalendarFilter({
               {/* Staff Section */}
               <div className="space-y-3">
                 {/* Staff Header */}
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-muted-foreground" />
                     <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -213,7 +216,7 @@ export default function CalendarFilter({
                     </span>
                   </div>
                   <Badge variant="secondary" className="text-xs">
-                    {totalTasksSelected + totalEventsSelected} active
+                    {totalActiveSelections} active
                   </Badge>
                 </div>
 
@@ -229,7 +232,7 @@ export default function CalendarFilter({
                 </div>
 
                 {/* Column Headers with Toggle All Buttons */}
-                <div className="grid grid-cols-12 gap-2 px-2 py-1 bg-muted/30 rounded-md">
+                <div className="grid grid-cols-12 gap-2 rounded-md bg-muted/30 px-2 py-1">
                   <div className="col-span-5">
                     <span className="text-xs font-medium text-muted-foreground">Staff</span>
                   </div>
@@ -238,7 +241,7 @@ export default function CalendarFilter({
                       variant="ghost"
                       size="sm"
                       onClick={handleToggleAllTasks}
-                      className="h-auto p-0 text-xs font-medium text-muted-foreground hover:text-blue-600 gap-1"
+                      className="h-auto gap-1 p-0 text-xs font-medium text-muted-foreground hover:text-blue-600"
                     >
                       <CheckSquare className="h-3 w-3" />
                       Task
@@ -252,7 +255,7 @@ export default function CalendarFilter({
                       variant="ghost"
                       size="sm"
                       onClick={handleToggleAllEvents}
-                      className="h-auto p-0 text-xs font-medium text-muted-foreground hover:text-purple-600 gap-1"
+                      className="h-auto gap-1 p-0 text-xs font-medium text-muted-foreground hover:text-purple-600"
                     >
                       <CalendarDays className="h-3 w-3" />
                       Events
@@ -265,7 +268,7 @@ export default function CalendarFilter({
                 </div>
 
                 {/* Staff List */}
-                <div className="space-y-1 max-h-[400px] overflow-y-auto">
+                <div className="max-h-[42vh] space-y-1 overflow-y-auto pr-1 sm:max-h-[52vh] lg:max-h-[400px]">
                   {filteredStaff.map((staff) => {
                     const colors = getUserColorClasses(staff)
                     const staffId = staff.id
@@ -332,8 +335,8 @@ export default function CalendarFilter({
                 
                 {/* Summary Footer */}
                 {filteredStaff.length > 0 && (
-                  <div className="pt-2 mt-2 border-t">
-                    <div className="flex justify-between text-xs text-muted-foreground">
+                  <div className="mt-2 border-t pt-2">
+                    <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:justify-between">
                       <div className="flex items-center gap-1">
                         <CheckSquare className="h-3 w-3 text-blue-500" />
                         <span>{totalTasksSelected}/{filteredStaff.length} tasks</span>

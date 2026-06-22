@@ -1,7 +1,7 @@
 'use client'
 
 import { useUsers } from '../hooks/useUsers'
-import { Loader2, UserCog } from 'lucide-react'
+import { Loader2, Mail, UserCog } from 'lucide-react'
 import {
   Card,
   CardContent,
@@ -9,53 +9,80 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import {
+  settingsCardClass,
+  settingsContentClass,
+  settingsDescriptionClass,
+  settingsEmptyCellClass,
+  settingsHeaderCellClass,
+  settingsHeaderClass,
+  settingsMutedCellClass,
+  settingsTableBodyClass,
+  settingsTableClass,
+  settingsTableHeaderClass,
+  settingsTableRowClass,
+  settingsTableWrapperClass,
+  settingsTitleClass,
+} from './settings-styles'
 
 export function StaffTab() {
   const { users, loading } = useUsers()
-  
-  const staff = users.filter(user => user.role === 'staff')
+  const staff = users.filter(user => user.role === 'staff' && user.is_active)
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600 dark:text-blue-400" />
       </div>
     )
   }
 
   return (
-    <Card className="border border-gray-200">
-      <CardHeader className="border-b border-gray-200 bg-gray-50/50">
-        <div>
-          <CardTitle className="text-gray-900">ICS Consulting Staff</CardTitle>
-          <CardDescription className="text-gray-500">
-            List of staff members who can login to the system
-          </CardDescription>
+    <Card className={settingsCardClass}>
+      <CardHeader className={settingsHeaderClass}>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <CardTitle className={settingsTitleClass}>
+              <UserCog className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              ICS Consulting Staff
+            </CardTitle>
+            <CardDescription className={settingsDescriptionClass}>
+              Active staff members who can login to the system
+            </CardDescription>
+          </div>
+          <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/50 dark:text-blue-300">
+            {staff.length} active
+          </span>
         </div>
       </CardHeader>
-      <CardContent className="pt-6">
-        <div className="rounded-lg border border-gray-200 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
+      <CardContent className={settingsContentClass}>
+        <div className={settingsTableWrapperClass}>
+          <table className={settingsTableClass}>
+            <thead className={settingsTableHeaderClass}>
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-16">No</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                <th className={`${settingsHeaderCellClass} w-16`}>No</th>
+                <th className={settingsHeaderCellClass}>Name</th>
+                <th className={settingsHeaderCellClass}>Email</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className={settingsTableBodyClass}>
               {staff.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-4 py-8 text-center text-gray-500">
-                    No staff members found.
+                  <td colSpan={3} className={settingsEmptyCellClass}>
+                    No active staff members found.
                   </td>
                 </tr>
               ) : (
                 staff.map((member, index) => (
-                  <tr key={member.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-gray-600">{index + 1}</td>
-                    <td className="px-4 py-3 font-medium text-gray-900">{member.name}</td>
-                    <td className="px-4 py-3 text-gray-600">{member.email}</td>
+                  <tr key={member.id} className={settingsTableRowClass}>
+                    <td className={settingsMutedCellClass}>{index + 1}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{member.name}</td>
+                    <td className={settingsMutedCellClass}>
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                        {member.email || '-'}
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}

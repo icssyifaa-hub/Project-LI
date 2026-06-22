@@ -50,7 +50,6 @@ export async function getTasks(startDate: string, endDate: string) {
         timeStop: task.time_stop,
         additionalRemark: task.additional_remark,
         jobOrderNumber: task.job_order_number || '',
-        pdfJobOrderUrl: task.pdf_job_order_url || '',
         task_pic_id: task.task_pic_id || '',
         task_pic_name: task.task_pic_name || '',
         task_pic_color: task.task_pic_color || 'blue',
@@ -107,7 +106,6 @@ export async function createTask(taskData: any) {
       time_stop: taskData.time_stop || taskData.timeStop || null,
       additional_remark: taskData.additional_remark || taskData.additionalRemark || null,
       job_order_number: taskData.job_order_number || taskData.jobOrderNumber || null,
-      pdf_job_order_url: taskData.pdf_job_order_url || taskData.pdfJobOrderUrl || null,
       task_pic_id: taskData.task_pic_id || null,
       task_pic_name: taskData.task_pic_name || taskData.taskPicName || null,
       task_pic_color: taskData.task_pic_color || taskData.taskPicColor || 'blue',
@@ -115,7 +113,7 @@ export async function createTask(taskData: any) {
       task_support_names: taskSupportNamesString,
       task_support_colors: taskSupportColorsString,
       final_report_number: taskData.final_report_number || taskData.finalReportNumber || null,
-      job_status: taskData.job_status || taskData.jobStatus || 'in-progress',
+      job_status: taskData.job_status || taskData.jobStatus || (taskData.date_start || taskData.dateStart ? 'in-progress' : 'onhold'),
       created_by: userId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -141,6 +139,12 @@ export async function updateTask(id: string, taskData: any) {
   const supabase = createClient()
   
   try {
+    const pickValue = (snakeKey: string, camelKey: string, fallback: any = null) => {
+      if (Object.prototype.hasOwnProperty.call(taskData, snakeKey)) return taskData[snakeKey]
+      if (Object.prototype.hasOwnProperty.call(taskData, camelKey)) return taskData[camelKey]
+      return fallback
+    }
+
     const taskSupportIdsString = taskData.task_support_ids 
       ? (Array.isArray(taskData.task_support_ids) ? taskData.task_support_ids.join(',') : taskData.task_support_ids)
       : null
@@ -156,23 +160,23 @@ export async function updateTask(id: string, taskData: any) {
     const { data, error } = await supabase
       .from('tasks')
       .update({
-        client_name: taskData.client_name || taskData.clientName,
-        running_number: taskData.running_number || taskData.runningNumber,
-        job_task: taskData.job_task || taskData.jobTask,
-        date_start: taskData.date_start || taskData.dateStart,
-        date_stop: taskData.date_stop || taskData.dateStop,
-        time_start: taskData.time_start || taskData.timeStart,
-        time_stop: taskData.time_stop || taskData.timeStop,
-        additional_remark: taskData.additional_remark || taskData.additionalRemark,
-        job_order_number: taskData.job_order_number || taskData.jobOrderNumber,
+        client_name: pickValue('client_name', 'clientName'),
+        running_number: pickValue('running_number', 'runningNumber'),
+        job_task: pickValue('job_task', 'jobTask'),
+        date_start: pickValue('date_start', 'dateStart'),
+        date_stop: pickValue('date_stop', 'dateStop'),
+        time_start: pickValue('time_start', 'timeStart'),
+        time_stop: pickValue('time_stop', 'timeStop'),
+        additional_remark: pickValue('additional_remark', 'additionalRemark'),
+        job_order_number: pickValue('job_order_number', 'jobOrderNumber'),
         task_pic_id: taskData.task_pic_id || null,
-        task_pic_name: taskData.task_pic_name || taskData.taskPicName,
-        task_pic_color: taskData.task_pic_color || taskData.taskPicColor,
+        task_pic_name: pickValue('task_pic_name', 'taskPicName'),
+        task_pic_color: pickValue('task_pic_color', 'taskPicColor'),
         task_support_ids: taskSupportIdsString,
         task_support_names: taskSupportNamesString,
         task_support_colors: taskSupportColorsString,
-        final_report_number: taskData.final_report_number || taskData.finalReportNumber,
-        job_status: taskData.job_status || taskData.jobStatus,
+        final_report_number: pickValue('final_report_number', 'finalReportNumber'),
+        job_status: pickValue('job_status', 'jobStatus'),
         updated_at: new Date().toISOString()
       })
       .eq('id', id)

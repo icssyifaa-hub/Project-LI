@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { CalendarViews } from './components/CalendarViews'
 import { useCalendarData } from '@/app/calendar/hooks/useCalendarData'
 import AddCalendarItemModal from './AddCalendarItemModal'
@@ -20,6 +21,7 @@ import {
   ChevronDown,
   Bell,
   Filter,
+  X,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -37,12 +39,15 @@ const STORAGE_KEYS = {
   SHOW_FILTER: 'calendar_show_filter',
   SHOW_NOTIFICATIONS: 'calendar_show_notifications',
   SHOW_TASK_INBOX: 'calendar_show_task_inbox',
-  NOTIFICATION_BADGE_COUNT: 'notification_unread_count',
-  INBOX_BADGE_COUNT: 'inbox_unread_count'
 }
 
 const createStableDate = (date: Date): Date => {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0)
+}
+
+const isAdminUser = (user: any) => {
+  const role = String(user?.role || '').toLowerCase()
+  return role === 'admin' || role === 'superadmin'
 }
 
 interface StaffFilters {
@@ -52,9 +57,55 @@ interface StaffFilters {
   }
 }
 
+interface ResponsiveCalendarPanelProps {
+  title: string
+  icon: ReactNode
+  onClose: () => void
+  children: ReactNode
+  className?: string
+}
+
+function ResponsiveCalendarPanel({
+  title,
+  icon,
+  onClose,
+  children,
+  className = '',
+}: ResponsiveCalendarPanelProps) {
+  return (
+    <div
+      className="fixed inset-x-0 bottom-0 top-16 z-40 bg-black/40 p-2 sm:p-4 lg:static lg:z-auto lg:flex lg:bg-transparent lg:p-0"
+      onClick={onClose}
+    >
+      <div
+        className={`calendar-panel-surface mx-auto flex h-full min-h-0 w-full max-w-xl flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100 lg:mx-0 lg:max-w-none lg:rounded-lg lg:shadow-none ${className}`}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800 lg:hidden">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+              {icon}
+            </span>
+            <h2 className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</h2>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label={`Close ${title}`}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+const isMobileViewport = () =>
+  typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches
+
 export default function CalendarPage() {
+  const searchParams = useSearchParams()
   const [currentDate, setCurrentDate] = useState(createStableDate(new Date()))
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [selectedEndDate, setSelectedEndDate] = useState<Date | null>(null)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [showItemModal, setShowItemModal] = useState(false)
@@ -75,6 +126,8 @@ export default function CalendarPage() {
   const [notificationUnreadCount, setNotificationUnreadCount] = useState(0)
   const [inboxUnreadCount, setInboxUnreadCount] = useState(0)
   const [badgeCountsLoaded, setBadgeCountsLoaded] = useState(false)
+  const [focusedDateKey, setFocusedDateKey] = useState<string | null>(null)
+  const [taskInboxRefreshKey, setTaskInboxRefreshKey] = useState(0)
   
   const { toast } = useToast()
   const supabase = createClient()
@@ -94,41 +147,98 @@ export default function CalendarPage() {
 
   const { users: allUsers, loading: loadingUsers } = useUsers()
   const { holidays: allHolidays, loading: loadingHolidays } = useHolidays()
-  
+  const searchParamString = searchParams.toString()
+
   useEffect(() => {
-    try {
-      const savedNotificationCount = localStorage.getItem(STORAGE_KEYS.NOTIFICATION_BADGE_COUNT)
-      const savedInboxCount = localStorage.getItem(STORAGE_KEYS.INBOX_BADGE_COUNT)
-      
-      if (savedNotificationCount !== null) {
-        setNotificationUnreadCount(parseInt(savedNotificationCount))
-        console.log('📂 Loaded notification badge count:', savedNotificationCount)
-      }
-      
-      if (savedInboxCount !== null) {
-        setInboxUnreadCount(parseInt(savedInboxCount))
-        console.log('📂 Loaded inbox badge count:', savedInboxCount)
-      }
-    } catch (error) {
-      console.error('Error loading badge counts from localStorage:', error)
-    } finally {
-      setBadgeCountsLoaded(true)
-    }
+    localStorage.removeItem('notification_unread_count')
+    localStorage.removeItem('inbox_unread_count')
   }, [])
 
   useEffect(() => {
-    if (badgeCountsLoaded) {
-      localStorage.setItem(STORAGE_KEYS.NOTIFICATION_BADGE_COUNT, notificationUnreadCount.toString())
-      console.log('💾 Saved notification badge count:', notificationUnreadCount)
+    const fetchBadgeCounts = async () => {
+      if (!user?.id) {
+        setNotificationUnreadCount(0)
+        setInboxUnreadCount(0)
+        setBadgeCountsLoaded(true)
+        return
+      }
+
+      setBadgeCountsLoaded(false)
+
+      try {
+        const notificationQuery = supabase
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('read', false)
+
+        const notificationResult = isAdminUser(user)
+          ? await notificationQuery
+          : await notificationQuery.eq('user_id', user.id)
+
+        if (notificationResult.error) throw notificationResult.error
+
+        const { count: inboxCount, error: inboxError } = await supabase
+          .from('tasks')
+          .select('id', { count: 'exact', head: true })
+          .is('date_start', null)
+
+        if (inboxError) throw inboxError
+
+        setNotificationUnreadCount(notificationResult.count || 0)
+        setInboxUnreadCount(inboxCount || 0)
+      } catch (error) {
+        console.error('Error loading badge counts from database:', error)
+      } finally {
+        setBadgeCountsLoaded(true)
+      }
     }
-  }, [notificationUnreadCount, badgeCountsLoaded])
+
+    fetchBadgeCounts()
+  }, [user?.id, user?.role])
 
   useEffect(() => {
-    if (badgeCountsLoaded) {
-      localStorage.setItem(STORAGE_KEYS.INBOX_BADGE_COUNT, inboxUnreadCount.toString())
-      console.log('💾 Saved inbox badge count:', inboxUnreadCount)
+    if (!isInitialized) return
+
+    const urlParams = new URLSearchParams(searchParamString)
+    const dateFromUrl = urlParams.get('date')
+    const focusFromUrl = urlParams.get('focus')
+    const viewFromUrl = urlParams.get('view') as ViewType | null
+
+    if (!dateFromUrl && !focusFromUrl) return
+
+    let focusTimeoutId: ReturnType<typeof setTimeout> | null = null
+
+    if (dateFromUrl) {
+      const [year, month, day] = dateFromUrl.split('-').map(Number)
+      if (year && month && day) {
+        const targetDate = createStableDate(new Date(year, month - 1, day))
+        setCurrentDate(targetDate)
+        setSelectedDate(targetDate)
+        setSelectedEndDate(null)
+      }
     }
-  }, [inboxUnreadCount, badgeCountsLoaded])
+
+    if (viewFromUrl && ['day', 'week', 'month', 'year', 'schedule'].includes(viewFromUrl)) {
+      setView(viewFromUrl)
+    }
+
+    if (focusFromUrl) {
+      setFocusedDateKey(focusFromUrl)
+      focusTimeoutId = setTimeout(() => {
+        setFocusedDateKey(null)
+      }, 15000)
+
+      urlParams.delete('focus')
+      const newQuery = urlParams.toString()
+      window.history.replaceState({}, '', `${window.location.pathname}${newQuery ? `?${newQuery}` : ''}`)
+    }
+
+    return () => {
+      if (focusTimeoutId) {
+        clearTimeout(focusTimeoutId)
+      }
+    }
+  }, [isInitialized, searchParamString])
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
@@ -204,8 +314,12 @@ export default function CalendarPage() {
     }
   }, [tasks, events, view, currentDate])
 
+  const hasActiveStaffFilters = useMemo(() => {
+    return Object.values(staffFilters).some(filter => filter.tasks || filter.events)
+  }, [staffFilters])
+
   const filteredTasks = useMemo(() => {
-    if (Object.keys(staffFilters).length === 0) {
+    if (!hasActiveStaffFilters) {
       return tasks
     }
     
@@ -223,10 +337,10 @@ export default function CalendarPage() {
       
       return false
     })
-  }, [tasks, staffFilters])
+  }, [tasks, staffFilters, hasActiveStaffFilters])
 
   const filteredEvents = useMemo(() => {
-    if (Object.keys(staffFilters).length === 0) {
+    if (!hasActiveStaffFilters) {
       return events
     }
     
@@ -244,7 +358,7 @@ export default function CalendarPage() {
       
       return false
     })
-  }, [events, staffFilters])
+  }, [events, staffFilters, hasActiveStaffFilters])
 
   const filteredHolidays = useMemo(() => {
     if (!showHolidays) return []
@@ -258,7 +372,11 @@ export default function CalendarPage() {
   }, [allHolidays, showHolidays])
 
   const activeFilterCount = useMemo(() => {
-    return Object.values(staffFilters).filter(f => f.tasks || f.events).length + (showHolidays ? 1 : 0)
+    const staffToggleCount = Object.values(staffFilters).reduce((count, filter) => {
+      return count + (filter.tasks ? 1 : 0) + (filter.events ? 1 : 0)
+    }, 0)
+
+    return staffToggleCount + (showHolidays ? 1 : 0)
   }, [staffFilters, showHolidays])
   
   const viewOptions = useMemo(() => [
@@ -270,6 +388,8 @@ export default function CalendarPage() {
   ], [])
 
   useEffect(() => {
+    let focusTimeoutId: ReturnType<typeof setTimeout> | null = null
+
     try {
       const savedStaffFilters = localStorage.getItem(STORAGE_KEYS.STAFF_FILTERS)
       if (savedStaffFilters) {
@@ -301,10 +421,45 @@ export default function CalendarPage() {
         console.log('📂 Loaded showTaskInbox:', JSON.parse(savedShowTaskInbox))
       }
       
+      const urlParams = new URLSearchParams(window.location.search)
+      const dateFromUrl = urlParams.get('date')
+      const focusFromUrl = urlParams.get('focus')
+      const viewFromUrl = urlParams.get('view') as ViewType | null
+
+      if (dateFromUrl) {
+        const [year, month, day] = dateFromUrl.split('-').map(Number)
+        if (year && month && day) {
+          const targetDate = createStableDate(new Date(year, month - 1, day))
+          setCurrentDate(targetDate)
+          setSelectedDate(targetDate)
+
+          if (focusFromUrl) {
+            setFocusedDateKey(focusFromUrl)
+            focusTimeoutId = setTimeout(() => {
+              setFocusedDateKey(null)
+            }, 15000)
+
+            urlParams.delete('focus')
+            const newQuery = urlParams.toString()
+            window.history.replaceState({}, '', `${window.location.pathname}${newQuery ? `?${newQuery}` : ''}`)
+          }
+        }
+      }
+
+      if (viewFromUrl && ['day', 'week', 'month', 'year', 'schedule'].includes(viewFromUrl)) {
+        setView(viewFromUrl)
+      }
+
     } catch (error) {
       console.error('Error loading state from localStorage:', error)
     } finally {
       setIsInitialized(true)
+    }
+
+    return () => {
+      if (focusTimeoutId) {
+        clearTimeout(focusTimeoutId)
+      }
     }
   }, [])
 
@@ -413,6 +568,7 @@ export default function CalendarPage() {
     const fixedDate = createStableDate(date)
     setCurrentDate(fixedDate)
     setSelectedDate(fixedDate)
+    setSelectedEndDate(null)
     setSelectedTask(null)
     setSelectedEvent(null)
     setSelectedItemType(null)
@@ -420,9 +576,14 @@ export default function CalendarPage() {
     setShowItemModal(true)
   }, [])
 
-  const handleAddClick = useCallback((date: Date) => {
+  const handleAddClick = useCallback((date: Date, endDate?: Date | null) => {
     const fixedDate = createStableDate(date)
-    setSelectedDate(fixedDate)
+    const fixedEndDate = endDate ? createStableDate(endDate) : null
+    const startDate = fixedEndDate && fixedEndDate < fixedDate ? fixedEndDate : fixedDate
+    const stopDate = fixedEndDate && fixedEndDate < fixedDate ? fixedDate : fixedEndDate
+
+    setSelectedDate(startDate)
+    setSelectedEndDate(stopDate && stopDate.getTime() !== startDate.getTime() ? stopDate : null)
     setSelectedTask(null)
     setSelectedEvent(null)
     setSelectedItemType(null)
@@ -434,6 +595,7 @@ export default function CalendarPage() {
     setSelectedTask(task)
     setSelectedEvent(null)
     setSelectedDate(createStableDate(new Date(task.dateStart)))
+    setSelectedEndDate(null)
     setSelectedItemType('task')
     setPrefilledTaskData(null)
     setShowItemModal(true)
@@ -443,6 +605,7 @@ export default function CalendarPage() {
     setSelectedEvent(event)
     setSelectedTask(null)
     setSelectedDate(createStableDate(new Date(event.dateStart)))
+    setSelectedEndDate(null)
     setSelectedItemType('event')
     setPrefilledTaskData(null)
     setShowItemModal(true)
@@ -474,6 +637,7 @@ export default function CalendarPage() {
       })
       
       setSelectedDate(createStableDate(date))
+      setSelectedEndDate(null)
       setSelectedTask(null)
       setSelectedEvent(null)
       setSelectedItemType('task')
@@ -522,6 +686,9 @@ export default function CalendarPage() {
       setSelectedDate(null)
       setPrefilledTaskData(null)
       await refresh()
+      if (type === 'task') {
+        setTaskInboxRefreshKey((key) => key + 1)
+      }
       
     } catch (error: any) {
       console.error('Error in handleSaveItem:', error)
@@ -570,12 +737,16 @@ export default function CalendarPage() {
   const handleStaffTaskToggle = useCallback((staffId: string, value: boolean) => {
     console.log('🎯 Toggle Task for staff:', staffId, value)
     setStaffFilters(prev => {
-      const newFilters = {
-        ...prev,
-        [staffId]: {
-          tasks: value,
-          events: prev[staffId]?.events || false
-        }
+      const newFilters = { ...prev }
+      const nextFilter = {
+        tasks: value,
+        events: prev[staffId]?.events || false
+      }
+
+      if (nextFilter.tasks || nextFilter.events) {
+        newFilters[staffId] = nextFilter
+      } else {
+        delete newFilters[staffId]
       }
       console.log('📊 New staff filters:', newFilters)
       return newFilters
@@ -585,12 +756,16 @@ export default function CalendarPage() {
   const handleStaffEventToggle = useCallback((staffId: string, value: boolean) => {
     console.log('🎯 Toggle Event for staff:', staffId, value)
     setStaffFilters(prev => {
-      const newFilters = {
-        ...prev,
-        [staffId]: {
-          tasks: prev[staffId]?.tasks || false,
-          events: value
-        }
+      const newFilters = { ...prev }
+      const nextFilter = {
+        tasks: prev[staffId]?.tasks || false,
+        events: value
+      }
+
+      if (nextFilter.tasks || nextFilter.events) {
+        newFilters[staffId] = nextFilter
+      } else {
+        delete newFilters[staffId]
       }
       console.log('📊 New staff filters:', newFilters)
       return newFilters
@@ -602,15 +777,36 @@ export default function CalendarPage() {
   }, [])
 
   const handleFilterToggle = useCallback(() => {
-    setShowFilter(prev => !prev)
+    setShowFilter(prev => {
+      const next = !prev
+      if (next && isMobileViewport()) {
+        setShowNotifications(false)
+        setShowTaskInbox(false)
+      }
+      return next
+    })
   }, [])
 
   const handleNotificationsToggle = useCallback(() => {
-    setShowNotifications(prev => !prev)
+    setShowNotifications(prev => {
+      const next = !prev
+      if (next && isMobileViewport()) {
+        setShowFilter(false)
+        setShowTaskInbox(false)
+      }
+      return next
+    })
   }, [])
 
   const handleTaskInboxToggle = useCallback(() => {
-    setShowTaskInbox(prev => !prev)
+    setShowTaskInbox(prev => {
+      const next = !prev
+      if (next && isMobileViewport()) {
+        setShowFilter(false)
+        setShowNotifications(false)
+      }
+      return next
+    })
   }, [])
 
   const filterUsers = useMemo(() => {
@@ -621,7 +817,7 @@ export default function CalendarPage() {
       password: user.password || '',
       user_id: user.id,
       role: user.role,
-      color: user.color || 'blue',
+      color: user.is_active === false ? 'gray' : (user.color || 'blue'),
       created_at: user.created_at || new Date().toISOString()
     }))
   }, [allUsers])
@@ -637,33 +833,34 @@ export default function CalendarPage() {
   const title = getTitle()
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
-      <div className="bg-white border-b border-gray-200 px-4 py-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <h1 className="text-xl font-semibold text-gray-900">Calendar</h1>
-            <div className="flex items-center space-x-2">
-              <Button variant="outline" size="icon" onClick={handlePrev} className="bg-white">
+    <div className="calendar-page-shell flex min-h-[calc(100vh-4rem)] flex-col overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100 lg:h-[calc(100vh-4rem)]">
+      <div className="calendar-header-surface border-b border-gray-200 bg-white px-3 py-2 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:px-4">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-4">
+            <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Calendar</h1>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" onClick={handlePrev} className="calendar-toolbar-button">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="icon" onClick={handleNext} className="bg-white">
+              <Button variant="outline" size="icon" onClick={handleNext} className="calendar-toolbar-button">
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
 
-            <span className="text-lg font-medium text-gray-700">{title}</span>
+            <span className="min-w-0 truncate text-base font-medium text-gray-700 dark:text-gray-200 sm:text-lg">{title}</span>
           </div>
 
           <div className="flex items-center space-x-2">
             <Button
               variant={showFilter ? "default" : "outline"}
               onClick={handleFilterToggle}
-              className="flex items-center space-x-2 relative"
+              aria-label="Filter"
+              className={`calendar-toolbar-button flex items-center space-x-2 relative ${showFilter ? 'calendar-toolbar-button-active' : ''}`}
             >
               <Filter className="h-4 w-4" />
               <span>Filter</span>
               {activeFilterCount > 0 && !showFilter && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center px-1">
+                <span className="notification-count-badge absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center px-1">
                   {activeFilterCount > 99 ? '99+' : activeFilterCount}
                 </span>
               )}
@@ -671,20 +868,20 @@ export default function CalendarPage() {
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="flex items-center space-x-2 bg-white">
+                <Button variant="outline" className="calendar-toolbar-button flex items-center space-x-2 bg-white">
                   <CalendarDays className="h-4 w-4" />
                   <span>{viewOptions.find(v => v.value === view)?.label}</span>
                   <ChevronDown className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="bg-white border border-gray-200 shadow-lg">
+              <DropdownMenuContent align="start" className="border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-900">
                 {viewOptions.map((option) => (
                   <DropdownMenuItem
                     key={option.value}
                     onClick={() => setView(option.value as ViewType)}
                     className={`cursor-pointer ${
-                      view === option.value ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
-                    } hover:bg-gray-100`}
+                      view === option.value ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-200' : 'text-gray-700 dark:text-gray-200'
+                    } hover:bg-gray-100 dark:hover:bg-gray-800`}
                   >
                     {option.label}
                   </DropdownMenuItem>
@@ -695,12 +892,13 @@ export default function CalendarPage() {
             <Button
               variant={showNotifications ? "default" : "outline"}
               onClick={handleNotificationsToggle}
-              className="flex items-center space-x-2 relative"
+              aria-label="Notifications"
+              className={`calendar-toolbar-button flex items-center space-x-2 relative ${showNotifications ? 'calendar-toolbar-button-active' : ''}`}
             >
               <Bell className="h-4 w-4" />
               <span>Notifications</span>
               {notificationUnreadCount > 0 && !showNotifications && badgeCountsLoaded && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center px-1">
+                <span className="notification-count-badge absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center px-1">
                   {notificationUnreadCount > 99 ? '99+' : notificationUnreadCount}
                 </span>
               )}
@@ -709,12 +907,13 @@ export default function CalendarPage() {
             <Button
               variant={showTaskInbox ? "default" : "outline"}
               onClick={handleTaskInboxToggle}
-              className="flex items-center space-x-2 relative"
+              aria-label="Inbox"
+              className={`calendar-toolbar-button flex items-center space-x-2 relative ${showTaskInbox ? 'calendar-toolbar-button-active' : ''}`}
             >
               <Inbox className="h-4 w-4" />
               <span>Inbox</span>
               {inboxUnreadCount > 0 && !showTaskInbox && badgeCountsLoaded && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center px-1">
+                <span className="notification-count-badge absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center px-1">
                   {inboxUnreadCount > 99 ? '99+' : inboxUnreadCount}
                 </span>
               )}
@@ -723,30 +922,37 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      <div className="flex-1 flex min-h-0">
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {showFilter && (
-          <CalendarFilter
-            users={filterUsers}
-            holidays={filteredHolidays}
-            showHolidays={showHolidays}
-            onHolidaysToggle={handleHolidaysToggle}
-            staffTaskEventFilters={staffFilters}
-            onStaffTaskToggle={handleStaffTaskToggle}
-            onStaffEventToggle={handleStaffEventToggle}
-          />
+          <ResponsiveCalendarPanel
+            title="Calendar filter"
+            icon={<Filter className="h-4 w-4" />}
+            onClose={() => setShowFilter(false)}
+            className="lg:w-80 xl:w-96"
+          >
+            <CalendarFilter
+              users={filterUsers}
+              holidays={filteredHolidays}
+              showHolidays={showHolidays}
+              onHolidaysToggle={handleHolidaysToggle}
+              staffTaskEventFilters={staffFilters}
+              onStaffTaskToggle={handleStaffTaskToggle}
+              onStaffEventToggle={handleStaffEventToggle}
+            />
+          </ResponsiveCalendarPanel>
         )}
 
-        <div className="flex-1 flex min-h-0 px-4 py-3 gap-4">
-          <div className={`flex flex-col min-h-0 transition-all duration-300 ${
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 py-3 lg:flex-row lg:gap-4 lg:overflow-hidden lg:px-4">
+          <div className={`flex min-w-0 flex-col min-h-0 transition-all duration-300 ${
             showTaskInbox && showNotifications ? 'flex-[2]' : 
             showTaskInbox || showNotifications ? 'flex-[2.5]' : 'flex-1'
           }`}>
-            <div className="flex-1 min-h-0 bg-white border rounded-lg shadow-lg overflow-hidden">
+            <div className="min-h-[520px] flex-1 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-950 sm:min-h-[560px] lg:min-h-0">
               {!isInitialized ? (
                 <div className="h-full flex items-center justify-center">
                   <div className="text-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="text-sm text-gray-500 mt-2">Loading your preferences...</p>
+                    <p className="text-sm text-gray-500 mt-2 dark:text-gray-400">Loading your preferences...</p>
                   </div>
                 </div>
               ) : (
@@ -766,21 +972,32 @@ export default function CalendarPage() {
                   onDragLeave={handleDragLeave}
                   draggedOverDate={draggedOverDate}
                   isDragging={isDragging}
+                  focusedDateKey={focusedDateKey}
                   staffTaskEventFilters={staffFilters}
                 />
               )}
             </div>
           </div>
 
-          <div className="flex gap-4">
+          <div className="flex min-h-0 w-full flex-col gap-3 lg:w-auto lg:flex-row lg:gap-4">
             {showNotifications && (
-              <div className="w-80 flex flex-col min-h-0">
+              <ResponsiveCalendarPanel
+                title="Notifications"
+                icon={<Bell className="h-4 w-4" />}
+                onClose={() => setShowNotifications(false)}
+                className="lg:w-80 xl:w-96"
+              >
                 <NotificationsPanel onUnreadCountChange={setNotificationUnreadCount} />
-              </div>
+              </ResponsiveCalendarPanel>
             )}
             
             {showTaskInbox && (
-              <div className="w-80 flex flex-col min-h-0">
+              <ResponsiveCalendarPanel
+                title="Task inbox"
+                icon={<Inbox className="h-4 w-4" />}
+                onClose={() => setShowTaskInbox(false)}
+                className="lg:w-80 xl:w-96"
+              >
                 <TaskInbox 
                   onDragStart={handleDragStart}
                   onDragEnd={() => {
@@ -789,6 +1006,7 @@ export default function CalendarPage() {
                   }}
                   onTaskClick={(task) => {
                     setSelectedDate(null)
+                    setSelectedEndDate(null)
                     setSelectedTask({
                       id: task.id,
                       clientName: task.clientName,
@@ -800,7 +1018,7 @@ export default function CalendarPage() {
                       timeStop: '',
                       additionalRemark: task.notes || '',
                       jobOrderNumber: task.jobOrderNumber || '',
-                      jobStatus: 'in-progress',
+                      jobStatus: 'onhold',
                       task_pic_id: task.task_pic_id || '',
                       task_pic_name: task.task_pic_name || '',
                       task_pic_color: task.task_pic_color || 'blue',
@@ -814,8 +1032,9 @@ export default function CalendarPage() {
                   }}
                   onTaskSaved={refresh}
                   onUnreadCountChange={setInboxUnreadCount}
+                  refreshKey={taskInboxRefreshKey}
                 />
-              </div>
+              </ResponsiveCalendarPanel>
             )}
           </div>
         </div>
@@ -828,11 +1047,13 @@ export default function CalendarPage() {
           setSelectedTask(null)
           setSelectedEvent(null)
           setSelectedItemType(null)
+          setSelectedEndDate(null)
           setPrefilledTaskData(null)
           setIsSaving(false)
           setIsDeleting(false)
         }}
         selectedDate={selectedDate}
+        selectedEndDate={selectedEndDate}
         selectedItem={selectedTask || selectedEvent}
         selectedType={selectedItemType}
         prefilledData={prefilledTaskData}

@@ -32,6 +32,28 @@ import {
   Save,
   Briefcase
 } from 'lucide-react'
+import {
+  settingsCardClass,
+  settingsContentClass,
+  settingsDescriptionClass,
+  settingsDialogContentClass,
+  settingsEmptyCellClass,
+  settingsFooterNoteClass,
+  settingsHeaderCellClass,
+  settingsHeaderClass,
+  settingsHeaderRowClass,
+  settingsInputClass,
+  settingsLabelClass,
+  settingsMutedCellClass,
+  settingsPrimaryButtonClass,
+  settingsStrongCellClass,
+  settingsTableBodyClass,
+  settingsTableClass,
+  settingsTableHeaderClass,
+  settingsTableRowClass,
+  settingsTableWrapperClass,
+  settingsTitleClass,
+} from './settings-styles'
 
 export function JobTasksTab() {
   const { jobTasks, loading, addJobTask, updateJobTask, deleteJobTask } = useJobTasks()
@@ -102,43 +124,48 @@ export function JobTasksTab() {
 
   return (
     <>
-      <Card className="border border-gray-200">
-        <CardHeader>
-          <div className="flex items-center justify-between">
+      <Card className={settingsCardClass}>
+        <CardHeader className={settingsHeaderClass}>
+          <div className={settingsHeaderRowClass}>
             <div>
-              <CardTitle className="text-gray-900">Job Tasks</CardTitle>
-              <CardDescription className="text-gray-500">
+              
+              <CardTitle className={settingsTitleClass}>
+                <Briefcase className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                Job Tasks
+              </CardTitle>
+              <CardDescription className={settingsDescriptionClass}>
                 Manage job tasks list - All tasks will appear in calendar form dropdown
               </CardDescription>
             </div>
-            <Button onClick={handleAdd} className="bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-400">
+            <Button onClick={handleAdd} className={settingsPrimaryButtonClass}>
               <Plus className="h-4 w-4 mr-2" />
               Add Task
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="rounded-lg border border-gray-200 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+        <CardContent className={settingsContentClass}>
+          <div className={settingsTableWrapperClass}>
+            <div className="overflow-x-auto">
+            <table className={settingsTableClass}>
+              <thead className={settingsTableHeaderClass}>
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-16">No</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Task Name</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-24">Actions</th>
+                  <th className={`${settingsHeaderCellClass} w-16`}>No</th>
+                  <th className={settingsHeaderCellClass}>Task Name</th>
+                  <th className={`${settingsHeaderCellClass} w-24`}>Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className={settingsTableBodyClass}>
                 {jobTasks.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="px-4 py-8 text-center text-gray-500">
+                    <td colSpan={3} className={settingsEmptyCellClass}>
                       No job tasks found
                     </td>
                   </tr>
                 ) : (
                   jobTasks.map((task, index) => (
-                    <tr key={task.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-600">{index + 1}</td>
-                      <td className="px-4 py-3 text-gray-900">{task.name}</td>
+                    <tr key={task.id} className={settingsTableRowClass}>
+                      <td className={settingsMutedCellClass}>{index + 1}</td>
+                      <td className={settingsStrongCellClass}>{task.name}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center space-x-2">
                           <Button
@@ -166,8 +193,9 @@ export function JobTasksTab() {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
-          <p className="text-xs text-gray-500 mt-4 flex items-center">
+          <p className={settingsFooterNoteClass}>
             <Briefcase className="h-3 w-3 mr-1" />
             Tasks added here will appear in the dropdown when adding/editing calendar events.
           </p>
@@ -176,25 +204,25 @@ export function JobTasksTab() {
 
       {/* Add/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-md bg-white">
+        <DialogContent className={`sm:max-w-md ${settingsDialogContentClass}`}>
           <DialogHeader>
-            <DialogTitle className="text-gray-900">
+            <DialogTitle className="text-gray-900 dark:text-gray-100">
               {editingTask ? 'Edit Job Task' : 'Add New Job Task'}
             </DialogTitle>
-            <DialogDescription className="text-gray-500">
+            <DialogDescription className="text-gray-500 dark:text-gray-400">
               {editingTask ? 'Edit job task details below' : 'Fill in the details to create a new job task'}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-gray-700">Task Name *</Label>
+              <Label htmlFor="name" className={settingsLabelClass}>Task Name *</Label>
               <Input
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData({...formData, name: e.target.value})}
                 placeholder="e.g., CHRA"
-                className="border-gray-300"
+                className={settingsInputClass}
                 required
               />
             </div>
@@ -206,7 +234,7 @@ export function JobTasksTab() {
             </Button>
             <Button 
               type="button" 
-              className="bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-400" 
+              className={settingsPrimaryButtonClass} 
               onClick={handleSave}
               disabled={saving}
             >

@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import Image from 'next/image'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -24,32 +25,64 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { 
-  Loader2, 
-  Mail, 
-  Lock, 
-  Eye, 
-  EyeOff,
-  LogIn,
+import {
+  AlertCircle,
   Ban,
-  AlertCircle
+  CalendarDays,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  FileText,
+  Loader2,
+  Lock,
+  LogIn,
+  Mail,
+  ShieldCheck,
+  Users,
 } from 'lucide-react'
+
+type LoginFeedback = {
+  type: 'info' | 'success' | 'error'
+  message: string
+}
+
+const portalFeatures = [
+  {
+    icon: CalendarDays,
+    title: 'Structured Calendar',
+    text: 'View tasks and events by day, week, month, or schedule.',
+  },
+  {
+    icon: Users,
+    title: 'Clear Staff Assignment',
+    text: 'Filter work by staff, PIC, and support team for easier follow-up.',
+  },
+  {
+    icon: FileText,
+    title: 'Job Order Tracking',
+    text: 'Track Job Order Number and Final Report Number in one workflow.',
+  },
+]
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [loginFeedback, setLoginFeedback] = useState<LoginFeedback | null>(null)
   const [showDeactivatedDialog, setShowDeactivatedDialog] = useState(false)
-  const [deactivatedUser, setDeactivatedUser] = useState<{name: string, email: string} | null>(null)
+  const [deactivatedUser, setDeactivatedUser] = useState<{ name: string; email: string } | null>(null)
+
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClient()
 
   useEffect(() => {
     const userData = localStorage.getItem('user')
+
     if (userData) {
       const user = JSON.parse(userData)
+
       if (user.role === 'admin') {
         router.push('/settings')
       } else {
@@ -60,62 +93,98 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    const cleanEmail = email.trim()
+
+    if (!cleanEmail) {
+      setLoginFeedback({ type: 'error', message: 'Please enter your email address.' })
+      return
+    }
+
+    if (!password) {
+      setLoginFeedback({ type: 'error', message: 'Please enter your password.' })
+      return
+    }
+
     setLoading(true)
+    setLoginFeedback({ type: 'info', message: 'Checking your account...' })
 
     try {
       const { data: user, error } = await supabase
         .from('users')
         .select('*')
-        .eq('email', email)
-        .eq('password', password)
-        .single()
+        .eq('email', cleanEmail)
+        .maybeSingle()
 
-      if (error || !user) {
+      if (error) {
+        setLoginFeedback({ type: 'error', message: 'Unable to check your account. Please try again.' })
         toast({
-          title: "Login Failed",
-          description: "Invalid email or password",
-          variant: "destructive",
+          title: 'Login Error',
+          description: 'Unable to check your account. Please try again.',
+          variant: 'destructive',
         })
         return
       }
 
-      // Check if user is active
-      if (!user.is_active) {
-        setDeactivatedUser({ name: user.name, email: user.email })
-        setShowDeactivatedDialog(true)
-        return // Stop login process
+      if (!user) {
+        setLoginFeedback({ type: 'error', message: 'Email address not found.' })
+        toast({
+          title: 'Login Failed',
+          description: 'Email address not found.',
+          variant: 'destructive',
+        })
+        return
       }
 
-      // Save user data to localStorage
+      if (user.password !== password) {
+        setLoginFeedback({ type: 'error', message: 'Incorrect password. Please try again.' })
+        toast({
+          title: 'Login Failed',
+          description: 'Incorrect password. Please try again.',
+          variant: 'destructive',
+        })
+        return
+      }
+
+      if (!user.is_active) {
+        setLoginFeedback({ type: 'error', message: 'This account has been deactivated.' })
+        setDeactivatedUser({
+          name: user.name,
+          email: user.email,
+        })
+        setShowDeactivatedDialog(true)
+        return
+      }
+
       const userData = {
         id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
         color: user.color || 'blue',
-        is_active: user.is_active
+        is_active: user.is_active,
       }
-      
+
       localStorage.setItem('user', JSON.stringify(userData))
+      setLoginFeedback({ type: 'success', message: 'Login successful. Redirecting...' })
 
       toast({
-        title: "Welcome!",
+        title: 'Welcome!',
         description: `Logged in as ${user.name}`,
       })
 
-      // Redirect based on role
       if (user.role === 'admin') {
         router.push('/settings')
       } else {
         router.push('/calendar')
       }
-      
     } catch (error) {
       console.error('Login error:', error)
+
       toast({
-        title: "Error",
-        description: "Something went wrong. Please try again.",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Something went wrong. Please try again.',
+        variant: 'destructive',
       })
     } finally {
       setLoading(false)
@@ -123,120 +192,269 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4 dark:from-gray-950 dark:to-gray-900">
-      <div className="fixed right-4 top-4 z-10">
+    <div className="min-h-screen bg-white text-gray-950 dark:bg-gray-950 dark:text-gray-100 lg:grid lg:grid-cols-[1.08fr_0.92fr]">
+      <div className="fixed right-5 top-5 z-20">
         <ThemeToggle />
       </div>
-      <Card className="w-full max-w-md shadow-xl border-0">
-        <CardHeader className="space-y-2 text-center pb-6">
-          <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 bg-blue-400 rounded-2xl flex items-center justify-center">
-              <span className="text-2xl font-bold text-white">ICS</span>
+
+      <section className="relative hidden overflow-hidden border-r border-blue-100 bg-[#f5f7ff] dark:border-gray-800 dark:bg-gray-950 lg:flex">
+        <div
+          className="absolute inset-0 opacity-70 dark:opacity-20"
+          style={{
+            backgroundImage:
+              'linear-gradient(rgba(79, 102, 241, 0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(79, 102, 241, 0.12) 1px, transparent 1px)',
+            backgroundSize: '40px 40px',
+          }}
+        />
+
+        <div className="relative z-10 flex min-h-screen w-full flex-col px-10 py-8 xl:px-16">
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-sm dark:!bg-white dark:border-gray-700"
+              style={{ backgroundColor: '#fff' }}
+            >
+              <Image
+                src="/logoics.png"
+                alt="ICS Logo"
+                width={48}
+                height={48}
+                className="h-full w-full object-contain p-1"
+                priority
+              />
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-gray-700 dark:text-gray-300">
+                ICS Consulting Sdn Bhd
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Calendar Management System
+              </p>
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold text-gray-900 dark:text-gray-100">Welcome Back</CardTitle>
-          <CardDescription className="text-gray-500 dark:text-gray-400">
-            Sign in to your account to continue
-          </CardDescription>
-        </CardHeader>
 
-        <form onSubmit={handleLogin}>
-          <CardContent className="space-y-4">
-            {/* Email */}
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-gray-700 dark:text-gray-200">Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="ics.admin@gmail.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  disabled={loading}
-                  className="pl-10 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                  autoComplete="email"
-                />
-              </div>
+          <div className="mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center py-12 text-center">
+            <p className="mb-5 text-xs font-bold uppercase tracking-[0.45em] text-blue-600 dark:text-blue-300">
+              Welcome
+            </p>
+
+            <h1 className="text-6xl font-extrabold leading-[0.95] tracking-normal text-gray-950 dark:text-white xl:text-7xl">
+              CALENDAR
+              <span className="block">MANAGEMENT</span>
+              <span className="block  text-blue-600 dark:text-blue-400">
+                SYSTEM.
+              </span>
+            </h1>
+
+            <p className="mt-7 max-w-lg text-base leading-7 text-gray-600 dark:text-gray-300">
+              A focused workspace for managing tasks, events, staff assignments,
+              job orders, and final reports with better visibility.
+            </p>
+
+            <div className="mt-10 w-full space-y-5 text-left">
+              {portalFeatures.map((item, index) => {
+                const Icon = item.icon
+
+                return (
+                  <div
+                    key={item.title}
+                    className="grid grid-cols-[32px_1fr] gap-4 border-t border-blue-100 pt-5 dark:border-gray-800"
+                  >
+                    <div className="text-xs font-semibold text-blue-500">
+                      {String(index + 1).padStart(2, '0')}
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Icon className="h-4 w-4 text-blue-600 dark:text-blue-300" />
+                        <h2 className="font-semibold text-gray-900 dark:text-gray-100">
+                          {item.title}
+                        </h2>
+                      </div>
+
+                      <p className="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-400">
+                        {item.text}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
+          </div>
 
-            {/* Password */}
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-gray-700 dark:text-gray-200">Password</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={loading}
-                  className="pl-10 pr-10 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                  autoComplete="current-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
-          </CardContent>
-
-          <CardFooter>
-            <Button 
-              type="submit" 
-              className="w-full bg-blue-600 text-white hover:bg-blue-700 h-11 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-400" 
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
-                </>
-              ) : (
-                <>
-                  <LogIn className="mr-2 h-4 w-4" />
-                  Sign In
-                </>
-              )}
-            </Button>
-          </CardFooter>
-        </form>
-        <div className="px-6 pb-6 text-center text-xs text-gray-400 dark:text-gray-500">
-          <p>ICS Consulting Sdn. Bhd. © 2026</p>
+          <div />
         </div>
-      </Card>
+      </section>
 
-      {/* Deactivated Account Dialog - FIXED VERSION */}
+      <main className="flex min-h-screen items-center justify-center px-5 py-10 dark:bg-gray-950">
+        <div className="w-full max-w-md">
+          <div className="mb-8 flex justify-center lg:hidden">
+          </div>
+
+          <Card className="border-0 bg-transparent shadow-none">
+            <CardHeader className="space-y-3 px-0 pb-6 text-center">
+              <div className="mx-auto hidden h-16 w-16 items-center justify-center rounded-full border border-blue-100 bg-blue-50 text-blue-700 shadow-sm dark:border-blue-900/60 dark:bg-blue-950/50 dark:text-blue-200 lg:flex">
+                <ShieldCheck className="h-7 w-7" />
+              </div>
+              <CardTitle className="text-3xl font-bold text-gray-950 dark:text-gray-100">
+                Sign In
+              </CardTitle>
+
+              <CardDescription className="text-gray-500 dark:text-gray-400">
+                Enter your email and password to login.
+              </CardDescription>
+            </CardHeader>
+
+            <form onSubmit={handleLogin}>
+              <CardContent className="space-y-5 px-0">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-gray-700 dark:text-gray-200">
+                    Email
+                  </Label>
+
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
+
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="ics.admin@gmail.com"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value)
+                        setLoginFeedback(null)
+                      }}
+                      required
+                      disabled={loading}
+                      className="h-11 border-blue-100 bg-blue-50/60 pl-10 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-800 dark:bg-gray-900"
+                      autoComplete="email"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-gray-700 dark:text-gray-200">
+                    Password
+                  </Label>
+
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
+
+                    <Input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="********"
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value)
+                        setLoginFeedback(null)
+                      }}
+                      required
+                      disabled={loading}
+                      className="h-11 border-blue-100 bg-blue-50/60 pl-10 pr-10 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-800 dark:bg-gray-900"
+                      autoComplete="current-password"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {loginFeedback && (
+                  <div
+                    className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm ${
+                      loginFeedback.type === 'success'
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200'
+                        : loginFeedback.type === 'error'
+                          ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200'
+                          : 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-200'
+                    }`}
+                  >
+                    {loginFeedback.type === 'success' ? (
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    ) : loginFeedback.type === 'error' ? (
+                      <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    ) : (
+                      <Loader2 className="mt-0.5 h-4 w-4 flex-shrink-0 animate-spin" />
+                    )}
+                    <span>{loginFeedback.message}</span>
+                  </div>
+                )}
+              </CardContent>
+
+              <CardFooter className="px-0 pt-2">
+                <Button
+                  type="submit"
+                  className="h-11 w-full bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-400"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    <>
+                      <LogIn className="mr-2 h-4 w-4" />
+                      Sign In
+                    </>
+                  )}
+                </Button>
+              </CardFooter>
+            </form>
+
+            <div className="pt-3 text-center text-xs text-gray-400 dark:text-gray-500">
+              <p>ICS Consulting Sdn. Bhd. © 2026</p>
+            </div>
+          </Card>
+        </div>
+      </main>
+
       <Dialog open={showDeactivatedDialog} onOpenChange={setShowDeactivatedDialog}>
         <DialogContent className="sm:max-w-md bg-white dark:bg-gray-900">
           <DialogHeader>
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 mb-4">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
               <Ban className="h-6 w-6 text-red-600" />
             </div>
+
             <DialogTitle className="text-center text-xl text-red-600">
               Account Deactivated
             </DialogTitle>
+
             <DialogDescription asChild>
-              <div className="text-center pt-2">
+              <div className="pt-2 text-center">
                 <div className="space-y-3">
                   <div className="text-gray-700 dark:text-gray-200">
-                    Dear <span className="font-semibold">{deactivatedUser?.name}</span>,
+                    Dear{' '}
+                    <span className="font-semibold">
+                      {deactivatedUser?.name}
+                    </span>
+                    ,
                   </div>
+
                   <div className="text-gray-600 dark:text-gray-300">
-                    Your account <span className="font-semibold">({deactivatedUser?.email})</span> has been deactivated.
+                    Your account{' '}
+                    <span className="font-semibold">
+                      ({deactivatedUser?.email})
+                    </span>{' '}
+                    has been deactivated.
                   </div>
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-2">
+
+                  <div className="mt-2 rounded-lg border border-yellow-200 bg-yellow-50 p-3">
                     <div className="flex items-start gap-2">
-                      <AlertCircle className="h-4 w-4 text-yellow-600 mt-0.5 flex-shrink-0" />
-                      <div className="text-sm text-yellow-800 text-left">
-                        You cannot access the system. Please contact your system administrator to reactivate your account.
+                      <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-yellow-600" />
+                      <div className="text-left text-sm text-yellow-800">
+                        You cannot access the system. Please contact your system
+                        administrator to reactivate your account.
                       </div>
                     </div>
                   </div>
@@ -244,9 +462,10 @@ export default function LoginPage() {
               </div>
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="flex flex-col sm:flex-row gap-2">
-            <Button 
-              variant="outline" 
+
+          <DialogFooter className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              variant="outline"
               onClick={() => {
                 setShowDeactivatedDialog(false)
                 setEmail('')
@@ -256,7 +475,8 @@ export default function LoginPage() {
             >
               Try Again
             </Button>
-            <Button 
+
+            <Button
               onClick={() => {
                 setShowDeactivatedDialog(false)
                 router.push('/')

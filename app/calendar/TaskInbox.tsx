@@ -68,6 +68,7 @@ interface TaskInboxProps {
   onTaskClick?: (task: UnscheduledTask) => void
   onTaskSaved?: () => void
   onUnreadCountChange?: (count: number) => void
+  refreshKey?: number
 }
 
 interface JobTask {
@@ -79,9 +80,31 @@ interface Staff {
   id: string
   name: string
   color?: string
+  is_active?: boolean
 }
 
 // PDF viewer removed — using job order number/final report number fields instead
+
+const normalizeText = (value?: string | null) => String(value || '').trim().toLowerCase()
+
+const findStaffForPic = (
+  staffList: Staff[],
+  picId?: string | null,
+  picName?: string | null
+) => {
+  const normalizedPicId = normalizeText(picId)
+  const normalizedPicName = normalizeText(picName)
+
+  return staffList.find((staff) => {
+    const staffId = normalizeText(staff.id)
+    const staffName = normalizeText(staff.name)
+
+    return (
+      (!!normalizedPicId && (staffId === normalizedPicId || staffName === normalizedPicId)) ||
+      (!!normalizedPicName && staffName === normalizedPicName)
+    )
+  })
+}
 
 function SortableTaskItem({ 
   task, 
@@ -132,7 +155,7 @@ function SortableTaskItem({
         ref={setNodeRef}
         style={style}
         {...attributes}
-        className={`bg-white border rounded-lg p-3 shadow-sm hover:shadow-md transition-all ${
+        className={`rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition-all hover:shadow-md dark:border-gray-800 dark:bg-gray-900 ${
           isSortableDragging ? 'shadow-lg rotate-2 scale-105' : ''
         } ${isDeleting ? 'opacity-50' : ''}`}
       >
@@ -142,32 +165,32 @@ function SortableTaskItem({
             className="cursor-grab hover:text-blue-600 mt-1 flex-shrink-0"
             onClick={(e) => e.stopPropagation()}
           >
-            <GripVertical className="h-4 w-4 text-gray-400" />
+            <GripVertical className="h-4 w-4 text-gray-400 dark:text-gray-500" />
           </div>
 
-          <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onTaskClick?.(task)}>
-            <div className="flex items-start justify-between gap-2">
-              <h4 className="font-medium text-sm truncate">{task.clientName}</h4>
+          <div className="min-w-0 flex-1 cursor-pointer" onClick={() => onTaskClick?.(task)}>
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-2">
+              <h4 className="break-words text-sm font-medium text-gray-900 dark:text-gray-100">{task.clientName}</h4>
               {task.runningNumber && (
-                <span className="text-[10px] font-mono text-gray-400 flex-shrink-0">
+                <span className="w-fit flex-shrink-0 rounded bg-gray-50 px-1 font-mono text-[10px] text-gray-500 dark:bg-gray-800 dark:text-gray-400">
                   {task.runningNumber}
                 </span>
               )}
             </div>
             
-            <p className="text-xs text-gray-600 mt-1 truncate">
-              {task.jobTask && <span className="font-mono bg-gray-100 px-1 rounded mr-1">{task.jobTask}</span>}
+            <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+              {task.jobTask && <span className="mr-1 inline-block max-w-full break-words rounded bg-gray-100 px-1 font-mono dark:bg-gray-800 dark:text-gray-200">{task.jobTask}</span>}
             </p>
             
-            <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
-              <span className="flex items-center">
-                <div className={`w-2 h-2 rounded-full mr-1 ${getDotClass(task.task_pic_color)}`}></div>
-                <span className="truncate">{task.task_pic_name || 'No PIC'}</span>
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+              <span className="flex min-w-0 items-center">
+                <div className={`mr-1 h-2 w-2 flex-shrink-0 rounded-full ${getDotClass(task.task_pic_color)}`}></div>
+                <span className="min-w-0 break-words">{task.task_pic_name || 'No PIC'}</span>
               </span>
               {task.jobOrderNumber && (
-                  <span className="flex items-center">
-                    <FileText className="h-3 w-3 mr-1" />
-                    <span className="truncate">Job Order: {task.jobOrderNumber}</span>
+                  <span className="flex min-w-0 items-center">
+                    <FileText className="mr-1 h-3 w-3 flex-shrink-0" />
+                    <span className="min-w-0 break-words">Job Order: {task.jobOrderNumber}</span>
                   </span>
               )}
             </div>
@@ -177,14 +200,14 @@ function SortableTaskItem({
             {/* No PDF preview button when using job order number/final report number */}
             <button
               onClick={handleEdit}
-              className="p-1 hover:bg-gray-100 rounded transition-colors"
+              className="p-1 hover:bg-gray-100 rounded transition-colors dark:hover:bg-gray-800"
               disabled={isDeleting}
             >
-              <Edit2 className="h-3.5 w-3.5 text-gray-500" />
+              <Edit2 className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
             </button>
             <button
               onClick={handleDelete}
-              className="p-1 hover:bg-red-100 rounded transition-colors"
+              className="p-1 hover:bg-red-100 rounded transition-colors dark:hover:bg-red-950/50"
               disabled={isDeleting}
             >
               {isDeleting ? (
@@ -230,6 +253,7 @@ function AddTaskModal({
   
   const { toast } = useToast()
   const supabase = createClient()
+  const activeStaffList = staffList.filter((staff) => staff.is_active !== false)
 
   // Function to check if running number exists
   const checkRunningNumberExists = async (runningNumber: string): Promise<boolean> => {
@@ -427,16 +451,16 @@ function AddTaskModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg w-full max-w-md">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="font-semibold">New Unscheduled Task</h3>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4">
+      <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-lg bg-white">
+        <div className="flex items-center justify-between gap-3 border-b p-4">
+          <h3 className="min-w-0 truncate font-semibold">New Unscheduled Task</h3>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form onSubmit={handleSubmit} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
           <div className="space-y-2">
             <Label className="text-gray-700 font-medium">
               Client Name <span className="text-red-500">*</span>
@@ -571,7 +595,7 @@ function AddTaskModal({
                 )}
               </SelectTrigger>
               <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
-                {staffList.map((staff) => (
+                {activeStaffList.map((staff) => (
                   <SelectItem key={staff.id} value={staff.id} textValue={staff.name}>
                     <div className="flex items-center gap-2">
                       <div className={`w-3 h-3 rounded-full ${getDotClass(staff.color)}`}></div>
@@ -594,16 +618,16 @@ function AddTaskModal({
             />
           </div>
 
-          <div className="flex gap-2 pt-2">
+          <div className="flex flex-col gap-2 pt-2 sm:flex-row">
             <Button 
               type="submit" 
               disabled={saving || runningNumberValid === false || (!formData.runningNumber && touched.runningNumber)} 
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+              className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Create Task
             </Button>
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={onClose} className="sm:w-auto">Cancel</Button>
           </div>
         </form>
       </div>
@@ -640,13 +664,10 @@ function EditTaskModal({
   useEffect(() => {
     if (task && isOpen) {
       let picId = task.task_pic_id || ''
-      const currentStaff = picId ? staffList.find(s => s.id === picId) : null
+      const currentStaff = findStaffForPic(staffList, picId, task.task_pic_name)
       
-      if (!currentStaff && task.task_pic_name) {
-        const foundStaff = staffList.find(s => s.name === task.task_pic_name)
-        if (foundStaff) {
-          picId = foundStaff.id
-        }
+      if (currentStaff) {
+        picId = currentStaff.id
       }
       
       let jobTaskValue = task.jobTask || ''
@@ -756,16 +777,16 @@ function EditTaskModal({
   if (!isOpen || !task) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg w-full max-w-md">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="font-semibold">Edit Task</h3>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4">
+      <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-lg bg-white">
+        <div className="flex items-center justify-between gap-3 border-b p-4">
+          <h3 className="min-w-0 truncate font-semibold">Edit Task</h3>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form onSubmit={handleSubmit} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
           <div className="space-y-2">
             <Label className="text-gray-700 font-medium">Client Name <span className="text-red-500">*</span></Label>
             <Input
@@ -857,12 +878,12 @@ function EditTaskModal({
             />
           </div>
 
-          <div className="flex gap-2 pt-2">
-            <Button type="submit" disabled={saving} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white">
+          <div className="flex flex-col gap-2 pt-2 sm:flex-row">
+            <Button type="submit" disabled={saving} className="flex-1 bg-blue-600 text-white hover:bg-blue-700">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Save Changes
             </Button>
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={onClose} className="sm:w-auto">Cancel</Button>
           </div>
         </form>
       </div>
@@ -870,7 +891,7 @@ function EditTaskModal({
   )
 }
 
-export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskSaved, onUnreadCountChange }: TaskInboxProps) {
+export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskSaved, onUnreadCountChange, refreshKey = 0 }: TaskInboxProps) {
   const [tasks, setTasks] = useState<UnscheduledTask[]>([])
   const [filter, setFilter] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
@@ -890,15 +911,16 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
       const { data: staffData, error: staffError } = await supabase
         .from('users')
         .select('id, name, color, is_active')
-        .eq('is_active', true) 
+        .order('is_active', { ascending: false })
         .order('name')
       
       if (staffError) throw staffError
       
-      const formattedStaff: Staff[] = (staffData || []).map((user: {id: string; name:string; color?: string})=> ({
+      const formattedStaff: Staff[] = (staffData || []).map((user: {id: string; name:string; color?: string; is_active?: boolean})=> ({
         id: user.id,
         name: user.name,
-        color: user.color || 'blue'
+        color: user.color || 'blue',
+        is_active: user.is_active,
       }))
       setStaffList(formattedStaff)
       
@@ -930,11 +952,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
         created_at: string;
         additional_remark: string;
       }) => {
-        let staffInfo = formattedStaff.find(s => s.id === task.task_pic_id)
-        
-        if (!staffInfo && task.task_pic_name) {
-          staffInfo = formattedStaff.find(s => s.name === task.task_pic_name)
-        }
+        const staffInfo = findStaffForPic(formattedStaff, task.task_pic_id, task.task_pic_name)
         
         return {
           id: task.id,
@@ -967,7 +985,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
 
   useEffect(() => {
     fetchAllData()
-  }, [])
+  }, [refreshKey])
 
   useEffect(() => {
     onUnreadCountChange?.(tasks.length)
@@ -1178,27 +1196,27 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
 
   if (loadingData) {
     return (
-      <div className="bg-white rounded-lg shadow-lg h-full flex flex-col items-center justify-center">
+      <div className="flex h-full min-h-0 flex-col items-center justify-center rounded-lg border border-gray-200 bg-white p-4 text-center shadow-lg dark:border-gray-800 dark:bg-gray-900">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-        <p className="mt-2 text-sm text-gray-500">Loading tasks...</p>
+        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading tasks...</p>
       </div>
     )
   }
 
   return (
     <>
-      <div className="bg-white rounded-lg shadow-lg h-full flex flex-col">
-        <div className="p-4 border-b border-gray-200">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center space-x-2">
+      <div className="flex h-full min-h-0 flex-col rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-900">
+        <div className="border-b border-gray-200 p-3 dark:border-gray-800 sm:p-4">
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-2">
               <Briefcase className="h-5 w-5 text-blue-600" />
-              <h3 className="font-semibold text-gray-900">Task Inbox</h3>
+              <h3 className="min-w-0 truncate font-semibold text-gray-900 dark:text-gray-100">Task Inbox</h3>
             </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-800 dark:bg-blue-950/60 dark:text-blue-200">
                 {tasks.length}
               </span>
-              <span className="text-xs text-gray-500">unscheduled</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">unscheduled</span>
             </div>
           </div>
 
@@ -1208,12 +1226,12 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
               placeholder="Search by client, running number, or job task..."
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              className="pl-8 text-sm bg-white"
+              className="border-gray-200 bg-white pl-8 text-sm dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
             />
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-gray-50">
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-gray-50 p-3 dark:bg-gray-950">
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -1238,22 +1256,22 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
           </DndContext>
 
           {filteredTasks.length === 0 && (
-            <div className="text-center py-8 text-gray-500 text-sm">
-              <Briefcase className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+            <div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+              <Briefcase className="h-12 w-12 mx-auto mb-3 text-gray-300 dark:text-gray-700" />
               <p>No unscheduled tasks found</p>
               <p className="text-xs mt-1">Click "New Task" to create one</p>
             </div>
           )}
         </div>
 
-        <div className="p-3 border-t border-gray-200">
+        <div className="border-t border-gray-200 p-3 dark:border-gray-800">
           <Button variant="outline" size="sm" className="w-full" onClick={() => setShowAddModal(true)}>
             <Plus className="h-4 w-4 mr-2" />
             New Unscheduled Task
           </Button>
         </div>
 
-        <div className="px-3 pb-2 text-[10px] text-gray-400 flex items-center">
+        <div className="flex flex-wrap items-center px-3 pb-2 text-[10px] text-gray-400 dark:text-gray-500">
           <GripVertical className="h-3 w-3 mr-1" />
           <Calendar className="h-3 w-3 mr-1" />
           Drag tasks to calendar to schedule

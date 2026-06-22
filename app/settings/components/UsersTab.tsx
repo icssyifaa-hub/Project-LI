@@ -29,7 +29,28 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
-import { Plus, Edit, Eye, EyeOff, Loader2, Save, Power, PowerOff } from 'lucide-react'
+import { Plus, Edit, Eye, EyeOff, Loader2, Save, Power, PowerOff, Users as UsersIcon } from 'lucide-react'
+import {
+  settingsCardClass,
+  settingsContentClass,
+  settingsDescriptionClass,
+  settingsDialogContentClass,
+  settingsEmptyCellClass,
+  settingsHeaderCellClass,
+  settingsHeaderClass,
+  settingsHeaderRowClass,
+  settingsInputClass,
+  settingsLabelClass,
+  settingsMutedCellClass,
+  settingsPrimaryButtonClass,
+  settingsSelectContentClass,
+  settingsTableBodyClass,
+  settingsTableClass,
+  settingsTableHeaderClass,
+  settingsTableRowClass,
+  settingsTableWrapperClass,
+  settingsTitleClass,
+} from './settings-styles'
 
 export function UsersTab() {
   const { users, loading, addUser, updateUser, toggleUserStatus, currentUserId } = useUsers()
@@ -146,67 +167,71 @@ export function UsersTab() {
 
   return (
     <>
-      <Card className="border border-gray-200">
-        <CardHeader className="border-b border-gray-200 bg-gray-50/50">
-          <div className="flex items-center justify-between">
+      <Card className={settingsCardClass}>
+        <CardHeader className={settingsHeaderClass}>
+          <div className={settingsHeaderRowClass}>
             <div>
-              <CardTitle className="text-gray-900">User Management</CardTitle>
-              <CardDescription className="text-gray-500">
+              <CardTitle className={settingsTitleClass}>
+                <UsersIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                User Management
+              </CardTitle>
+              <CardDescription className={settingsDescriptionClass}>
                 Manage system users - All changes saved to database
               </CardDescription>
             </div>
-            <Button onClick={handleAdd} className="bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-400">
+            <Button onClick={handleAdd} className={settingsPrimaryButtonClass}>
               <Plus className="h-4 w-4 mr-2" />
               Add User
             </Button>
           </div>
         </CardHeader>
 
-        <CardContent className="pt-6">
-          <div className="rounded-lg border border-gray-200 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+        <CardContent className={settingsContentClass}>
+          <div className={settingsTableWrapperClass}>
+            <div className="overflow-x-auto">
+            <table className={settingsTableClass}>
+              <thead className={settingsTableHeaderClass}>
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-16">No</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Password</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-24">Actions</th>
+                  <th className={`${settingsHeaderCellClass} w-16`}>No</th>
+                  <th className={settingsHeaderCellClass}>Name</th>
+                  <th className={settingsHeaderCellClass}>Email</th>
+                  <th className={settingsHeaderCellClass}>Password</th>
+                  <th className={settingsHeaderCellClass}>Role</th>
+                  <th className={settingsHeaderCellClass}>Status</th>
+                  <th className={`${settingsHeaderCellClass} w-24`}>Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className={settingsTableBodyClass}>
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                    <td colSpan={7} className={settingsEmptyCellClass}>
                       No users found
                     </td>
                   </tr>
                 ) : (
                   users.map((user, index) => (
-                    <tr key={user.id} className={`hover:bg-gray-50 ${!user.is_active && user.role === 'staff' ? 'bg-red-50/30' : ''}`}>
-                      <td className="px-4 py-3 text-gray-600">{index + 1}</td>
+                    <tr key={user.id} className={`${settingsTableRowClass} ${!user.is_active && user.role === 'staff' ? 'bg-gray-100 dark:bg-gray-800/70' : ''}`}>
+                      <td className={settingsMutedCellClass}>{index + 1}</td>
                       <td className="px-4 py-3">
-                        <span className={`font-medium ${!user.is_active && user.role === 'staff' ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
+                        <span className={`font-medium ${!user.is_active && user.role === 'staff' ? 'text-gray-400 line-through dark:text-gray-500' : 'text-gray-900 dark:text-gray-100'}`}>
                           {user.name}
                         </span>
                         {user.id === currentUserId && (
-                          <span className="ml-2 text-xs text-blue-600">(You)</span>
+                          <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">(You)</span>
                         )}
                       </td>
-                      <td className={`px-4 py-3 ${!user.is_active && user.role === 'staff' ? 'text-gray-400' : 'text-gray-600'}`}>
+                      <td className={`px-4 py-3 ${!user.is_active && user.role === 'staff' ? 'text-gray-400 dark:text-gray-500' : 'text-gray-600 dark:text-gray-300'}`}>
                         {user.email}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center space-x-2">
-                          <span className={`font-mono ${!user.is_active && user.role === 'staff' ? 'text-gray-400' : 'text-gray-600'}`}>
+                          <span className={`font-mono ${!user.is_active && user.role === 'staff' ? 'text-gray-400 dark:text-gray-500' : 'text-gray-600 dark:text-gray-300'}`}>
                             {showPassword[user.id] ? user.password : '••••••••'}
                           </span>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6"
+                            className="h-6 w-6 text-gray-500 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                             onClick={() => togglePassword(user.id)}
                           >
                             {showPassword[user.id] ? 
@@ -219,19 +244,19 @@ export function UsersTab() {
                       <td className="px-4 py-3">
                         <span className={`px-2 py-1 rounded-full text-xs ${
                           user.role === 'admin' 
-                            ? 'bg-purple-100 text-purple-700'
-                            : 'bg-blue-100 text-blue-700'
+                            ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300'
+                            : 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300'
                         } ${!user.is_active && user.role === 'staff' ? 'opacity-50' : ''}`}>
                           {user.role}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          user.role === 'admin' 
-                            ? 'bg-purple-100 text-purple-700'
-                            : user.is_active 
-                              ? 'bg-green-100 text-green-700' 
-                              : 'bg-red-100 text-red-700'
+                          user.role === 'admin'
+                            ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300'
+                            : user.is_active
+                              ? 'bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300'
+                              : 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100'
                         }`}>
                           {user.role === 'admin' ? 'Admin' : (user.is_active ? 'Active' : 'Inactive')}
                         </span>
@@ -253,9 +278,9 @@ export function UsersTab() {
                               variant="ghost"
                               size="icon"
                               className={`h-8 w-8 ${
-                                user.is_active 
-                                  ? 'text-orange-600 hover:text-orange-700 hover:bg-orange-50' 
-                                  : 'text-green-600 hover:text-green-700 hover:bg-green-50'
+                                user.is_active
+                                  ? 'text-orange-600 hover:bg-orange-50 dark:text-orange-300 dark:hover:bg-orange-950/40'
+                                  : 'text-green-600 hover:bg-green-50 dark:text-green-300 dark:hover:bg-green-950/40'
                               }`}
                               onClick={() => handleToggleStatus(user)}
                               title={user.is_active ? 'Deactivate user' : 'Activate user'}
@@ -274,48 +299,49 @@ export function UsersTab() {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Add/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-md bg-white">
+        <DialogContent className={`sm:max-w-md ${settingsDialogContentClass}`}>
           <DialogHeader>
-            <DialogTitle className="text-gray-900">
+            <DialogTitle className="text-gray-900 dark:text-gray-100">
               {editingUser ? 'Edit User' : 'Add New User'}
             </DialogTitle>
-            <DialogDescription className="text-gray-500">
+            <DialogDescription className="text-gray-500 dark:text-gray-400">
               {editingUser ? 'Edit user information below. Leave password empty to keep current password.' : 'Fill in the details to create a new user'}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-gray-700">Full Name *</Label>
+              <Label htmlFor="name" className={settingsLabelClass}>Full Name *</Label>
               <Input
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData({...formData, name: e.target.value})}
                 placeholder="John Doe"
-                className="border-gray-300"
+                className={settingsInputClass}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-gray-700">Email *</Label>
+              <Label htmlFor="email" className={settingsLabelClass}>Email *</Label>
               <Input
                 id="email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
                 placeholder="ics.user@gmail.com"
-                className="border-gray-300"
+                className={settingsInputClass}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-gray-700">
+              <Label htmlFor="password" className={settingsLabelClass}>
                 Password {!editingUser && '*'}
               </Label>
               <Input
@@ -324,19 +350,19 @@ export function UsersTab() {
                 value={formData.password}
                 onChange={(e) => setFormData({...formData, password: e.target.value})}
                 placeholder={editingUser ? "Leave empty to keep current password" : "Enter password"}
-                className="border-gray-300"
+                className={settingsInputClass}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="role" className="text-gray-700">Role *</Label>
+              <Label htmlFor="role" className={settingsLabelClass}>Role *</Label>
               <Select
                 value={formData.role}
                 onValueChange={(value: 'admin' | 'staff') => setFormData({...formData, role: value})}
               >
-                <SelectTrigger className="border-gray-300 bg-white">
+                <SelectTrigger className={settingsInputClass}>
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
-                <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
+                <SelectContent className={`${settingsSelectContentClass} max-h-80`}>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="staff">Staff</SelectItem>
                 </SelectContent>
@@ -350,7 +376,7 @@ export function UsersTab() {
             </Button>
             <Button 
               type="button" 
-              className="bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-400"
+              className={settingsPrimaryButtonClass}
               onClick={handleSave}
               disabled={saving}
             >

@@ -10,10 +10,17 @@ import {
   Calendar,
   ArrowUpDown,
   Download,
+  FileText,
   ChevronLeft,
   ChevronRight,
   Calendar as CalendarIcon,
 } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Select,
   SelectContent,
@@ -21,15 +28,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { getDotClass } from '@/lib/colors'
+import { downloadExcelReport, downloadPdfReport } from '@/lib/report-export'
 
 interface JobOrder {
   id: string
   client_name: string
   running_number: string
   job_task: string
-  date_start: string
-  date_stop: string
+  date_start: string | null
+  date_stop: string | null
   time_start?: string
   time_stop?: string
   additional_remark?: string
@@ -51,15 +68,15 @@ interface JobOrder {
 const getStatusColor = (status: string) => {
   switch(status) {
     case 'completed':
-      return 'bg-green-100 text-green-700'
+      return 'border [border-color:#16a34a] [background-color:#f0fdf4] [color:#15803d]'
     case 'in-progress':
-      return 'bg-yellow-100 text-yellow-700'
+      return 'border [border-color:#ca8a04] [background-color:#fefce8] [color:#a16207]'
     case 'incomplete':
-      return 'bg-red-100 text-red-700'
+      return 'border [border-color:#dc2626] [background-color:#fef2f2] [color:#b91c1c]'
     case 'onhold':
-      return 'bg-gray-100 text-gray-600'
+      return 'border [border-color:#4b5563] [background-color:#f9fafb] [color:#374151]'
     default:
-      return 'bg-gray-100 text-gray-700'
+      return 'border [border-color:#4b5563] [background-color:#f9fafb] [color:#374151]'
   }
 }
 
@@ -79,11 +96,11 @@ const getStatusText = (status: string) => {
 }
 
 // ========== REMINDER FUNCTION (25 DAYS FROM DATE_STOP OR DATE_START) ==========
-const getReminderText = (dateStart: string, dateStop: string, hasFinalReport: boolean): string | null => {
-  if (hasFinalReport) return null
+const getReminderText = (dateStart: string | null, dateStop: string | null, hasFinalReport: boolean): string => {
+  if (hasFinalReport) return 'N/A'
   
   const baseDateStr = (dateStop && dateStop.trim() !== '') ? dateStop : dateStart
-  if (!baseDateStr) return null
+  if (!baseDateStr) return 'N/A'
   
   const baseDate = new Date(baseDateStr)
   baseDate.setHours(0, 0, 0, 0)
@@ -96,15 +113,47 @@ const getReminderText = (dateStart: string, dateStop: string, hasFinalReport: bo
   
   const diffDays = Math.ceil((reminderDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
   
-  if (diffDays === 0) {
-    return 'Due today!'
+  if (diffDays < 0) return `${diffDays}d`
+  return `${diffDays}d`
+}
+
+const getReminderUrgency = (reminderText: string): 'overdue' | 'soon' | 'none' => {
+  if (reminderText === 'N/A') return 'none'
+
+  const overdueDays = Number(reminderText.match(/^-\d+d$/)?.[0]?.replace('d', ''))
+  if (Number.isFinite(overdueDays)) return 'overdue'
+
+  const daysLeft = Number(reminderText.match(/^(\d+)d$/)?.[1])
+  if (Number.isFinite(daysLeft) && daysLeft <= 7) return 'soon'
+
+  return 'none'
+}
+
+const getReminderRowClass = (reminderText: string) => {
+  const urgency = getReminderUrgency(reminderText)
+
+  if (urgency === 'overdue') {
+    return 'bg-red-500 text-black hover:bg-red-600 [&_td]:border-black [&_td]:text-black [&_button]:text-black'
   }
-  
-  if (diffDays < 0) {
-    return `Overdue by ${Math.abs(diffDays)}d`
+
+  if (urgency === 'soon') {
+    return 'bg-yellow-200 text-black hover:bg-yellow-300 [&_td]:border-black [&_td]:text-black [&_button]:text-black'
   }
-  
-  return `${diffDays}d left`
+
+  return '[background-color:white] text-black hover:[background-color:#f9fafb] [&_td]:border-black [&_td]:text-black [&_button]:text-black'
+}
+
+const tableHeaderCellClass = 'border-r border-black px-4 py-3 text-left text-[11px] font-semibold uppercase text-gray-700 dark:text-gray-200'
+const sortableHeaderCellClass = `${tableHeaderCellClass} cursor-pointer transition-colors hover:bg-gray-200/80 dark:hover:bg-gray-700/70`
+const tableCellClass = 'border-r border-black px-4 py-3'
+const paginationButtonClass = 'border-gray-300 bg-white text-gray-900 shadow-sm hover:bg-gray-100 disabled:border-gray-200 disabled:bg-gray-200 disabled:text-gray-500 disabled:opacity-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:disabled:border-gray-800 dark:disabled:bg-gray-800 dark:disabled:text-gray-500'
+const activePaginationButtonClass = 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-white dark:hover:bg-blue-400'
+
+const formatListDate = (date: string | null) => {
+  if (!date) return 'N/A'
+  const parsedDate = new Date(date)
+  if (Number.isNaN(parsedDate.getTime())) return 'N/A'
+  return parsedDate.toLocaleDateString('en-GB')
 }
 
 // ========== AUTO-COMPUTE STATUS FALLBACK ==========
@@ -114,18 +163,18 @@ const computeTaskStatus = (data: {
   job_order_number: string | null
   final_report_number: string | null
 }) => {
-  if (!data.date_start) return 'onhold'
-  
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const dueDate = data.date_stop ? new Date(data.date_stop) : new Date(data.date_start)
-  dueDate.setHours(0, 0, 0, 0)
-  
-  const isDueDatePassed = dueDate < today
   const hasJobOrder = !!data.job_order_number
   const hasFinalReport = !!data.final_report_number
   
   if (hasJobOrder && hasFinalReport) return 'completed'
+  if (!data.date_start) return 'onhold'
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const dueDate = data.date_stop ? new Date(data.date_stop) : new Date(data.date_start)
+  dueDate.setHours(0, 0, 0, 0)
+
+  const isDueDatePassed = dueDate < today
   if (isDueDatePassed && (!hasJobOrder || !hasFinalReport)) return 'incomplete'
   return 'in-progress'
 }
@@ -142,6 +191,7 @@ export default function JobOrdersPage() {
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [staffList, setStaffList] = useState<string[]>([])
   const [staffStatusMap, setStaffStatusMap] = useState<Map<string, boolean>>(new Map())
+  const [unscheduledJob, setUnscheduledJob] = useState<JobOrder | null>(null)
   const itemsPerPage = 10
   const router = useRouter()
   const { toast } = useToast()
@@ -174,19 +224,21 @@ export default function JobOrdersPage() {
       const statusMap = new Map<string, boolean>()
       
       staffData?.forEach((staff: { id: string; name: string; color?: string; role?: string; is_active?: boolean }) => {
+        const isActive = staff.is_active ?? true
+        const displayColor = isActive ? (staff.color || 'blue') : 'gray'
         if (staff.id) {
           staffMap[staff.id] = {
             name: staff.name,
-            color: staff.color || 'blue',
+            color: displayColor,
             id: staff.id,
-            is_active: staff.is_active ?? true
+            is_active: isActive
           }
           if (staff.name) {
             staffMap[staff.name] = {
               name: staff.name,
-              color: staff.color || 'blue',
+              color: displayColor,
               id: staff.id,
-              is_active: staff.is_active ?? true
+              is_active: isActive
             }
           }
         }
@@ -194,7 +246,7 @@ export default function JobOrdersPage() {
         // Add ALL staff to filter list (including inactive)
         if (staff.role === 'staff' && staff.name) {
           staffNamesForFilter.push(staff.name)
-          statusMap.set(staff.name, staff.is_active ?? true)
+          statusMap.set(staff.name, isActive)
         }
       })
       
@@ -354,9 +406,16 @@ export default function JobOrdersPage() {
     }
   }
 
-  const handleDateClick = (date: string) => {
+  const handleDateClick = (date: string | null, job?: JobOrder) => {
+    if (!date) {
+      if (job) {
+        setUnscheduledJob(job)
+      }
+      return
+    }
+
     const formattedDate = date.split('T')[0]
-    router.push(`/calendar?date=${formattedDate}&view=day`)
+    router.push(`/calendar?date=${formattedDate}&view=month&focus=${formattedDate}`)
   }
 
   const matchesStaffFilter = (job: JobOrder, filterStaffValue: string): boolean => {
@@ -403,57 +462,92 @@ export default function JobOrdersPage() {
   // Get count of active vs inactive staff
   const activeStaffCount = Array.from(staffStatusMap.values()).filter(isActive => isActive === true).length
   const inactiveStaffCount = staffList.length - activeStaffCount
+  const reportHeaders = ['Running Number', 'Client Name', 'Job Task', 'Start Date', 'End Date', 'Job Order Number', 'Final Report Number', 'Status', 'PIC', 'Support Staff']
+  const reportRows = filteredAndSortedJobs.map(job => [
+    job.running_number,
+    job.client_name,
+    job.job_task,
+    formatListDate(job.date_start),
+    formatListDate(job.date_stop),
+    job.job_order_number || '',
+    job.final_report_number || '',
+    getStatusText(job.job_status),
+    job.task_pic_name || '',
+    job.task_support_name || '',
+  ])
+  const reportDate = new Date().toISOString().split('T')[0]
+  const exportReport = (format: 'pdf' | 'excel') => {
+    const options = {
+      title: 'Job Task Order List',
+      headers: reportHeaders,
+      rows: reportRows,
+      filename: `job-task-order-list-${reportDate}`,
+    }
+
+    if (format === 'pdf') {
+      downloadPdfReport(options)
+    } else {
+      downloadExcelReport(options)
+    }
+
+    toast({ title: `Report exported as ${format === 'pdf' ? 'PDF' : 'Excel'}` })
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 lg:p-6">
-      <div className="max-w-[95%] mx-auto space-y-6">
+    <div className="min-h-screen bg-gray-50 p-2 dark:bg-gray-950 sm:p-3 lg:p-4">
+      <div className="w-full max-w-none space-y-6">
+        <AlertDialog open={!!unscheduledJob} onOpenChange={(open) => !open && setUnscheduledJob(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>No Date</AlertDialogTitle>
+              <AlertDialogDescription>
+                {unscheduledJob?.client_name || 'This job order'} is an unscheduled task. Please assign a start date before viewing it in the calendar month view.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogAction onClick={() => setUnscheduledJob(null)}>
+                OK
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Job Order List</h1>
-            <p className="text-sm text-gray-500 mt-1">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Job Task Order List</h1>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               Total: {jobOrders.length} job orders | Staff: {staffList.length} total 
               {inactiveStaffCount > 0 && ` (${activeStaffCount} active, ${inactiveStaffCount} inactive)`}
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={fetchJobOrders} disabled={loading}>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Button
+              variant="outline"
+              onClick={fetchJobOrders}
+              disabled={loading}
+              className="w-full border-gray-300 text-gray-900 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800 sm:w-auto"
+            >
               {loading ? 'Loading...' : 'Refresh'}
             </Button>
-            <Button 
-              variant="outline" 
-              className="border-gray-300"
-              onClick={() => {
-                const headers = ['Running Number', 'Client Name', 'Job Task', 'Start Date', 'End Date', 'Job Order Number', 'Final Report Number', 'Status', 'PIC', 'Support Staff']
-                const csvRows = [headers]
-                filteredAndSortedJobs.forEach(job => {
-                  const row = [
-                    job.running_number,
-                    job.client_name,
-                    job.job_task,
-                    new Date(job.date_start).toLocaleDateString('en-GB'),
-                    new Date(job.date_stop).toLocaleDateString('en-GB'),
-                    job.job_order_number || '',
-                    job.final_report_number || '',
-                    getStatusText(job.job_status),
-                    job.task_pic_name || '',
-                    job.task_support_name || ''
-                  ]
-                  csvRows.push(row)
-                })
-                const csvContent = csvRows.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n')
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-                const url = window.URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = `job-orders-${new Date().toISOString().split('T')[0]}.csv`
-                a.click()
-                window.URL.revokeObjectURL(url)
-                toast({ title: "Report exported successfully" })
-              }}
-            >
-              <Download className="h-4 w-4 mr-2" /> Report
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full border-gray-300 text-gray-900 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800 sm:w-auto"
+                >
+                  <Download className="mr-2 h-4 w-4" /> Report
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                <DropdownMenuItem onClick={() => exportReport('pdf')} className="cursor-pointer text-gray-900 dark:text-gray-100">
+                  <FileText className="mr-2 h-4 w-4" /> Download PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportReport('excel')} className="cursor-pointer text-gray-900 dark:text-gray-100">
+                  <Download className="mr-2 h-4 w-4" /> Download Excel
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -463,13 +557,13 @@ export default function JobOrdersPage() {
             placeholder="Search by client, running num, task, or report..."
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1) }}
-            className="bg-white border-gray-300"
+            className="border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-900"
           />
           <Select value={filterStaff} onValueChange={(value) => { setFilterStaff(value); setCurrentPage(1) }}>
-            <SelectTrigger className="bg-white border-gray-300">
+            <SelectTrigger className="border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-900">
               <SelectValue placeholder="Filter by Staff" />
             </SelectTrigger>
-            <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
+            <SelectContent className="max-h-80 border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
               <SelectItem value="all">All Staff ({staffList.length})</SelectItem>
               {staffList.map(staff => {
                 const isActive = staffStatusMap.get(staff)
@@ -485,10 +579,10 @@ export default function JobOrdersPage() {
             </SelectContent>
           </Select>
           <Select value={filterStatus} onValueChange={(value) => { setFilterStatus(value); setCurrentPage(1) }}>
-            <SelectTrigger className="bg-white border-gray-300">
+            <SelectTrigger className="border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-900">
               <SelectValue placeholder="Filter by Status" />
             </SelectTrigger>
-            <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
+            <SelectContent className="max-h-80 border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
               <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="completed">Completed</SelectItem>
               <SelectItem value="in-progress">In Progress</SelectItem>
@@ -496,22 +590,22 @@ export default function JobOrdersPage() {
               <SelectItem value="onhold">On Hold</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" className="border-gray-300" onClick={() => router.push('/calendar')}>
+          <Button variant="outline" className="w-full border-gray-300 dark:border-gray-700" onClick={() => router.push('/calendar')}>
             <Calendar className="h-4 w-4 mr-2" /> Go to Calendar
           </Button>
         </div>
 
         {/* Active Filters Summary */}
         {(searchTerm || filterStaff !== 'all' || filterStatus !== 'all') && (
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-gray-500">Filters active:</span>
-            {searchTerm && <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">Search: {searchTerm}</span>}
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-gray-500 dark:text-gray-400">Filters active:</span>
+            {searchTerm && <span className="rounded-full bg-blue-100 px-2 py-0.5 text-blue-800 dark:bg-blue-950/60 dark:text-blue-200">Search: {searchTerm}</span>}
             {filterStaff !== 'all' && (
-              <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">
+              <span className="rounded-full bg-purple-100 px-2 py-0.5 text-purple-800 dark:bg-purple-950/60 dark:text-purple-200">
                 Staff: {filterStaff} {!staffStatusMap.get(filterStaff) && '(inactive)'}
               </span>
             )}
-            {filterStatus !== 'all' && <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Status: {filterStatus}</span>}
+            {filterStatus !== 'all' && <span className="rounded-full bg-green-100 px-2 py-0.5 text-green-800 dark:bg-green-950/60 dark:text-green-200">Status: {filterStatus}</span>}
             <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setSearchTerm(''); setFilterStaff('all'); setFilterStatus('all') }}>
               Clear all
             </Button>
@@ -519,50 +613,51 @@ export default function JobOrdersPage() {
         )}
 
         {/* Table */}
-        <div className="border-2 border-gray-300 rounded-lg overflow-x-auto shadow-sm bg-white">
-          <table className="w-full text-sm border-collapse">
-            <thead className="bg-gray-100">
-              <tr className="border-b-2 border-gray-300">
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase w-12">No</th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('running_number')}>
+        <div className="overflow-hidden rounded-lg border border-black bg-white shadow-sm ring-1 ring-black/10 dark:bg-gray-900">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[1180px] border-collapse text-sm">
+            <thead className="bg-gray-100 dark:bg-gray-800">
+              <tr className="border-b border-black">
+                <th className={`${tableHeaderCellClass} w-12`}>No</th>
+                <th className={sortableHeaderCellClass} onClick={() => handleSort('running_number')}>
                   <div className="flex items-center space-x-1">Running Num <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('client_name')}>
+                <th className={sortableHeaderCellClass} onClick={() => handleSort('client_name')}>
                   <div className="flex items-center space-x-1">Client Name <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('job_task')}>
+                <th className={sortableHeaderCellClass} onClick={() => handleSort('job_task')}>
                   <div className="flex items-center space-x-1">Job Task <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('date_start')}>
+                <th className={sortableHeaderCellClass} onClick={() => handleSort('date_start')}>
                   <div className="flex items-center space-x-1">Start Date <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
-                <th className="border-r border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('date_stop')}>
+                <th className={sortableHeaderCellClass} onClick={() => handleSort('date_stop')}>
                   <div className="flex items-center space-x-1">End Date <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Reminder (25d)</th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">PIC</th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Support Staff</th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Job Order</th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Final Report</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Status</th>
+                <th className={tableHeaderCellClass}>Reminder (25d)</th>
+                <th className={tableHeaderCellClass}>PIC</th>
+                <th className={tableHeaderCellClass}>Support Staff</th>
+                <th className={tableHeaderCellClass}>Job Order</th>
+                <th className={tableHeaderCellClass}>Final Report</th>
+                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase text-gray-700 dark:text-gray-200">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-black">
               {loading ? (
                 <tr>
-                  <td colSpan={12} className="px-4 py-12 text-center border-t border-gray-300">
+                  <td colSpan={12} className="border-t border-black px-4 py-12 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
-                      <p className="text-sm text-gray-500">Loading job orders...</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Loading job orders...</p>
                     </div>
                   </td>
                 </tr>
               ) : paginatedJobs.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-4 py-12 text-center border-t border-gray-300">
+                  <td colSpan={12} className="border-t border-black px-4 py-12 text-center">
                     <div className="text-gray-400 text-4xl mb-2">📋</div>
-                    <p className="text-gray-500">No job orders found</p>
-                    <p className="text-xs text-gray-400 mt-1">
+                    <p className="text-gray-500 dark:text-gray-300">No job orders found</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                       {searchTerm || filterStaff !== 'all' || filterStatus !== 'all' 
                         ? 'Try clearing your filters' 
                         : 'Add tasks in calendar to see them here'}
@@ -572,48 +667,36 @@ export default function JobOrdersPage() {
               ) : (
                 paginatedJobs.map((job, index) => {
                   const reminderText = getReminderText(job.date_start, job.date_stop, !!job.final_report_number)
-                  const isOverdue = reminderText?.startsWith('Overdue') || false
-                  const isDueToday = reminderText === 'Due today!'
                   
                   return (
-                    <tr key={job.id} className="hover:bg-gray-50 transition-colors group border-b border-gray-200">
-                      <td className="border-r border-gray-200 px-4 py-3 text-gray-600">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                      <td className="border-r border-gray-200 px-4 py-3 font-medium text-gray-900">{job.running_number}</td>
-                      <td className="border-r border-gray-200 px-4 py-3">
+                    <tr key={job.id} className={`group border-b border-black transition-colors ${getReminderRowClass(reminderText)}`}>
+                      <td className={`${tableCellClass} text-black`}>{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                      <td className={`${tableCellClass} font-medium text-black`}>{job.running_number}</td>
+                      <td className={tableCellClass}>
                         <div className="flex items-center gap-2">
-                          <span className="text-gray-600 max-w-xs truncate">{job.client_name}</span>
-                          <button onClick={() => handleDateClick(job.date_start)} className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 hover:text-blue-700">
+                          <button onClick={() => handleDateClick(job.date_start, job)} className="max-w-xs truncate text-left font-medium text-blue-700 hover:text-blue-900 hover:underline">
+                            {job.client_name}
+                          </button>
+                          <button onClick={() => handleDateClick(job.date_start, job)} className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 hover:text-blue-700">
                             <CalendarIcon className="h-3 w-3" />
                           </button>
                         </div>
                       </td>
-                      <td className="border-r border-gray-200 px-4 py-3">
-                        <span className="bg-gray-100 px-2 py-1 rounded text-xs text-gray-700">{job.job_task}</span>
+                      <td className={tableCellClass}>
+                        <span className="text-black">{job.job_task}</span>
                       </td>
-                      <td className="border-r border-gray-200 px-4 py-3">
-                        <button onClick={() => handleDateClick(job.date_start)} className="text-blue-600 hover:text-blue-800 hover:underline">
-                          {new Date(job.date_start).toLocaleDateString('en-GB')}
-                        </button>
+                      <td className={tableCellClass}>
+                        <span>{formatListDate(job.date_start)}</span>
                       </td>
-                      <td className="border-r border-gray-200 px-4 py-3">
-                        <button onClick={() => handleDateClick(job.date_stop)} className="text-blue-600 hover:text-blue-800 hover:underline">
-                          {new Date(job.date_stop).toLocaleDateString('en-GB')}
-                        </button>
+                      <td className={tableCellClass}>
+                        <span>{formatListDate(job.date_stop)}</span>
                       </td>
-                      <td className="border-r border-gray-200 px-4 py-3">
-                        {reminderText ? (
-                          <span className={`font-medium ${
-                            isOverdue ? 'text-red-600' : 
-                            isDueToday ? 'text-orange-600 font-bold' : 
-                            'text-orange-600'
-                          }`}>
-                            {reminderText}
-                          </span>
-                        ) : (
-                          <span className="text-gray-300">-</span>
-                        )}
+                      <td className={tableCellClass}>
+                        <span className="font-medium text-black">
+                          {reminderText}
+                        </span>
                       </td>
-                      <td className="border-r border-gray-200 px-4 py-3">
+                      <td className={tableCellClass}>
                         <div className="flex items-center">
                           <span className={`w-3 h-3 rounded-full mr-2 flex-shrink-0 ${getDotClass(job.task_pic_color)}`}></span>
                           <span className="text-sm font-medium">
@@ -621,7 +704,7 @@ export default function JobOrdersPage() {
                           </span>
                         </div>
                       </td>
-                      <td className="border-r border-gray-200 px-4 py-3">
+                      <td className={tableCellClass}>
                         {job.task_support_names_array && job.task_support_names_array.length > 0 ? (
                           <div className="flex flex-wrap gap-2">
                             {job.task_support_names_array.map((name, idx) => (
@@ -633,33 +716,26 @@ export default function JobOrdersPage() {
                               </div>
                             ))}
                           </div>
-                        ) : <span className="text-gray-400 text-sm">-</span>}
+                        ) : <span className="text-sm text-black">-</span>}
                       </td>
-                      <td className="border-r border-gray-200 px-4 py-3">
+                      <td className={tableCellClass}>
                         {job.job_order_number ? (
-                          <span className="font-mono text-xs text-gray-800 bg-blue-50 border border-blue-100 px-2 py-1 rounded">
+                          <span className="inline-flex min-w-[72px] items-center justify-center rounded-md border px-2.5 py-1 font-mono text-xs font-semibold shadow-sm [border-color:#2563eb] [background-color:#eff6ff] [color:#1d4ed8]">
                             {job.job_order_number}
                           </span>
-                        ) : <span className="text-gray-300">-</span>}
+                        ) : <span className="text-black">-</span>}
                       </td>
-                      <td className="border-r border-gray-200 px-4 py-3">
+                      <td className={tableCellClass}>
                         {job.final_report_number ? (
-                          <span className="font-mono text-xs text-gray-800 bg-green-50 border border-green-100 px-2 py-1 rounded">
+                          <span className="inline-flex min-w-[72px] items-center justify-center rounded-md border px-2.5 py-1 font-mono text-xs font-semibold shadow-sm [border-color:#16a34a] [background-color:#f0fdf4] [color:#15803d]">
                             {job.final_report_number}
                           </span>
-                        ) : <span className="text-gray-300">-</span>}
+                        ) : <span className="text-black">-</span>}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="space-y-1">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(job.job_status)}`}>
-                            {getStatusText(job.job_status)}
-                          </span>
-                          {job.additional_remark && (
-                            <div className="text-xs text-gray-400 truncate max-w-[100px]" title={job.additional_remark}>
-                              📝 {job.additional_remark.substring(0, 15)}...
-                            </div>
-                          )}
-                        </div>
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm ${getStatusColor(job.job_status)}`}>
+                          {getStatusText(job.job_status)}
+                        </span>
                       </td>
                     </tr>
                   )
@@ -667,19 +743,20 @@ export default function JobOrdersPage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
 
         {/* Pagination */}
         {filteredAndSortedJobs.length > 0 && !loading && (
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-gray-500">
               Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredAndSortedJobs.length)} of {filteredAndSortedJobs.length} entries
             </p>
-            <div className="flex space-x-2">
-              <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
+            <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+              <Button variant="outline" size="icon" className={paginationButtonClass} onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <div className="flex items-center space-x-1">
+              <div className="flex items-center gap-1">
                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                   let pageNum = currentPage
                   if (totalPages <= 5) {
@@ -692,13 +769,13 @@ export default function JobOrdersPage() {
                     pageNum = currentPage - 2 + i
                   }
                   return (
-                    <Button key={pageNum} variant={currentPage === pageNum ? 'default' : 'outline'} size="sm" className="w-8 h-8" onClick={() => setCurrentPage(pageNum)}>
+                    <Button key={pageNum} variant={currentPage === pageNum ? 'default' : 'outline'} size="sm" className={`h-8 w-8 ${currentPage === pageNum ? activePaginationButtonClass : paginationButtonClass}`} onClick={() => setCurrentPage(pageNum)}>
                       {pageNum}
                     </Button>
                   )
                 })}
               </div>
-              <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+              <Button variant="outline" size="icon" className={paginationButtonClass} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -706,31 +783,31 @@ export default function JobOrdersPage() {
         )}
 
         {/* Info Section */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white rounded-lg border-2 border-gray-300">
+        <div className="grid grid-cols-1 gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900 md:grid-cols-3">
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">Number Indicators:</h4>
+            <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Number Indicators:</h4>
             <div className="space-y-1 text-xs">
-              <div className="flex items-center"><span className="font-mono text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded mr-2">JO-001</span><span className="text-gray-600">= Job order number entered</span></div>
-              <div className="flex items-center"><span className="font-mono text-green-700 bg-green-50 border border-green-100 px-2 py-0.5 rounded mr-2">FR-001</span><span className="text-gray-600">= Final report number entered</span></div>
-              <div className="flex items-center"><span className="w-4 h-4 mr-2 text-gray-300">-</span><span className="text-gray-600">= Number not entered</span></div>
+              <div className="flex items-center"><span className="mr-2 rounded border border-blue-100 bg-blue-50 px-2 py-0.5 font-mono text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/50 dark:text-blue-200">JO-001</span><span className="text-gray-600 dark:text-gray-400">= Job order number entered</span></div>
+              <div className="flex items-center"><span className="mr-2 rounded border border-green-100 bg-green-50 px-2 py-0.5 font-mono text-green-700 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200">FR-001</span><span className="text-gray-600 dark:text-gray-400">= Final report number entered</span></div>
+              <div className="flex items-center"><span className="mr-2 h-4 w-4 text-gray-300 dark:text-gray-500">-</span><span className="text-gray-600 dark:text-gray-400">= Number not entered</span></div>
             </div>
           </div>
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">📊 Status Legend:</h4>
+            <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Status Legend:</h4>
             <div className="space-y-1 text-xs">
-              <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-green-500 mr-2"></span><span className="text-gray-600">Completed</span></div>
-              <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-yellow-500 mr-2"></span><span className="text-gray-600">In Progress</span></div>
-              <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-red-500 mr-2"></span><span className="text-gray-600">Incomplete</span></div>
-              <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-gray-400 mr-2"></span><span className="text-gray-600">On Hold (Inbox)</span></div>
+              <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full bg-green-500"></span><span className="text-gray-600 dark:text-gray-400">Completed</span></div>
+              <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full bg-yellow-500"></span><span className="text-gray-600 dark:text-gray-400">In Progress</span></div>
+              <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full bg-red-500"></span><span className="text-gray-600 dark:text-gray-400">Incomplete</span></div>
+              <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full bg-gray-400"></span><span className="text-gray-600 dark:text-gray-400">On Hold (Inbox)</span></div>
             </div>
           </div>
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">⏰ Reminder Format (25 days):</h4>
+            <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Reminder Format (25 days):</h4>
             <div className="space-y-1 text-xs">
-              <div className="flex items-center"><span className="text-orange-600 mr-2">14d left</span><span className="text-gray-600">= 14 days until reminder</span></div>
-              <div className="flex items-center"><span className="text-orange-600 font-bold mr-2">Due today!</span><span className="text-gray-600">= Reminder day</span></div>
-              <div className="flex items-center"><span className="text-red-600 font-medium mr-2">Overdue by 4d</span><span className="text-gray-600">= Past reminder date</span></div>
-              <div className="flex items-center"><span className="text-gray-300 mr-2">-</span><span className="text-gray-600">= Final report submitted</span></div>
+              <div className="flex items-center"><span className="mr-2 text-orange-600 dark:text-orange-300">7d</span><span className="text-gray-600 dark:text-gray-400">= 7 days until reminder</span></div>
+              <div className="flex items-center"><span className="mr-2 font-bold text-orange-600 dark:text-orange-300">0d</span><span className="text-gray-600 dark:text-gray-400">= Reminder day</span></div>
+              <div className="flex items-center"><span className="mr-2 font-medium text-red-600 dark:text-red-400">-7d</span><span className="text-gray-600 dark:text-gray-400">= 7 days overdue</span></div>
+              <div className="flex items-center"><span className="mr-2 text-gray-400 dark:text-gray-500">N/A</span><span className="text-gray-600 dark:text-gray-400">= No date or completed</span></div>
             </div>
           </div>
         </div>

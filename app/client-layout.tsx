@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
 import {
@@ -14,7 +15,7 @@ import {
   User
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { getColorClass, getSolidClass, getDotClass, getItemBgClass } from '@/lib/colors'
+import { getColorClass, getSolidClass, getItemBgClass } from '@/lib/colors'
 
 type AppUser = {
   id?: string
@@ -33,7 +34,7 @@ export default function ClientLayout({
   const [user, setUser] = useState<AppUser | null>(null)
   const [userColor, setUserColor] = useState('blue')
   const [loading, setLoading] = useState(true)
-  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   
@@ -78,19 +79,28 @@ export default function ClientLayout({
   }
 
   useEffect(() => {
-    const handleStorageChange = () => {
+    const syncUserFromStorage = () => {
       const userData = localStorage.getItem('user')
       if (userData) {
         const parsedUser = JSON.parse(userData)
         setUser(parsedUser)
-        if (parsedUser?.id) {
-          fetchUserColor(parsedUser.id)
-        }
+        setUserColor(parsedUser.color || 'blue')
+        if (parsedUser?.id) fetchUserColor(parsedUser.id)
       }
     }
 
-    window.addEventListener('storage', handleStorageChange)
-    return () => window.removeEventListener('storage', handleStorageChange)
+    const handleProfileUpdated = (event: Event) => {
+      const updatedUser = (event as CustomEvent<AppUser>).detail
+      setUser(updatedUser)
+      setUserColor(updatedUser?.color || 'blue')
+    }
+
+    window.addEventListener('storage', syncUserFromStorage)
+    window.addEventListener('user-profile-updated', handleProfileUpdated)
+    return () => {
+      window.removeEventListener('storage', syncUserFromStorage)
+      window.removeEventListener('user-profile-updated', handleProfileUpdated)
+    }
   }, [])
 
   const handleLogout = () => {
@@ -107,11 +117,7 @@ export default function ClientLayout({
   // Get current color styles from color.ts
   const currentSolidClass = getSolidClass(userColor)
   const currentTextClass = getColorClass(userColor, 'text')
-  const currentBgClass = getItemBgClass(userColor)
-  const currentDotClass = getDotClass(userColor)
   const currentLightBgClass = getItemBgClass(userColor)
-  const currentBorderClass = getColorClass(userColor, 'border')
-  const currentRingClass = getColorClass(userColor, 'ring')
 
   if (pathname === '/login') {
     return (
@@ -134,7 +140,26 @@ export default function ClientLayout({
   }
 
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
-
+  const isCalendarPage = pathname === '/calendar'
+  const getNavClass = (path: string) => {
+    const isActive = pathname === path
+    return [
+      'app-nav-link h-9 w-full rounded-md text-sm font-semibold transition-colors',
+      drawerOpen ? 'justify-start px-3' : 'justify-center px-0',
+      isActive
+        ? 'app-nav-link-active bg-blue-600 text-white shadow-sm hover:bg-blue-600'
+        : 'text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white',
+    ].join(' ')
+  }
+  const getMobileNavClass = (path: string) => {
+    const isActive = pathname === path
+    return [
+      'app-nav-link h-10 w-full justify-start rounded-md px-3 text-sm font-semibold transition-colors',
+      isActive
+        ? 'app-nav-link-active bg-blue-600 text-white shadow-sm hover:bg-blue-600'
+        : 'text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white',
+    ].join(' ')
+  }
   const getUserInitials = () => {
     if (!user?.name) return 'U'
     return user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
@@ -143,14 +168,19 @@ export default function ClientLayout({
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100">
           {/* Header */}
-          <header className="bg-white border-b border-gray-200 h-16 fixed top-0 left-0 right-0 z-30 flex items-center px-4 shadow-sm dark:bg-gray-900 dark:border-gray-800">
+          <header className={`
+            fixed right-0 top-0 z-30 flex h-16 items-center border-b border-gray-200 bg-white px-3 shadow-sm transition-all duration-300
+            dark:border-slate-800 dark:bg-slate-950 sm:px-4
+            ${drawerOpen ? 'left-64' : 'left-12'}
+            max-lg:left-0
+          `}>
             {/* Left side - Menu toggle & Logo */}
-            <div className="flex items-center space-x-3">
+            <div className="flex min-w-0 items-center space-x-2 sm:space-x-3">
               <Button 
                 variant="ghost" 
                 size="icon"
                 onClick={() => setDrawerOpen(!drawerOpen)}
-                className="hidden lg:flex"
+                className="hidden text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white lg:flex"
               >
                 <Menu className="h-5 w-5" />
               </Button>
@@ -158,26 +188,24 @@ export default function ClientLayout({
               <Button 
                 variant="ghost" 
                 size="icon"
-                className="lg:hidden"
+                className="text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white lg:hidden"
                 onClick={() => setMobileMenuOpen(true)}
               >
                 <Menu className="h-5 w-5" />
               </Button>
-
-              <h1 className="text-xl font-bold text-blue-600">ICS CMS</h1>
             </div>
 
             {/* Right side - Profile */}
-            <div className="flex-1 flex items-center justify-end space-x-4 relative">
+            <div className="relative flex min-w-0 flex-1 items-center justify-end space-x-2 sm:space-x-4">
               <ThemeToggle />
               <Button
                 variant="ghost"
-                className="flex items-center space-x-3 hover:bg-gray-100 rounded-full px-3 py-1.5 transition-all dark:hover:bg-gray-800"
+                className="flex min-w-0 items-center space-x-2 rounded-full px-2 py-1.5 transition-all hover:bg-gray-100 dark:hover:bg-slate-800 sm:space-x-3 sm:px-3"
                 onClick={() => setProfileMenuOpen(!profileMenuOpen)}
               >
                 <div className="text-right hidden sm:block">
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{user.name}</p>
-                  <p className="text-xs text-gray-500 capitalize dark:text-gray-400">{user.role}</p>
+                  <p className="max-w-36 truncate text-sm font-medium text-gray-900 dark:text-slate-100">{user.name}</p>
+                  <p className="text-xs text-gray-500 capitalize dark:text-slate-400">{user.role}</p>
                 </div>
                 <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-sm ${currentSolidClass}`}>
                   <span className="text-white font-semibold text-sm">
@@ -194,15 +222,15 @@ export default function ClientLayout({
                     onClick={() => setProfileMenuOpen(false)}
                   />
                   
-                  <div className="absolute right-0 top-14 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-50 py-2 dark:bg-gray-900 dark:border-gray-800">
-                    <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
+                  <div className="absolute right-0 top-14 z-50 w-[calc(100vw-1.5rem)] max-w-64 rounded-lg border border-gray-200 bg-white py-2 shadow-xl dark:border-slate-800 dark:bg-slate-900">
+                    <div className="border-b border-gray-200 px-4 py-3 dark:border-slate-800">
                       <div className="flex items-center gap-3 mb-2">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${currentSolidClass}`}>
                           {getUserInitials()}
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900 dark:text-gray-100">{user.name}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">{user.email}</p>
+                          <p className="font-medium text-gray-900 dark:text-slate-100">{user.name}</p>
+                          <p className="text-xs text-gray-500 dark:text-slate-400">{user.email}</p>
                         </div>
                       </div>
                       <div className="flex items-center mt-2">
@@ -219,7 +247,7 @@ export default function ClientLayout({
                     <div className="py-2">
                       <button
                         onClick={() => handleNavigation('/profile')}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center dark:text-gray-200 dark:hover:bg-gray-800"
+                        className="flex w-full items-center px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-slate-200 dark:hover:bg-slate-800"
                       >
                         <User className="h-4 w-4 mr-3" />
                         My Profile
@@ -228,25 +256,25 @@ export default function ClientLayout({
                       {isAdmin && (
                         <button
                           onClick={() => handleNavigation('/settings')}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center dark:text-gray-200 dark:hover:bg-gray-800"
+                          className="flex w-full items-center px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-slate-200 dark:hover:bg-slate-800"
                         >
                           <Settings className="h-4 w-4 mr-3" />
                           Settings
                         </button>
                       )}
 
-                      <div className="border-t border-gray-200 my-2 dark:border-gray-800"></div>
+                      <div className="my-2 border-t border-gray-200 dark:border-slate-800"></div>
 
                       <button
                         onClick={handleLogout}
-                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center dark:text-red-400 dark:hover:bg-red-950/40"
+                        className="flex w-full items-center px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/40"
                       >
                         <LogOut className="h-4 w-4 mr-3" />
                         Logout
                       </button>
                     </div>
 
-                    <div className="absolute -top-2 right-6 w-4 h-4 bg-white border-t border-l border-gray-200 transform rotate-45 dark:bg-gray-900 dark:border-gray-800"></div>
+                    <div className="absolute -top-2 right-6 h-4 w-4 rotate-45 border-l border-t border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900"></div>
                   </div>
                 </>
               )}
@@ -255,21 +283,38 @@ export default function ClientLayout({
 
           {/* Desktop Drawer */}
           <aside className={`
-            hidden lg:block fixed left-0 top-16 bottom-0 z-20
-            bg-white border-r border-gray-200 transition-all duration-300 dark:bg-gray-900 dark:border-gray-800
-            ${drawerOpen ? 'w-64' : 'w-20'}
+            hidden lg:block fixed left-0 top-0 bottom-0 z-40
+            border-r border-gray-200 bg-white transition-all duration-300 dark:border-slate-800 dark:bg-slate-950
+            ${drawerOpen ? 'w-64' : 'w-12'}
           `}>
             <div className="h-full flex flex-col">
+              <div className="flex h-16 items-center border-b border-gray-200 px-3 dark:border-slate-800">
+                <div className={`flex min-w-0 items-center ${drawerOpen ? 'gap-3' : 'justify-center w-full'}`}>
+                  <div
+                    className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm dark:!bg-white dark:border-slate-700"
+                    style={{ backgroundColor: '#fff' }}
+                  >
+                    <Image
+                    src="/logoics.png"
+                    alt="ICS Logo"
+                    width={56}
+                    height={56}
+                    className="h-full w-full object-contain p-1"
+                    priority
+                    />
+                  </div>
+                  {drawerOpen && (
+                    <h1 className="truncate text-lg font-bold text-blue-600 dark:text-blue-200">CMS</h1>
+                  )}
+                </div>
+              </div>
+
               <div className="flex-1 overflow-y-auto py-6">
-                <div className="px-3 space-y-2">
+                <div className={`${drawerOpen ? 'px-3' : 'px-2'} space-y-2`}>
                   {/* Calendar */}
                   <Button 
                     variant="ghost"
-                    className={`w-full ${drawerOpen ? 'justify-start' : 'justify-center'} ${
-                      pathname === '/calendar' 
-                        ? `bg-blue-50 text-blue-600` 
-                        : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800'
-                    }`}
+                    className={getNavClass('/calendar')}
                     onClick={() => handleNavigation('/calendar')}
                     title={!drawerOpen ? "Calendar" : ""}
                   >
@@ -280,26 +325,18 @@ export default function ClientLayout({
                   {/* Job Orders */}
                   <Button 
                     variant="ghost"
-                    className={`w-full ${drawerOpen ? 'justify-start' : 'justify-center'} ${
-                      pathname === '/job-orders' 
-                        ? `bg-blue-50 text-blue-600` 
-                        : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800'
-                    }`}
+                    className={getNavClass('/job-orders')}
                     onClick={() => handleNavigation('/job-orders')}
-                    title={!drawerOpen ? "Job Order List" : ""}
+                    title={!drawerOpen ? "Job Task Order List" : ""}
                   >
                     <ClipboardList className={`h-5 w-5 ${drawerOpen ? 'mr-3' : ''}`} />
-                    {drawerOpen && <span>Job Order List</span>}
+                    {drawerOpen && <span>Job Task Order List</span>}
                   </Button>
 
                   {/* Events */}
                   <Button 
                     variant="ghost"
-                    className={`w-full ${drawerOpen ? 'justify-start' : 'justify-center'} ${
-                      pathname === '/event-lists' 
-                        ? `bg-purple-50 text-purple-600` 
-                        : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800'
-                    }`}
+                    className={getNavClass('/event-lists')}
                     onClick={() => handleNavigation('/event-lists')}
                     title={!drawerOpen ? "Event List" : ""}
                   >
@@ -311,11 +348,7 @@ export default function ClientLayout({
                   {isAdmin && (
                     <Button 
                       variant="ghost"
-                      className={`w-full ${drawerOpen ? 'justify-start' : 'justify-center'} ${
-                        pathname === '/settings' 
-                          ? `bg-blue-50 text-blue-600` 
-                          : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800'
-                      }`}
+                      className={getNavClass('/settings')}
                       onClick={() => handleNavigation('/settings')}
                       title={!drawerOpen ? "Settings" : ""}
                     >
@@ -324,19 +357,6 @@ export default function ClientLayout({
                     </Button>
                   )}
                 </div>
-              </div>
-
-              {/* Logout Button */}
-              <div className="p-3 border-t border-gray-200 dark:border-gray-800">
-                <Button 
-                  variant="ghost" 
-                  className={`w-full ${drawerOpen ? 'justify-start' : 'justify-center'} text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40`}
-                  onClick={handleLogout}
-                  title={!drawerOpen ? "Logout" : ""}
-                >
-                  <LogOut className={`h-5 w-5 ${drawerOpen ? 'mr-3' : ''}`} />
-                  {drawerOpen && <span>Logout</span>}
-                </Button>
               </div>
             </div>
           </aside>
@@ -348,26 +368,27 @@ export default function ClientLayout({
                 className="fixed inset-0 bg-black/50 z-40 lg:hidden"
                 onClick={() => setMobileMenuOpen(false)}
               />
-              <aside className="fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 flex flex-col lg:hidden dark:bg-gray-900 dark:border-gray-800">
-                <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-800">
-                  <h1 className="text-xl font-bold text-blue-600">ICS CMS</h1>
+              <aside className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-950 lg:hidden">
+                <div className="flex h-16 items-center justify-between border-b border-gray-200 px-4 dark:border-slate-800">
+                  <h1 className="text-xl font-bold text-blue-600 dark:text-blue-200">ICS CMS</h1>
                   <Button 
                     variant="ghost" 
                     size="icon"
+                    className="text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     <X className="h-5 w-5" />
                   </Button>
                 </div>
 
-                <div className="p-4 border-b border-gray-200 dark:border-gray-800">
+                <div className="border-b border-gray-200 p-4 dark:border-slate-800">
                   <div className="flex items-center space-x-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${currentSolidClass}`}>
                       {getUserInitials()}
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{user.name || 'User'}</p>
-                      <p className="text-xs text-gray-500 capitalize dark:text-gray-400">{user.role || 'staff'}</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-slate-100">{user.name || 'User'}</p>
+                      <p className="text-xs text-gray-500 capitalize dark:text-slate-400">{user.role || 'staff'}</p>
                     </div>
                   </div>
                 </div>
@@ -376,7 +397,7 @@ export default function ClientLayout({
                   <div className="px-3 space-y-1">
                     <Button 
                       variant="ghost"
-                      className="w-full justify-start text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                      className={getMobileNavClass('/calendar')}
                       onClick={() => handleNavigation('/calendar')}
                     >
                       <Calendar className="mr-3 h-5 w-5" />
@@ -385,16 +406,16 @@ export default function ClientLayout({
 
                     <Button 
                       variant="ghost"
-                      className="w-full justify-start text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                      className={getMobileNavClass('/job-orders')}
                       onClick={() => handleNavigation('/job-orders')}
                     >
                       <ClipboardList className="mr-3 h-5 w-5" />
-                      Job Order List
+                      Job Task Order List
                     </Button>
 
                     <Button 
                       variant="ghost"
-                      className="w-full justify-start text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                      className={getMobileNavClass('/event-lists')}
                       onClick={() => handleNavigation('/event-lists')}
                     >
                       <CalendarCheck className="mr-3 h-5 w-5" />
@@ -404,7 +425,7 @@ export default function ClientLayout({
                     {isAdmin && (
                       <Button 
                         variant="ghost"
-                        className="w-full justify-start text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                        className={getMobileNavClass('/settings')}
                         onClick={() => handleNavigation('/settings')}
                       >
                         <Settings className="mr-3 h-5 w-5" />
@@ -414,10 +435,10 @@ export default function ClientLayout({
                   </div>
                 </div>
 
-                <div className="p-4 border-t border-gray-200 dark:border-gray-800">
+                <div className="border-t border-gray-200 p-4 dark:border-slate-800">
                   <Button 
                     variant="ghost" 
-                    className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                    className="w-full justify-start text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-300 dark:hover:bg-red-950/40 dark:hover:text-red-200"
                     onClick={handleLogout}
                   >
                     <LogOut className="mr-3 h-4 w-4" />
@@ -431,23 +452,25 @@ export default function ClientLayout({
           {/* Main Content */}
           <main className={`
             flex-1 transition-all duration-300
-            mt-16 p-4 lg:p-6
-            ${drawerOpen ? 'lg:ml-64' : 'lg:ml-20'}
+            mt-16 min-w-0 ${isCalendarPage ? 'p-0' : 'p-3 sm:p-4 lg:p-6'}
+            ${drawerOpen ? 'lg:ml-64' : 'lg:ml-12'}
           `}>
             {children}
           </main>
 
           {/* Footer */}
+          {!isCalendarPage && (
           <footer className={`
             bg-white border-t border-gray-200 py-3 px-4 text-center text-sm text-gray-500 dark:bg-gray-900 dark:border-gray-800 dark:text-gray-400
             transition-all duration-300
-            ${drawerOpen ? 'lg:ml-64' : 'lg:ml-20'}
+            ${drawerOpen ? 'lg:ml-64' : 'lg:ml-12'}
           `}>
             <div className="flex flex-col sm:flex-row justify-between items-center">
               <p>© 2026 ICS Consulting Sdn. Bhd. All rights reserved.</p>
               <p className="text-xs mt-1 sm:mt-0">Version 1.0.0</p>
             </div>
           </footer>
+          )}
     </div>
   )
 }

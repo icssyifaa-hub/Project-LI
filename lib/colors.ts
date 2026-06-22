@@ -254,7 +254,7 @@ export const getColorClass = (color: string | undefined | null, type: ColorType)
 
 export const getItemStyleClasses = (color: string | undefined | null): string => {
   const safeColor = color || 'blue';
-  return `${getColorClass(safeColor, 'bg')} ${getColorClass(safeColor, 'text')} ${getColorClass(safeColor, 'hoverBg')}`;
+  return `${getColorClass(safeColor, 'solid')} text-black dark:text-white ${getColorClass(safeColor, 'solidHover')} shadow-sm`;
 };
 
 export const getItemBgClass = (color: string | undefined | null): string => {

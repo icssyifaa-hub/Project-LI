@@ -55,7 +55,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
             <Button variant="outline" size="sm" className="relative">
               <Bell className="h-4 w-4 mr-2" />
               Reminders
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">3</span>
+              <span className="notification-count-badge absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">3</span>
             </Button>
             <Button variant="outline" size="sm">
               <History className="h-4 w-4 mr-2" />
@@ -65,7 +65,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
           <div className="flex lg:hidden items-center space-x-2">
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5" />
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center">3</span>
+              <span className="notification-count-badge absolute -top-1 -right-1 w-3 h-3 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center">3</span>
             </Button>
             <Button variant="ghost" size="icon">
               <UserCircle className="h-5 w-5" />

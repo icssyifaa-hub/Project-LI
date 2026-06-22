@@ -17,19 +17,19 @@ const computeTaskStatus = (data: {
   jobOrderNumber: string | null
   finalReportNumber: string | null
 }) => {
-  if (!data.dateStart) return 'onhold'
-  
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  
-  const dueDate = data.dateStop ? new Date(data.dateStop) : new Date(data.dateStart)
-  dueDate.setHours(0, 0, 0, 0)
-  
-  const isDueDatePassed = dueDate < today
   const hasJobOrder = !!data.jobOrderNumber
   const hasFinalReport = !!data.finalReportNumber
   
   if (hasJobOrder && hasFinalReport) return 'completed'
+  if (!data.dateStart) return 'onhold'
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const dueDate = data.dateStop ? new Date(data.dateStop) : new Date(data.dateStart)
+  dueDate.setHours(0, 0, 0, 0)
+
+  const isDueDatePassed = dueDate < today
   if (isDueDatePassed && (!hasJobOrder || !hasFinalReport)) return 'incomplete'
   
   return 'in-progress'
@@ -226,6 +226,12 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
         const supportColors = task.task_support_colors 
           ? (typeof task.task_support_colors === 'string' ? task.task_support_colors.split(',') : task.task_support_colors)
           : []
+        const currentSupportNames = supportIds.map((id: string, index: number) =>
+          staffData[id]?.name || supportNames[index] || ''
+        )
+        const currentSupportColors = supportIds.map((id: string, index: number) =>
+          staffData[id]?.color || supportColors[index] || 'blue'
+        )
         
         let picInfo = null
         if (task.task_pic_id) {
@@ -256,8 +262,8 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
           task_pic_name: picInfo?.name || task.task_pic_name || '',
           task_pic_color: picInfo?.color || task.task_pic_color || 'blue',
           task_support_ids: supportIds,
-          task_support_names: supportNames,
-          task_support_colors: supportColors,
+          task_support_names: currentSupportNames,
+          task_support_colors: currentSupportColors,
           finalReportNumber: task.final_report_number || '',
           jobStatus: computedStatus,
           createdby: task.created_by,
@@ -276,6 +282,12 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
         const supportColors = event.event_support_colors 
           ? (typeof event.event_support_colors === 'string' ? event.event_support_colors.split(',') : event.event_support_colors)
           : []
+        const currentSupportNames = supportIds.map((id: string, index: number) =>
+          staffData[id]?.name || supportNames[index] || ''
+        )
+        const currentSupportColors = supportIds.map((id: string, index: number) =>
+          staffData[id]?.color || supportColors[index] || 'purple'
+        )
         
         let picInfo = null
         if (event.event_pic_id) {
@@ -297,8 +309,8 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
           event_pic_name: picInfo?.name || event.event_pic_name || '',
           event_pic_color: picInfo?.color || event.event_pic_color || 'purple',
           event_support_ids: supportIds,
-          event_support_names: supportNames,
-          event_support_colors: supportColors,
+          event_support_names: currentSupportNames,
+          event_support_colors: currentSupportColors,
           createdby: event.created_by,
           createdAt: event.created_at,
           updatedAt: event.updated_at
@@ -321,6 +333,19 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
       isFetchingRef.current = false
     }
   }, [getDateRange, toast, fetchAllStaff, supabase])
+
+  useEffect(() => {
+    const handleProfileUpdated = () => {
+      lastStaffFetchRef.current = 0
+      lastFetchRef.current = 0
+      fetchAllStaff(true).then(() => {
+        fetchData()
+      })
+    }
+
+    window.addEventListener('user-profile-updated', handleProfileUpdated)
+    return () => window.removeEventListener('user-profile-updated', handleProfileUpdated)
+  }, [fetchAllStaff, fetchData])
 
   useEffect(() => {
     fetchData()

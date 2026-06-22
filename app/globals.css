@@ -51,10 +51,341 @@
   body {
     background: hsl(var(--background));
     color: hsl(var(--foreground));
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  button,
+  button :where(:not(svg):not(svg *)) {
+    color: rgb(0 0 0) !important;
+  }
+
+  .dark button,
+  .dark button :where(:not(svg):not(svg *)) {
+    color: rgb(255 255 255) !important;
+  }
+
+  button:is(
+    .bg-primary,
+    .bg-destructive,
+    .bg-blue-500, .bg-blue-600, .bg-blue-700,
+    .bg-red-500, .bg-red-600, .bg-red-700,
+    .bg-green-500, .bg-green-600, .bg-green-700,
+    .bg-purple-500, .bg-purple-600, .bg-purple-700,
+    .bg-emerald-500, .bg-emerald-600, .bg-emerald-700,
+    .bg-orange-500, .bg-orange-600, .bg-orange-700
+  ),
+  button:is(
+    .bg-primary,
+    .bg-destructive,
+    .bg-blue-500, .bg-blue-600, .bg-blue-700,
+    .bg-red-500, .bg-red-600, .bg-red-700,
+    .bg-green-500, .bg-green-600, .bg-green-700,
+    .bg-purple-500, .bg-purple-600, .bg-purple-700,
+    .bg-emerald-500, .bg-emerald-600, .bg-emerald-700,
+    .bg-orange-500, .bg-orange-600, .bg-orange-700
+  ) :where(:not(svg):not(svg *)) {
+    color: rgb(255 255 255) !important;
+  }
+
+  .dark button:is(
+    .bg-primary,
+    .bg-destructive,
+    .dark\:bg-blue-500, .bg-blue-500, .bg-blue-600, .bg-blue-700,
+    .dark\:bg-red-500, .bg-red-500, .bg-red-600, .bg-red-700,
+    .dark\:bg-green-500, .bg-green-500, .bg-green-600, .bg-green-700,
+    .dark\:bg-purple-500, .bg-purple-500, .bg-purple-600, .bg-purple-700,
+    .dark\:bg-emerald-500, .bg-emerald-500, .bg-emerald-600, .bg-emerald-700,
+    .dark\:bg-orange-500, .bg-orange-500, .bg-orange-600, .bg-orange-700
+  ),
+  .dark button:is(
+    .bg-primary,
+    .bg-destructive,
+    .dark\:bg-blue-500, .bg-blue-500, .bg-blue-600, .bg-blue-700,
+    .dark\:bg-red-500, .bg-red-500, .bg-red-600, .bg-red-700,
+    .dark\:bg-green-500, .bg-green-500, .bg-green-600, .bg-green-700,
+    .dark\:bg-purple-500, .bg-purple-500, .bg-purple-600, .bg-purple-700,
+    .dark\:bg-emerald-500, .bg-emerald-500, .bg-emerald-600, .bg-emerald-700,
+    .dark\:bg-orange-500, .bg-orange-500, .bg-orange-600, .bg-orange-700
+  ) :where(:not(svg):not(svg *)) {
+    color: rgb(255 255 255) !important;
+  }
+
+  button:is(.text-red-500, .text-red-600, .text-red-700),
+  button:is(.text-red-500, .text-red-600, .text-red-700) :where(:not(svg):not(svg *)) {
+    color: rgb(220 38 38) !important;
+  }
+
+  .dark button:is(.dark\:text-red-300, .dark\:text-red-400, .text-red-500, .text-red-600, .text-red-700),
+  .dark button:is(.dark\:text-red-300, .dark\:text-red-400, .text-red-500, .text-red-600, .text-red-700) :where(:not(svg):not(svg *)) {
+    color: rgb(248 113 113) !important;
+  }
+
+  button:is(.text-blue-500, .text-blue-600, .text-blue-700),
+  button:is(.text-blue-500, .text-blue-600, .text-blue-700) :where(:not(svg):not(svg *)) {
+    color: rgb(37 99 235) !important;
+  }
+
+  .dark button:is(.dark\:text-blue-300, .dark\:text-blue-400, .text-blue-500, .text-blue-600, .text-blue-700),
+  .dark button:is(.dark\:text-blue-300, .dark\:text-blue-400, .text-blue-500, .text-blue-600, .text-blue-700) :where(:not(svg):not(svg *)) {
+    color: rgb(96 165 250) !important;
+  }
+
+  button:is(.text-purple-500, .text-purple-600, .text-purple-700),
+  button:is(.text-purple-500, .text-purple-600, .text-purple-700) :where(:not(svg):not(svg *)) {
+    color: rgb(147 51 234) !important;
+  }
+
+  .dark button:is(.dark\:text-purple-300, .dark\:text-purple-400, .text-purple-500, .text-purple-600, .text-purple-700),
+  .dark button:is(.dark\:text-purple-300, .dark\:text-purple-400, .text-purple-500, .text-purple-600, .text-purple-700) :where(:not(svg):not(svg *)) {
+    color: rgb(192 132 252) !important;
+  }
+
+  button:is(.text-green-500, .text-green-600, .text-green-700, .text-emerald-500, .text-emerald-600, .text-emerald-700),
+  button:is(.text-green-500, .text-green-600, .text-green-700, .text-emerald-500, .text-emerald-600, .text-emerald-700) :where(:not(svg):not(svg *)) {
+    color: rgb(22 163 74) !important;
+  }
+
+  .dark button:is(.dark\:text-green-300, .dark\:text-green-400, .dark\:text-emerald-300, .dark\:text-emerald-400, .text-green-500, .text-green-600, .text-green-700, .text-emerald-500, .text-emerald-600, .text-emerald-700),
+  .dark button:is(.dark\:text-green-300, .dark\:text-green-400, .dark\:text-emerald-300, .dark\:text-emerald-400, .text-green-500, .text-green-600, .text-green-700, .text-emerald-500, .text-emerald-600, .text-emerald-700) :where(:not(svg):not(svg *)) {
+    color: rgb(74 222 128) !important;
+  }
+
+  button:is(.text-orange-500, .text-orange-600, .text-orange-700),
+  button:is(.text-orange-500, .text-orange-600, .text-orange-700) :where(:not(svg):not(svg *)) {
+    color: rgb(234 88 12) !important;
+  }
+
+  .dark button:is(.dark\:text-orange-300, .dark\:text-orange-400, .text-orange-500, .text-orange-600, .text-orange-700),
+  .dark button:is(.dark\:text-orange-300, .dark\:text-orange-400, .text-orange-500, .text-orange-600, .text-orange-700) :where(:not(svg):not(svg *)) {
+    color: rgb(251 146 60) !important;
+  }
+
+  button,
+  button :where(:not(svg):not(svg *)) {
+    color: rgb(0 0 0) !important;
+  }
+
+  .dark button,
+  .dark button :where(:not(svg):not(svg *)) {
+    color: rgb(255 255 255) !important;
+  }
+
+  button:is(
+    .bg-primary,
+    .bg-destructive,
+    .bg-blue-500, .bg-blue-600, .bg-blue-700,
+    .bg-red-500, .bg-red-600, .bg-red-700,
+    .bg-green-500, .bg-green-600, .bg-green-700,
+    .bg-purple-500, .bg-purple-600, .bg-purple-700,
+    .bg-emerald-500, .bg-emerald-600, .bg-emerald-700,
+    .bg-orange-500, .bg-orange-600, .bg-orange-700
+  ),
+  button:is(
+    .bg-primary,
+    .bg-destructive,
+    .bg-blue-500, .bg-blue-600, .bg-blue-700,
+    .bg-red-500, .bg-red-600, .bg-red-700,
+    .bg-green-500, .bg-green-600, .bg-green-700,
+    .bg-purple-500, .bg-purple-600, .bg-purple-700,
+    .bg-emerald-500, .bg-emerald-600, .bg-emerald-700,
+    .bg-orange-500, .bg-orange-600, .bg-orange-700
+  ) :where(:not(svg):not(svg *)),
+  .dark button:is(
+    .bg-primary,
+    .bg-destructive,
+    .dark\:bg-blue-500, .bg-blue-500, .bg-blue-600, .bg-blue-700,
+    .dark\:bg-red-500, .bg-red-500, .bg-red-600, .bg-red-700,
+    .dark\:bg-green-500, .bg-green-500, .bg-green-600, .bg-green-700,
+    .dark\:bg-purple-500, .bg-purple-500, .bg-purple-600, .bg-purple-700,
+    .dark\:bg-emerald-500, .bg-emerald-500, .bg-emerald-600, .bg-emerald-700,
+    .dark\:bg-orange-500, .bg-orange-500, .bg-orange-600, .bg-orange-700
+  ),
+  .dark button:is(
+    .bg-primary,
+    .bg-destructive,
+    .dark\:bg-blue-500, .bg-blue-500, .bg-blue-600, .bg-blue-700,
+    .dark\:bg-red-500, .bg-red-500, .bg-red-600, .bg-red-700,
+    .dark\:bg-green-500, .bg-green-500, .bg-green-600, .bg-green-700,
+    .dark\:bg-purple-500, .bg-purple-500, .bg-purple-600, .bg-purple-700,
+    .dark\:bg-emerald-500, .bg-emerald-500, .bg-emerald-600, .bg-emerald-700,
+    .dark\:bg-orange-500, .bg-orange-500, .bg-orange-600, .bg-orange-700
+  ) :where(:not(svg):not(svg *)) {
+    color: rgb(255 255 255) !important;
   }
 }
 
 @layer utilities {
+  .app-nav-link,
+  .app-nav-link :where(:not(svg):not(svg *)),
+  .app-nav-link svg {
+    color: rgb(55 65 81) !important;
+  }
+
+  .app-nav-link:hover,
+  .app-nav-link:hover :where(:not(svg):not(svg *)),
+  .app-nav-link:hover svg {
+    color: rgb(17 24 39) !important;
+  }
+
+  .dark .app-nav-link,
+  .dark .app-nav-link :where(:not(svg):not(svg *)),
+  .dark .app-nav-link svg {
+    color: rgb(203 213 225) !important;
+  }
+
+  .dark .app-nav-link:hover,
+  .dark .app-nav-link:hover :where(:not(svg):not(svg *)),
+  .dark .app-nav-link:hover svg {
+    color: rgb(255 255 255) !important;
+  }
+
+  .app-nav-link-active,
+  .app-nav-link-active :where(:not(svg):not(svg *)),
+  .app-nav-link-active svg {
+    color: rgb(255 255 255) !important;
+  }
+
+  .calendar-page-shell,
+  .calendar-page-shell :where(div, section, header, main, aside, button, input, textarea, [role='menu'], [role='menuitem']) {
+    transition-property: background-color, border-color, color, box-shadow, opacity, transform;
+    transition-duration: 180ms;
+    transition-timing-function: ease;
+  }
+
+  .calendar-panel-surface {
+    background-color: rgb(255 255 255);
+    color: rgb(17 24 39);
+  }
+
+  .dark .calendar-panel-surface {
+    background-color: rgb(17 24 39);
+    color: rgb(243 244 246);
+  }
+
+  .calendar-toolbar-button {
+    background-color: rgb(255 255 255) !important;
+    color: rgb(17 24 39) !important;
+  }
+
+  .calendar-toolbar-button :where(:not(svg):not(svg *)),
+  .calendar-toolbar-button svg {
+    color: rgb(17 24 39) !important;
+  }
+
+  .calendar-toolbar-button-active {
+    background-color: rgb(37 99 235) !important;
+    border-color: rgb(37 99 235) !important;
+    color: rgb(255 255 255) !important;
+  }
+
+  .calendar-toolbar-button-active :where(:not(svg):not(svg *)),
+  .calendar-toolbar-button-active svg {
+    color: rgb(255 255 255) !important;
+  }
+
+  .dark .calendar-toolbar-button {
+    background-color: rgb(17 24 39) !important;
+    color: rgb(243 244 246) !important;
+  }
+
+  .dark .calendar-toolbar-button :where(:not(svg):not(svg *)),
+  .dark .calendar-toolbar-button svg {
+    color: rgb(243 244 246) !important;
+  }
+
+  .dark .calendar-toolbar-button-active {
+    background-color: rgb(37 99 235) !important;
+    border-color: rgb(37 99 235) !important;
+    color: rgb(255 255 255) !important;
+  }
+
+  .dark .calendar-toolbar-button-active :where(:not(svg):not(svg *)),
+  .dark .calendar-toolbar-button-active svg {
+    color: rgb(255 255 255) !important;
+  }
+
+  .settings-tab-trigger[data-state='active'] {
+    background-color: rgb(37 99 235) !important;
+    color: rgb(255 255 255) !important;
+  }
+
+  .settings-tab-trigger[data-state='active'] :where(:not(svg):not(svg *)),
+  .settings-tab-trigger[data-state='active'] svg {
+    color: rgb(255 255 255) !important;
+  }
+
+  .notification-filter-button-active,
+  .notification-filter-button-active :where(:not(svg):not(svg *)),
+  .notification-filter-button-active svg {
+    color: rgb(255 255 255) !important;
+  }
+
+  .notification-count-badge,
+  .notification-count-badge :where(:not(svg):not(svg *)),
+  button .notification-count-badge,
+  button .notification-count-badge :where(:not(svg):not(svg *)),
+  .dark .notification-count-badge,
+  .dark .notification-count-badge :where(:not(svg):not(svg *)),
+  .dark button .notification-count-badge,
+  .dark button .notification-count-badge :where(:not(svg):not(svg *)) {
+    color: rgb(255 255 255) !important;
+  }
+
+  .calendar-font-inverted :where(:not(svg):not(svg *)) {
+    color: rgb(255 255 255) !important;
+  }
+
+  .dark .calendar-font-inverted :where(:not(svg):not(svg *)) {
+    color: rgb(0 0 0) !important;
+  }
+
+  .calendar-view-item-text,
+  .calendar-view-item-text :where(:not(svg):not(svg *)) {
+    color: rgb(255 255 255) !important;
+  }
+
+  .dark .calendar-view-item-text,
+  .dark .calendar-view-item-text :where(:not(svg):not(svg *)) {
+    color: rgb(0 0 0) !important;
+  }
+
+  .calendar-view-item-text .calendar-staff-badge,
+  .calendar-view-item-text .calendar-staff-badge :where(:not(svg):not(svg *)),
+  .dark .calendar-view-item-text .calendar-staff-badge,
+  .dark .calendar-view-item-text .calendar-staff-badge :where(:not(svg):not(svg *)) {
+    color: rgb(17 24 39) !important;
+  }
+
+  .staff-support-checkbox[data-state='checked'] {
+    color: rgb(0 0 0) !important;
+  }
+
+  .calendar-add-button,
+  .calendar-add-button :where(:not(svg):not(svg *)),
+  .calendar-add-button svg {
+    color: rgb(255 255 255) !important;
+  }
+
+  .dark .calendar-add-button,
+  .dark .calendar-add-button :where(:not(svg):not(svg *)),
+  .dark .calendar-add-button svg {
+    color: rgb(0 0 0) !important;
+  }
+
+  .staff-support-checkbox[data-state='checked'] svg {
+    color: rgb(0 0 0) !important;
+    stroke: rgb(0 0 0) !important;
+  }
+
+  .dark .staff-support-checkbox[data-state='checked'] {
+    color: rgb(255 255 255) !important;
+  }
+
+  .dark .staff-support-checkbox[data-state='checked'] svg {
+    color: rgb(255 255 255) !important;
+    stroke: rgb(255 255 255) !important;
+  }
+
   .dark .bg-white {
     background-color: rgb(17 24 39);
   }

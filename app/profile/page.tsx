@@ -309,8 +309,17 @@ export default function ProfilePage() {
 
       if (error) throw error
 
-      const updatedUser = { ...user, name: profileData.name }
+      const updatedUser = {
+        ...user,
+        name: profileData.name,
+        phone: profileData.phone,
+        color: profileData.color,
+      }
+      setUser(updatedUser)
       localStorage.setItem('user', JSON.stringify(updatedUser))
+      window.dispatchEvent(new CustomEvent('user-profile-updated', {
+        detail: updatedUser,
+      }))
 
       await fetchUsedColors(user.id)
 
@@ -484,17 +493,17 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 lg:p-8">
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-4 lg:p-8">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-4xl font-bold text-gray-900">My Profile</h1>
+            <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">My Profile</h1>
             <p className="text-gray-500 mt-1">Manage your account settings and preferences</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
             {!loadingColors && (
-              <div className="flex items-center space-x-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-lg border border-blue-200">
+              <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-blue-700">
                 <Palette className="h-5 w-5" />
                 <span className="font-medium">
                   {getAvailableColorsCount()}/15 colors available
@@ -502,13 +511,13 @@ export default function ProfilePage() {
               </div>
             )}
             {saveSuccess && (
-              <div className="flex items-center space-x-2 bg-green-50 text-green-700 px-4 py-2 rounded-lg border border-green-200">
+              <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-green-700">
                 <CheckCircle2 className="h-5 w-5" />
                 <span className="font-medium">Changes saved!</span>
               </div>
             )}
             {saveError && (
-              <div className="flex items-center space-x-2 bg-red-50 text-red-700 px-4 py-2 rounded-lg border border-red-200">
+              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-red-700">
                 <AlertCircle className="h-5 w-5" />
                 <span className="font-medium">Failed to save</span>
               </div>
@@ -553,7 +562,7 @@ export default function ProfilePage() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="bg-white border border-gray-200 p-1 shadow-sm w-full rounded-2xl">
+          <TabsList className="flex h-auto w-full flex-nowrap justify-start overflow-x-auto rounded-2xl border border-gray-200 bg-white p-1 shadow-sm sm:flex-wrap">
             <TabsTrigger value="general" className="flex items-center px-6 py-2.5 rounded-xl data-[state=active]:bg-blue-600 data-[state=active]:text-white">
               <User className="h-4 w-4 mr-2" />General
             </TabsTrigger>
@@ -576,7 +585,7 @@ export default function ProfilePage() {
                 {/* Avatar Preview */}
                 <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
                   <div className="flex flex-col sm:flex-row items-center gap-6">
-                    <div className={`w-32 h-32 rounded-full flex items-center justify-center text-white text-4xl font-bold ${getSolidClass(currentColorValue)} shadow-md ring-4 ${getColorClass(currentColorValue, 'ring')}`}>
+                    <div className={`flex h-24 w-24 items-center justify-center rounded-full text-3xl font-bold text-white shadow-md ring-4 sm:h-32 sm:w-32 sm:text-4xl ${getSolidClass(currentColorValue)} ${getColorClass(currentColorValue, 'ring')}`}>
                       {getInitials(profileData.name)}
                     </div>
                     <div className="flex-1 text-center sm:text-left">
@@ -662,7 +671,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
               </CardContent>
-              <CardFooter className="border-t border-gray-100 bg-gray-50/50 pt-6">
+              <CardFooter className="flex flex-col items-start gap-3 border-t border-gray-100 bg-gray-50/50 pt-6 sm:flex-row sm:items-center">
                 <Button 
                   onClick={handleSaveProfile} 
                   disabled={saving || (touchedFields.name && !!errors.name) || (touchedFields.phone && !!errors.phone)} 
@@ -835,7 +844,7 @@ export default function ProfilePage() {
                   </div>
                 )}
               </CardContent>
-              <CardFooter className="border-t border-gray-100 bg-gray-50/50 pt-6">
+              <CardFooter className="flex flex-col items-start gap-3 border-t border-gray-100 bg-gray-50/50 pt-6 sm:flex-row sm:items-center">
                 <Button 
                   onClick={handleChangePassword} 
                   disabled={isPasswordButtonDisabled()} 
@@ -844,7 +853,7 @@ export default function ProfilePage() {
                   {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Updating...</> : <><Key className="h-4 w-4 mr-2" />Change Password</>}
                 </Button>
                 {isPasswordButtonDisabled() && (touchedFields.newPassword || touchedFields.confirmPassword) && (
-                  <p className="text-xs text-red-500 ml-4 flex items-center gap-1">
+                  <p className="flex items-center gap-1 text-xs text-red-500 sm:ml-4">
                     <AlertCircle className="h-3 w-3" />
                     {!passwordData.currentPassword && 'Enter current password • '}
                     {!passwordChecks.length && 'Too short • '}
@@ -882,7 +891,7 @@ export default function ProfilePage() {
                     </div>
                   ) : (
                     <>
-                      <div className="grid grid-cols-5 sm:grid-cols-15 gap-3">
+                      <div className="grid grid-cols-5 gap-3 sm:grid-cols-8 lg:grid-cols-[repeat(15,minmax(0,1fr))]">
                         {staffColors.map((color) => {
                           const isAvailable = isColorAvailable(color.value)
                           const isCurrentColor = profileData.color === color.value
@@ -1004,7 +1013,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
               </CardContent>
-              <CardFooter className="border-t border-gray-100 bg-gray-50/50 pt-6">
+              <CardFooter className="flex flex-col items-start gap-3 border-t border-gray-100 bg-gray-50/50 pt-6 sm:flex-row sm:items-center">
                 <Button 
                   onClick={handleSaveProfile} 
                   disabled={saving} 

@@ -26,13 +26,81 @@ interface Notification {
 
 type CategoryType = 'all' | 'task' | 'event'
 
+interface TomorrowReminder {
+  id: string
+  sourceId: string
+  type: 'task' | 'event'
+  title: string
+  message: string
+  dateStart: string
+  dateStop: string | null
+  timeStart: string | null
+}
+
 interface NotificationsPanelProps {
   onUnreadCountChange?: (count: number) => void
+}
+
+const toTextList = (value: unknown): string[] => {
+  if (!value) return []
+  if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean)
+  if (typeof value === 'string') return value.split(',').map((item) => item.trim()).filter(Boolean)
+  return []
+}
+
+const getLocalDateKey = (date: Date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const getTomorrowDateKey = () => {
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  return getLocalDateKey(tomorrow)
+}
+
+const formatDateLabel = (dateKey: string | null) => {
+  if (!dateKey) return 'Date not set'
+
+  const [year, month, day] = dateKey.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+
+  return date.toLocaleDateString('en-MY', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+const formatTimeLabel = (time: string | null) => {
+  if (!time) return null
+  return time.slice(0, 5)
+}
+
+const getDismissedReminderStorageKey = (userId?: string | null) => {
+  return `dismissed_upcoming_reminders:${userId || 'guest'}`
+}
+
+const getDismissedReminderIds = (userId?: string | null): string[] => {
+  try {
+    return JSON.parse(localStorage.getItem(getDismissedReminderStorageKey(userId)) || '[]')
+  } catch {
+    return []
+  }
+}
+
+const isAdminUser = (user: any) => {
+  const role = String(user?.role || '').toLowerCase()
+  return role === 'admin' || role === 'superadmin'
 }
 
 export default function NotificationsPanel({ onUnreadCountChange }: NotificationsPanelProps) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [filteredNotifications, setFilteredNotifications] = useState<Notification[]>([])
+  const [tomorrowReminders, setTomorrowReminders] = useState<TomorrowReminder[]>([])
+  const [dismissedReminderIds, setDismissedReminderIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [markingAll, setMarkingAll] = useState(false)
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -75,6 +143,11 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
     getUser()
   }, [supabase])
 
+  useEffect(() => {
+    if (!currentUser?.id) return
+    setDismissedReminderIds(getDismissedReminderIds(currentUser.id))
+  }, [currentUser?.id])
+
   // Filter notifications based on category
   useEffect(() => {
     let filtered = [...notifications]
@@ -92,6 +165,12 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
     setFilteredNotifications(filtered)
   }, [notifications, category])
 
+  const filteredTomorrowReminders = tomorrowReminders.filter((reminder) => {
+    if (dismissedReminderIds.includes(reminder.id)) return false
+    if (category === 'all') return true
+    return reminder.type === category
+  })
+
   // Fetch notifications
   useEffect(() => {
     const fetchNotifications = async () => {
@@ -101,12 +180,15 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
       }
 
       try {
-        const { data, error } = await supabase
+        const query = supabase
           .from('notifications')
           .select('*')
-          .eq('user_id', currentUser.id)
           .order('created_at', { ascending: false })
           .limit(50)
+
+        const { data, error } = isAdminUser(currentUser)
+          ? await query
+          : await query.eq('user_id', currentUser.id)
 
         if (error) throw error
         setNotifications(data || [])
@@ -120,6 +202,114 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
     fetchNotifications()
   }, [currentUser, supabase])
 
+  // Fetch task/event reminders that are due tomorrow
+  useEffect(() => {
+    const isAssignedToCurrentUser = (item: any, itemType: 'task' | 'event') => {
+      if (isAdminUser(currentUser)) return true
+
+      const currentUserId = currentUser?.id ? String(currentUser.id) : ''
+      const currentUserName = String(currentUser?.name || '').trim().toLowerCase()
+      const picId = String(itemType === 'task' ? item.task_pic_id || '' : item.event_pic_id || '')
+      const picName = String(itemType === 'task' ? item.task_pic_name || '' : item.event_pic_name || '').trim().toLowerCase()
+      const supportIds = toTextList(itemType === 'task' ? item.task_support_ids : item.event_support_ids)
+      const supportNames = toTextList(itemType === 'task' ? item.task_support_names : item.event_support_names)
+        .map((name) => name.toLowerCase())
+
+      return (
+        (!!currentUserId && (picId === currentUserId || supportIds.includes(currentUserId))) ||
+        (!!currentUserName && (picName === currentUserName || supportNames.includes(currentUserName)))
+      )
+    }
+
+    const fetchTomorrowReminders = async () => {
+      if (!currentUser?.id) {
+        setTomorrowReminders([])
+        return
+      }
+
+      const tomorrowKey = getTomorrowDateKey()
+
+      try {
+        const [tasksResult, eventsResult] = await Promise.all([
+          supabase
+            .from('tasks')
+            .select('id, client_name, job_task, date_start, date_stop, time_start, task_pic_id, task_pic_name, task_support_ids, task_support_names, job_status')
+            .lte('date_start', tomorrowKey)
+            .or(`date_stop.is.null,date_stop.gte.${tomorrowKey}`)
+            .order('time_start', { ascending: true, nullsFirst: false }),
+          supabase
+            .from('events')
+            .select('id, title, location, date_start, date_stop, time_start, event_pic_id, event_pic_name, event_support_ids, event_support_names')
+            .lte('date_start', tomorrowKey)
+            .or(`date_stop.is.null,date_stop.gte.${tomorrowKey}`)
+            .order('time_start', { ascending: true, nullsFirst: false }),
+        ])
+
+        if (tasksResult.error) throw tasksResult.error
+        if (eventsResult.error) throw eventsResult.error
+
+        const taskReminders: TomorrowReminder[] = (tasksResult.data || [])
+          .filter((task: any) => task.date_start && task.job_status !== 'completed')
+          .filter((task: any) => isAssignedToCurrentUser(task, 'task'))
+          .map((task: any) => {
+            const time = formatTimeLabel(task.time_start)
+            const dateRange = task.date_stop && task.date_stop !== task.date_start
+              ? `${formatDateLabel(task.date_start)} - ${formatDateLabel(task.date_stop)}`
+              : formatDateLabel(task.date_start)
+
+            return {
+              id: `task-${task.id}`,
+              sourceId: task.id,
+              type: 'task',
+              title: `Reminder: ${task.job_task || 'Untitled Task'}`,
+              message: [
+                task.date_start < tomorrowKey ? 'Continues tomorrow' : 'Starts tomorrow',
+                task.client_name || 'No client',
+                dateRange,
+                time ? `${time}` : null,
+              ].filter(Boolean).join(' - '),
+              dateStart: task.date_start,
+              dateStop: task.date_stop,
+              timeStart: task.time_start,
+            }
+          })
+
+        const eventReminders: TomorrowReminder[] = (eventsResult.data || [])
+          .filter((event: any) => event.date_start)
+          .filter((event: any) => isAssignedToCurrentUser(event, 'event'))
+          .map((event: any) => {
+            const time = formatTimeLabel(event.time_start)
+            const dateRange = event.date_stop && event.date_stop !== event.date_start
+              ? `${formatDateLabel(event.date_start)} - ${formatDateLabel(event.date_stop)}`
+              : formatDateLabel(event.date_start)
+
+            return {
+              id: `event-${event.id}`,
+              sourceId: event.id,
+              type: 'event',
+              title: `Reminder: ${event.title || 'Untitled Event'}`,
+              message: [
+                event.date_start < tomorrowKey ? 'Continues tomorrow' : 'Starts tomorrow',
+                event.location || 'No location',
+                dateRange,
+                time ? `${time}` : null,
+              ].filter(Boolean).join(' - '),
+              dateStart: event.date_start,
+              dateStop: event.date_stop,
+              timeStart: event.time_start,
+            }
+          })
+
+        setTomorrowReminders([...taskReminders, ...eventReminders])
+      } catch (error) {
+        console.error('Error fetching tomorrow reminders:', error)
+        setTomorrowReminders([])
+      }
+    }
+
+    fetchTomorrowReminders()
+  }, [currentUser, supabase])
+
   // Realtime subscription
   useEffect(() => {
     if (!currentUser?.id) return
@@ -128,6 +318,10 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
 
     const setupRealtime = async () => {
       try {
+        const notificationFilter = isAdminUser(currentUser)
+          ? undefined
+          : `user_id=eq.${currentUser.id}`
+
         channel = supabase
           .channel(`user-${currentUser.id}-notifications`)
           .on(
@@ -136,7 +330,7 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
               event: 'INSERT',
               schema: 'public',
               table: 'notifications',
-              filter: `user_id=eq.${currentUser.id}`,
+              ...(notificationFilter ? { filter: notificationFilter } : {}),
             },
             (payload) => {
               console.log('🔔 New notification:', payload)
@@ -169,12 +363,14 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
 
   // Calculate unread count and notify parent
   const unreadCount = filteredNotifications.filter(n => !n.read).length
+  const reminderCount = filteredTomorrowReminders.length
+  const alertCount = unreadCount + reminderCount
   const totalCount = filteredNotifications.length
 
   // Notify parent when unread count changes
   useEffect(() => {
-    onUnreadCountChange?.(unreadCount)
-  }, [unreadCount, onUnreadCountChange])
+    onUnreadCountChange?.(alertCount)
+  }, [alertCount, onUnreadCountChange])
 
   const markAsRead = async (id: string) => {
     try {
@@ -196,11 +392,16 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
     
     setMarkingAll(true)
     try {
-      await supabase
+      const query = supabase
         .from('notifications')
         .update({ read: true, updated_at: new Date().toISOString() })
-        .eq('user_id', currentUser.id)
         .eq('read', false)
+
+      if (isAdminUser(currentUser)) {
+        await query
+      } else {
+        await query.eq('user_id', currentUser.id)
+      }
 
       setNotifications(notifications.map(n => ({ ...n, read: true })))
       
@@ -241,8 +442,6 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
     
     // Handle task notification
     if (notification.task_id) {
-      localStorage.setItem('highlight_task_id', notification.task_id)
-      
       const { data: task } = await supabase
         .from('tasks')
         .select('date_start')
@@ -250,19 +449,14 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
         .single()
       
       if (task?.date_start) {
-        const targetDate = new Date(task.date_start)
-        const year = targetDate.getFullYear()
-        const month = targetDate.getMonth()
-        const day = targetDate.getDate()
-        router.push(`/calendar?year=${year}&month=${month}&day=${day}&task=${notification.task_id}`)
+        const formattedDate = task.date_start.split('T')[0]
+        router.push(`/calendar?date=${formattedDate}&view=month&focus=${formattedDate}`)
       } else {
         router.push('/calendar')
       }
     } 
     // Handle event notification
     else if (notification.event_id) {
-      localStorage.setItem('highlight_event_id', notification.event_id)
-      
       const { data: event } = await supabase
         .from('events')
         .select('date_start')
@@ -270,16 +464,23 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
         .single()
       
       if (event?.date_start) {
-        const targetDate = new Date(event.date_start)
-        const year = targetDate.getFullYear()
-        const month = targetDate.getMonth()
-        const day = targetDate.getDate()
-        
-        router.push(`/calendar?year=${year}&month=${month}&day=${day}&event=${notification.event_id}`)
+        const formattedDate = event.date_start.split('T')[0]
+        router.push(`/calendar?date=${formattedDate}&view=month&focus=${formattedDate}`)
       } else {
         router.push('/calendar')
       }
     }
+  }
+
+  const handleReminderClick = (reminder: TomorrowReminder) => {
+    const formattedDate = reminder.dateStart.split('T')[0]
+    router.push(`/calendar?date=${formattedDate}&view=month&focus=${formattedDate}`)
+  }
+
+  const dismissReminder = (id: string) => {
+    const updatedIds = Array.from(new Set([...dismissedReminderIds, id]))
+    setDismissedReminderIds(updatedIds)
+    localStorage.setItem(getDismissedReminderStorageKey(currentUser?.id), JSON.stringify(updatedIds))
   }
 
   const getTimeAgo = (date: string) => {
@@ -306,26 +507,34 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
   }
 
   const getNotificationBgColor = (type: string, read: boolean) => {
-    if (read) return 'bg-white border-gray-200'
+    if (read) return 'bg-white border-gray-200 dark:bg-gray-900 dark:border-gray-800'
     
     switch (type) {
       case 'task_assignment':
-        return 'bg-blue-50 border-blue-200'
+        return 'bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-900/60'
       case 'task_update':
-        return 'bg-green-50 border-green-200'
+        return 'bg-green-50 border-green-200 dark:bg-emerald-950/30 dark:border-emerald-900/60'
       case 'event_assignment':
-        return 'bg-purple-50 border-purple-200'
+        return 'bg-purple-50 border-purple-200 dark:bg-purple-950/30 dark:border-purple-900/60'
       case 'event_update':
-        return 'bg-orange-50 border-orange-200'
+        return 'bg-orange-50 border-orange-200 dark:bg-orange-950/30 dark:border-orange-900/60'
       default:
-        return 'bg-gray-50 border-gray-200'
+        return 'bg-gray-50 border-gray-200 dark:bg-gray-900 dark:border-gray-800'
     }
+  }
+
+  const getReminderIcon = (type: 'task' | 'event') => {
+    if (type === 'task') {
+      return <Briefcase className="h-4 w-4 mr-2 mt-0.5 text-blue-600 flex-shrink-0" />
+    }
+
+    return <Calendar className="h-4 w-4 mr-2 mt-0.5 text-purple-600 flex-shrink-0" />
   }
 
   if (loading) {
     return (
-      <div className="bg-white border rounded-lg shadow-lg p-4">
-        <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+      <div className="flex h-full min-h-0 flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-800 dark:bg-gray-900">
+        <h3 className="mb-3 flex items-center font-semibold text-gray-900 dark:text-gray-100">
           <Bell className="h-4 w-4 mr-2 text-blue-600" />
           Notifications
         </h3>
@@ -337,15 +546,15 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
   }
 
   return (
-    <div className="bg-white border rounded-lg shadow-lg p-4 flex flex-col h-full">
+    <div className="flex h-full min-h-0 flex-col rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-800 dark:bg-gray-900 sm:p-4">
       {/* Header */}
-      <div className="flex items-center justify-between mb-3 pb-2 border-b">
-        <h3 className="font-semibold text-gray-900 flex items-center">
+      <div className="mb-3 flex flex-col gap-2 border-b border-gray-200 pb-2 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between">
+        <h3 className="flex min-w-0 items-center font-semibold text-gray-900 dark:text-gray-100">
           <Bell className="h-4 w-4 mr-2 text-blue-600" />
-          Notifications
-          {unreadCount > 0 && (
-            <span className="ml-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-              {unreadCount > 99 ? '99+' : unreadCount}
+          <span className="truncate">Notifications</span>
+          {alertCount > 0 && (
+            <span className="notification-count-badge ml-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs text-white">
+              {alertCount > 99 ? '99+' : alertCount}
             </span>
           )}
         </h3>
@@ -356,7 +565,7 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
             size="sm"
             onClick={markAllAsRead}
             disabled={markingAll}
-            className="text-xs text-blue-600 hover:text-blue-700 h-7 px-2"
+            className="h-7 w-full px-2 text-xs text-blue-600 hover:text-blue-700 sm:w-auto"
           >
             <CheckCheck className="h-3 w-3 mr-1" />
             Mark all read
@@ -366,46 +575,94 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
 
       {/* Category Filter */}
       <div className="mb-3">
-        <div className="flex gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <button
             onClick={() => setCategory('all')}
-            className={`flex-1 px-2 py-1 text-xs rounded-md transition-colors ${
+            className={`notification-filter-button min-w-0 rounded-md px-2 py-1 text-xs transition-colors ${
               category === 'all'
-                ? 'bg-gray-800 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                ? 'notification-filter-button-active bg-gray-800 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
             }`}
           >
             All
           </button>
           <button
             onClick={() => setCategory('task')}
-            className={`flex-1 px-2 py-1 text-xs rounded-md transition-colors flex items-center justify-center gap-1 ${
+            className={`notification-filter-button flex min-w-0 items-center justify-center gap-1 rounded-md px-2 py-1 text-xs transition-colors ${
               category === 'task'
-                ? 'bg-blue-600 text-white'
-                : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                ? 'notification-filter-button-active bg-blue-600 text-white'
+                : 'bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-200 dark:hover:bg-blue-900/70'
             }`}
           >
-            <Briefcase className="h-3 w-3" />
-            Task
+            <Briefcase className="h-3 w-3 flex-shrink-0" />
+            <span className="truncate">Task</span>
           </button>
           <button
             onClick={() => setCategory('event')}
-            className={`flex-1 px-2 py-1 text-xs rounded-md transition-colors flex items-center justify-center gap-1 ${
+            className={`notification-filter-button flex min-w-0 items-center justify-center gap-1 rounded-md px-2 py-1 text-xs transition-colors ${
               category === 'event'
-                ? 'bg-purple-600 text-white'
-                : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
+                ? 'notification-filter-button-active bg-purple-600 text-white'
+                : 'bg-purple-50 text-purple-600 hover:bg-purple-100 dark:bg-purple-950/40 dark:text-purple-200 dark:hover:bg-purple-900/70'
             }`}
           >
-            <Calendar className="h-3 w-3" />
-            Event
+            <Calendar className="h-3 w-3 flex-shrink-0" />
+            <span className="truncate">Event</span>
           </button>
         </div>
       </div>
 
       {/* Notifications List */}
-      <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
-        {filteredNotifications.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+        {filteredTomorrowReminders.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                Upcoming Reminders
+              </p>
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                {filteredTomorrowReminders.length}
+              </span>
+            </div>
+
+            {filteredTomorrowReminders.map((reminder) => (
+              <div
+                key={reminder.id}
+                className="relative cursor-pointer rounded-lg border border-amber-200 bg-amber-50 p-3 shadow-sm transition-all duration-200 hover:shadow-md dark:border-amber-900/60 dark:bg-amber-950/30"
+                onClick={() => handleReminderClick(reminder)}
+              >
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    dismissReminder(reminder.id)
+                  }}
+                  className="absolute right-2 top-2 z-10 text-amber-700 transition-colors hover:text-amber-950"
+                  aria-label="Dismiss reminder"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+
+                <div className="flex items-start">
+                  {getReminderIcon(reminder.type)}
+                  <div className="min-w-0 flex-1 pr-5">
+                    <p className="break-words text-sm font-semibold text-gray-900 dark:text-gray-100">
+                      {reminder.title}
+                    </p>
+                    <p className="mt-1 break-words text-xs leading-relaxed text-gray-700 dark:text-gray-300">
+                      {reminder.message}
+                    </p>
+                    <div className="mt-2 flex items-center text-xs text-amber-800">
+                      <Clock className="mr-1 h-3 w-3" />
+                      1 day before
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {filteredNotifications.length === 0 && filteredTomorrowReminders.length === 0 ? (
+          <div className="py-8 text-center text-gray-500 dark:text-gray-400">
             <Bell className="h-8 w-8 mx-auto mb-2 text-gray-400" />
             <p className="text-sm">No notifications found</p>
             <p className="text-xs text-gray-400 mt-1">
@@ -418,7 +675,7 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
           filteredNotifications.map((notif) => (
             <div
               key={notif.id}
-              className={`relative p-3 rounded-lg border transition-all duration-200 cursor-pointer hover:shadow-md ${
+              className={`relative cursor-pointer rounded-lg border p-3 transition-all duration-200 hover:shadow-md ${
                 getNotificationBgColor(notif.type, notif.read)
               } ${!notif.read ? 'shadow-sm' : ''}`}
               onClick={() => handleNotificationClick(notif)}
@@ -437,14 +694,14 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
               <div className="pr-6">
                 <div className="flex items-start">
                   {getNotificationIcon(notif.type)}
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-sm font-medium text-gray-900 dark:text-gray-100">
                       {notif.title}
                     </p>
-                    <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                    <p className="mt-1 break-words text-xs leading-relaxed text-gray-600 dark:text-gray-300">
                       {notif.message}
                     </p>
-                    <div className="flex items-center mt-2 text-xs text-gray-500">
+                    <div className="flex items-center mt-2 text-xs text-gray-500 dark:text-gray-400">
                       <Clock className="h-3 w-3 mr-1" />
                       {getTimeAgo(notif.created_at)}
                     </div>
@@ -463,9 +720,9 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
       </div>
 
       {/* Footer with stats */}
-      {totalCount > 0 && (
-        <div className="mt-3 pt-2 border-t text-xs text-gray-500 flex justify-between">
-          <span>Total: {totalCount}</span>
+      {(totalCount > 0 || reminderCount > 0) && (
+        <div className="mt-3 flex flex-wrap justify-between gap-2 border-t border-gray-200 pt-2 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
+          <span>Total: {totalCount + reminderCount}</span>
           <span>Unread: {unreadCount}</span>
         </div>
       )}

@@ -4,13 +4,15 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Users, Calendar, Hash, Briefcase, UserCog, Settings as SettingsIcon, LogOut } from 'lucide-react'
+import { Users, Calendar, Hash, Briefcase, UserCog, Settings as SettingsIcon } from 'lucide-react'
 import { UsersTab } from './components/UsersTab'
 import { HolidaysTab } from './components/HolidaysTab'
 import { NumberFieldsTab } from './components/NumberFieldsTab'
 import { JobTasksTab } from './components/JobTasksTab'
 import { StaffTab } from './components/StaffTab'
-import { Button } from '@/components/ui/button'
+
+const tabTriggerClass =
+  'settings-tab-trigger flex items-center rounded-md px-3 py-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-sm dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100 dark:data-[state=active]:bg-blue-500 dark:data-[state=active]:text-white'
 
 export default function SettingsPage() {
   const [user, setUser] = useState<any>(null)
@@ -64,10 +66,10 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
         <div className="text-center">
-          <SettingsIcon className="h-12 w-12 text-gray-300 animate-spin mx-auto mb-4" />
-          <p className="text-gray-500">Loading settings...</p>
+          <SettingsIcon className="mx-auto mb-4 h-12 w-12 animate-spin text-gray-300 dark:text-gray-700" />
+          <p className="text-gray-500 dark:text-gray-400">Loading settings...</p>
         </div>
       </div>
     )
@@ -78,20 +80,25 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <SettingsIcon className="h-6 w-6 text-gray-600" />
-              <h1 className="text-xl font-semibold text-gray-900">Settings</h1>
+      <div className="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur dark:border-gray-800 dark:bg-gray-950/95">
+        <div className="w-full max-w-none px-3 py-4 lg:px-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center space-x-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-300">
+                <SettingsIcon className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Settings</h1>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Manage system data and admin controls</p>
+              </div>
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3 text-sm">
-                <span className="text-gray-500">Logged in as:</span>
-                <span className="font-medium text-gray-900">{user.name}</span>
-                <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs">
+            <div className="flex min-w-0 items-center space-x-4">
+              <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm sm:gap-3">
+                <span className="hidden text-gray-500 dark:text-gray-400 sm:inline">Logged in as:</span>
+                <span className="max-w-48 truncate font-medium text-gray-900 dark:text-gray-100">{user.name}</span>
+                <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium capitalize text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/50 dark:text-blue-300">
                   {user.role}
                 </span>
               </div>
@@ -101,41 +108,41 @@ export default function SettingsPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 lg:px-6 py-6">
+      <div className="w-full max-w-none px-3 py-4 lg:px-4">
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
           {/* Tabs Navigation */}
-          <TabsList className="bg-white border border-gray-200 p-1 flex flex-wrap gap-1 w-full justify-start">
+          <TabsList className="flex h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto rounded-lg border border-gray-200 bg-white p-1 shadow-sm sm:flex-wrap dark:border-gray-800 dark:bg-gray-900">
             <TabsTrigger 
               value="users" 
-              className="flex items-center data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700"
+              className={tabTriggerClass}
             >
               <Users className="h-4 w-4 mr-2" />
               Users
             </TabsTrigger>
             <TabsTrigger 
               value="holidays" 
-              className="flex items-center data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700"
+              className={tabTriggerClass}
             >
               <Calendar className="h-4 w-4 mr-2" />
               Holidays
             </TabsTrigger>
             <TabsTrigger 
               value="number-fields" 
-              className="flex items-center data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700"
+              className={tabTriggerClass}
             >
               <Hash className="h-4 w-4 mr-2" />
               Number Fields
             </TabsTrigger>
             <TabsTrigger 
               value="job-tasks" 
-              className="flex items-center data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700"
+              className={tabTriggerClass}
             >
               <Briefcase className="h-4 w-4 mr-2" />
               Job Tasks
             </TabsTrigger>
             <TabsTrigger 
               value="staff" 
-              className="flex items-center data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700"
+              className={tabTriggerClass}
             >
               <UserCog className="h-4 w-4 mr-2" />
               ICS Staff

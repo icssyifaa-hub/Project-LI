@@ -31,6 +31,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -41,13 +47,14 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { getDotClass } from '@/lib/colors'
+import { downloadExcelReport, downloadPdfReport } from '@/lib/report-export'
 
 interface Event {
   id: string
   title: string
   description?: string
-  date_start: string
-  date_stop: string
+  date_start: string | null
+  date_stop: string | null
   time_start?: string
   time_stop?: string
   location?: string
@@ -62,8 +69,10 @@ interface Event {
   updated_at?: string
 }
 
-const formatDate = (dateString: string) => {
+const formatDate = (dateString: string | null) => {
+  if (!dateString) return 'N/A'
   const date = new Date(dateString)
+  if (Number.isNaN(date.getTime())) return 'N/A'
   return date.toLocaleDateString('en-GB', { 
     day: '2-digit',
     month: '2-digit',
@@ -71,31 +80,57 @@ const formatDate = (dateString: string) => {
   })
 }
 
-const getEventStatus = (dateStart: string, dateStop: string) => {
+const getEventStatus = (dateStart: string | null, dateStop: string | null) => {
+  if (!dateStart) {
+    return {
+      label: 'Past',
+      color: 'border [border-color:#4b5563] [background-color:#f3f4f6] [color:#374151]'
+    }
+  }
+
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   
   const start = new Date(dateStart)
   start.setHours(0, 0, 0, 0)
   
-  const stop = new Date(dateStop)
+  const stop = new Date(dateStop || dateStart)
   stop.setHours(0, 0, 0, 0)
   
   if (today > stop) {
     return {
       label: 'Past',
-      color: 'bg-gray-100 text-gray-700'
+      color: 'border [border-color:#4b5563] [background-color:#f3f4f6] [color:#374151]'
     }
   } else if (today >= start && today <= stop) {
     return {
       label: 'Ongoing',
-      color: 'bg-green-100 text-green-700'
+      color: 'border [border-color:#16a34a] [background-color:#dcfce7] [color:#15803d]'
     }
   } else {
     return {
       label: 'Upcoming',
-      color: 'bg-blue-100 text-blue-700'
+      color: 'border [border-color:#2563eb] [background-color:#dbeafe] [color:#1d4ed8]'
     }
+  }
+}
+
+const tableHeaderCellClass = 'border-r border-black px-4 py-3 text-left text-[11px] font-semibold uppercase text-gray-700 dark:text-gray-200'
+const sortableHeaderCellClass = `${tableHeaderCellClass} cursor-pointer transition-colors hover:bg-gray-200/80 dark:hover:bg-gray-700/70`
+const tableCellClass = 'border-r border-black px-4 py-3'
+const paginationButtonClass = 'border-gray-300 bg-white text-gray-900 shadow-sm hover:bg-gray-100 disabled:border-gray-200 disabled:bg-gray-200 disabled:text-gray-500 disabled:opacity-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:disabled:border-gray-800 dark:disabled:bg-gray-800 dark:disabled:text-gray-500'
+const activePaginationButtonClass = 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-white dark:hover:bg-blue-400'
+
+const getEventRowClass = (statusLabel: string) => {
+  switch (statusLabel) {
+    case 'Past':
+      return '[background-color:#e5e7eb] hover:[background-color:#d1d5db] [&_td]:border-black [&_td]:text-black [&_button]:text-black'
+    case 'Ongoing':
+      return '[background-color:#bbf7d0] hover:[background-color:#86efac] [&_td]:border-black [&_td]:text-black [&_button]:text-black'
+    case 'Upcoming':
+      return '[background-color:#bfdbfe] hover:[background-color:#93c5fd] [&_td]:border-black [&_td]:text-black [&_button]:text-black'
+    default:
+      return '[background-color:white] hover:[background-color:#f9fafb] [&_td]:border-black [&_td]:text-black [&_button]:text-black'
   }
 }
 
@@ -157,22 +192,24 @@ export default function EventsPage() {
       const statusMap = new Map<string, boolean>()
       
       usersData?.forEach((user: {id: string; name: string; color?: string; role?: string; is_active?: boolean}) => {
+        const isActive = user.is_active ?? true
+        const displayColor = isActive ? (user.color || 'purple') : 'gray'
         if (user.id) {
           userMap[user.id] = {
             name: user.name,
-            color: user.color || 'purple',
-            is_active: user.is_active ?? true
+            color: displayColor,
+            is_active: isActive
           }
           userMap[user.name] = {
             name: user.name,
-            color: user.color || 'purple',
-            is_active: user.is_active ?? true
+            color: displayColor,
+            is_active: isActive
           }
         }
         
         if (user.role === 'staff' && user.name) {
           staffNames.push(user.name)
-          statusMap.set(user.name, user.is_active ?? true)
+          statusMap.set(user.name, isActive)
         }
       })
       
@@ -337,8 +374,18 @@ export default function EventsPage() {
     }
   }
 
-  const handleViewInCalendar = (date: string) => {
-    router.push(`/calendar?date=${date}`)
+  const handleViewInCalendar = (date: string | null) => {
+    if (!date) {
+      toast({
+        title: 'No start date',
+        description: 'This event has no start date to show in calendar.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const formattedDate = date.split('T')[0]
+    router.push(`/calendar?date=${formattedDate}&view=month&focus=${formattedDate}`)
   }
 
   const handleEditEvent = (event: Event) => {
@@ -393,10 +440,43 @@ export default function EventsPage() {
   
   const activeStaffCount = Array.from(staffStatusMap.values()).filter(isActive => isActive === true).length
   const inactiveStaffCount = staffList.length - activeStaffCount
+  const reportHeaders = ['Title', 'Start Date', 'End Date', 'Start Time', 'End Time', 'Location', 'PIC', 'Support Staff', 'Status']
+  const reportRows = filteredAndSortedEvents.map(event => {
+    const status = getEventStatus(event.date_start, event.date_stop)
+
+    return [
+      event.title,
+      formatDate(event.date_start),
+      formatDate(event.date_stop),
+      event.time_start || '',
+      event.time_stop || '',
+      event.location || '',
+      event.event_pic_name || '',
+      event.event_support_names?.join(', ') || '',
+      status.label,
+    ]
+  })
+  const reportDate = new Date().toISOString().split('T')[0]
+  const exportReport = (format: 'pdf' | 'excel') => {
+    const options = {
+      title: 'Events List',
+      headers: reportHeaders,
+      rows: reportRows,
+      filename: `events-list-${reportDate}`,
+    }
+
+    if (format === 'pdf') {
+      downloadPdfReport(options)
+    } else {
+      downloadExcelReport(options)
+    }
+
+    toast({ title: `Events exported as ${format === 'pdf' ? 'PDF' : 'Excel'}` })
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 lg:p-6">
-      <div className="max-w-[95%] mx-auto space-y-6">
+    <div className="min-h-screen bg-gray-50 p-2 dark:bg-gray-950 sm:p-3 lg:p-4">
+      <div className="w-full max-w-none space-y-6">
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -420,57 +500,41 @@ export default function EventsPage() {
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Events List</h1>
-            <p className="text-sm text-gray-500 mt-1">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Events List</h1>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               Total: {events.length} events | Staff: {staffList.length} total
               {inactiveStaffCount > 0 && ` (${activeStaffCount} active, ${inactiveStaffCount} inactive)`}
             </p>
           </div>
           
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={fetchEvents} disabled={loading}>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Button
+              variant="outline"
+              onClick={fetchEvents}
+              disabled={loading}
+              className="w-full border-gray-300 text-gray-900 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800 sm:w-auto"
+            >
               {loading ? 'Loading...' : 'Refresh'}
             </Button>
             
-            <Button 
-              variant="outline" 
-              className="border-gray-300"
-              onClick={() => {
-                const headers = ['Title', 'Start Date', 'End Date', 'Start Time', 'End Time', 'Location', 'PIC', 'Support Staff', 'Status']
-                const csvRows = [headers]
-                
-                filteredAndSortedEvents.forEach(event => {
-                  const status = getEventStatus(event.date_start, event.date_stop)
-                  const supportStaffText = event.event_support_names?.join(', ') || ''
-                  const row = [
-                    event.title,
-                    formatDate(event.date_start),
-                    formatDate(event.date_stop),
-                    event.time_start || '',
-                    event.time_stop || '',
-                    event.location || '',
-                    event.event_pic_name || '',
-                    supportStaffText,
-                    status.label
-                  ]
-                  csvRows.push(row.map(cell => `"${cell}"`))
-                })
-                
-                const csvContent = csvRows.map(row => row.join(',')).join('\n')
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-                const url = window.URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = `events-${new Date().toISOString().split('T')[0]}.csv`
-                a.click()
-                window.URL.revokeObjectURL(url)
-                
-                toast({ title: "Events exported successfully" })
-              }}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export Report
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full border-gray-300 text-gray-900 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800 sm:w-auto"
+                >
+                  <Download className="mr-2 h-4 w-4" /> Report
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                <DropdownMenuItem onClick={() => exportReport('pdf')} className="cursor-pointer text-gray-900 dark:text-gray-100">
+                  <FileText className="mr-2 h-4 w-4" /> Download PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportReport('excel')} className="cursor-pointer text-gray-900 dark:text-gray-100">
+                  <Download className="mr-2 h-4 w-4" /> Download Excel
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -482,17 +546,17 @@ export default function EventsPage() {
               setSearchTerm(e.target.value)
               setCurrentPage(1)
             }}
-            className="bg-white border-gray-300"
+            className="border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-900"
           />
 
           <Select value={filterStaff} onValueChange={(value) => {
             setFilterStaff(value)
             setCurrentPage(1)
           }}>
-            <SelectTrigger className="bg-white border-gray-300">
+            <SelectTrigger className="border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-900">
               <SelectValue placeholder="Filter by Staff (PIC/Support)" />
             </SelectTrigger>
-            <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
+            <SelectContent className="max-h-80 border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
               <SelectItem value="all">All Staff ({staffList.length})</SelectItem>
               {staffList.map(staff => {
                 const isActive = staffStatusMap.get(staff)
@@ -512,10 +576,10 @@ export default function EventsPage() {
             setFilterStatus(value)
             setCurrentPage(1)
           }}>
-            <SelectTrigger className="bg-white border-gray-300">
+            <SelectTrigger className="border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-900">
               <SelectValue placeholder="Filter by Status" />
             </SelectTrigger>
-            <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
+            <SelectContent className="max-h-80 border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
               <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="upcoming">Upcoming</SelectItem>
               <SelectItem value="ongoing">Ongoing</SelectItem>
@@ -526,19 +590,19 @@ export default function EventsPage() {
 
         {(searchTerm || filterStaff !== 'all' || filterStatus !== 'all') && (
           <div className="flex items-center gap-2 text-sm flex-wrap">
-            <span className="text-gray-500">Filters active:</span>
+            <span className="text-gray-500 dark:text-gray-400">Filters active:</span>
             {searchTerm && (
-              <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+              <span className="rounded-full px-2 py-0.5 [background-color:#dbeafe] [color:#1e40af]">
                 Search: {searchTerm}
               </span>
             )}
             {filterStaff !== 'all' && (
-              <span className={`px-2 py-0.5 rounded-full ${staffStatusMap.get(filterStaff) ? 'bg-purple-100 text-purple-800' : 'bg-red-100 text-red-800'}`}>
+              <span className={`rounded-full px-2 py-0.5 ${staffStatusMap.get(filterStaff) ? '[background-color:#f3e8ff] [color:#6b21a8]' : '[background-color:#fee2e2] [color:#991b1b]'}`}>
                 Staff: {filterStaff} {!staffStatusMap.get(filterStaff) && '(inactive)'}
               </span>
             )}
             {filterStatus !== 'all' && (
-              <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">
+              <span className="rounded-full px-2 py-0.5 [background-color:#fef9c3] [color:#854d0e]">
                 Status: {filterStatus}
               </span>
             )}
@@ -557,43 +621,44 @@ export default function EventsPage() {
           </div>
         )}
 
-        <div className="border-2 border-gray-300 rounded-lg overflow-x-auto shadow-sm bg-white">
-          <table className="w-full text-sm border-collapse">
-            <thead className="bg-gray-100">
-              <tr className="border-b-2 border-gray-300">
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase w-12">No</th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('title')}>
+        <div className="overflow-hidden rounded-lg border border-black bg-white shadow-sm ring-1 ring-black/10 dark:bg-gray-900">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[1080px] border-collapse text-sm">
+            <thead className="bg-gray-100 dark:bg-gray-800">
+              <tr className="border-b border-black">
+                <th className={`${tableHeaderCellClass} w-12`}>No</th>
+                <th className={sortableHeaderCellClass} onClick={() => handleSort('title')}>
                   <div className="flex items-center space-x-1">Event Title <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('date_start')}>
+                <th className={sortableHeaderCellClass} onClick={() => handleSort('date_start')}>
                   <div className="flex items-center space-x-1">Start Date <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase cursor-pointer hover:bg-gray-100" onClick={() => handleSort('date_stop')}>
+                <th className={sortableHeaderCellClass} onClick={() => handleSort('date_stop')}>
                   <div className="flex items-center space-x-1">End Date <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Location</th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">PIC</th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Support Staff</th>
-                <th className="border-r border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Actions</th>
+                <th className={tableHeaderCellClass}>Location</th>
+                <th className={tableHeaderCellClass}>PIC</th>
+                <th className={tableHeaderCellClass}>Support Staff</th>
+                <th className={tableHeaderCellClass}>Status</th>
+                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase text-gray-700 dark:text-gray-200">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-black">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center border-t border-gray-300">
+                  <td colSpan={9} className="border-t border-black px-4 py-12 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mb-2"></div>
-                      <p className="text-sm text-gray-500">Loading events...</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Loading events...</p>
                     </div>
                   </td>
                 </tr>
               ) : paginatedEvents.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center border-t border-gray-300">
+                  <td colSpan={9} className="border-t border-black px-4 py-12 text-center">
                     <div className="text-gray-400 text-4xl mb-2">📅</div>
-                    <p className="text-gray-500">No events found</p>
-                    <p className="text-xs text-gray-400 mt-1">
+                    <p className="text-gray-500 dark:text-gray-300">No events found</p>
+                    <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
                       {searchTerm || filterStaff !== 'all' || filterStatus !== 'all' 
                         ? 'Try clearing your filters' 
                         : 'Click "Add Event" to create your first event'}
@@ -605,39 +670,48 @@ export default function EventsPage() {
                   const status = getEventStatus(event.date_start, event.date_stop)
 
                   return (
-                    <tr key={event.id} className="hover:bg-gray-50 transition-colors group border-b border-gray-200">
-                      <td className="border-r border-gray-200 px-4 py-3 text-gray-600">
+                    <tr key={event.id} className={`group border-b border-black transition-colors ${getEventRowClass(status.label)}`}>
+                      <td className={`${tableCellClass} text-black`}>
                         {(currentPage - 1) * itemsPerPage + index + 1}
                       </td>
-                      <td className="border-r border-gray-200 px-4 py-3">
+                      <td className={tableCellClass}>
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900">
+                          <button
+                            onClick={() => handleViewInCalendar(event.date_start)}
+                            className="max-w-xs truncate text-left font-medium text-blue-700 hover:text-blue-900 hover:underline"
+                          >
                             {event.title}
-                          </span>
+                          </button>
+                          <button
+                            onClick={() => handleViewInCalendar(event.date_start)}
+                            className="text-blue-500 opacity-0 transition-opacity hover:text-blue-700 group-hover:opacity-100"
+                            title="View in Calendar"
+                          >
+                            <CalendarIcon className="h-3 w-3" />
+                          </button>
                         </div>
                       </td>
-                      <td className="border-r border-gray-200 px-4 py-3 text-gray-600">
+                      <td className={`${tableCellClass} text-black`}>
                         <div className="flex items-center">
-                          <Calendar className="h-3 w-3 mr-1 text-gray-400" />
                           {formatDate(event.date_start)}
                         </div>
                       </td>
-                      <td className="border-r border-gray-200 px-4 py-3 text-gray-600">
+                      <td className={`${tableCellClass} text-black`}>
                         {formatDate(event.date_stop)}
                       </td>
-                      <td className="border-r border-gray-200 px-4 py-3">
+                      <td className={tableCellClass}>
                         {event.location ? (
-                          <div className="flex items-center text-gray-600">
-                            <MapPin className="h-3 w-3 mr-1 text-gray-400" />
+                          <div className="flex items-center text-black">
+                            <MapPin className="h-3 w-3 mr-1 text-black-400" />
                             <span className="truncate max-w-[150px]" title={event.location}>
                               {event.location}
                             </span>
                           </div>
                         ) : (
-                          <span className="text-gray-400 text-xs">-</span>
+                          <span className="text-xs text-black">-</span>
                         )}
                       </td>
-                      <td className="border-r border-gray-200 px-4 py-3">
+                      <td className={tableCellClass}>
                         {event.event_pic_name ? (
                           <div className="flex items-center">
                             <span className={`w-3 h-3 rounded-full mr-2 flex-shrink-0 ${getDotClass(event.event_pic_color)}`}></span>
@@ -646,10 +720,10 @@ export default function EventsPage() {
                             </span>
                           </div>
                         ) : (
-                          <span className="text-gray-400 text-xs">Not assigned</span>
+                          <span className="text-xs text-black">Not assigned</span>
                         )}
                       </td>
-                      <td className="border-r border-gray-200 px-4 py-3">
+                      <td className={tableCellClass}>
                         {event.event_support_names && event.event_support_names.length > 0 ? (
                           <div className="flex flex-col gap-1">
                             {event.event_support_names.map((name, idx) => (
@@ -662,11 +736,11 @@ export default function EventsPage() {
                             ))}
                           </div>
                         ) : (
-                          <span className="text-gray-400 text-sm">No support staff</span>
+                          <span className="text-sm text-black">No support staff</span>
                         )}
                       </td>
-                      <td className="border-r border-gray-200 px-4 py-3">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${status.color}`}>
+                      <td className={tableCellClass}>
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm ${status.color}`}>
                           {status.label}
                         </span>
                       </td>
@@ -711,23 +785,25 @@ export default function EventsPage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
 
         {filteredAndSortedEvents.length > 0 && !loading && (
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-gray-500">
               Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredAndSortedEvents.length)} of {filteredAndSortedEvents.length} entries
             </p>
-            <div className="flex space-x-2">
+            <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
               <Button
                 variant="outline"
                 size="icon"
+                className={paginationButtonClass}
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <div className="flex items-center space-x-1">
+              <div className="flex items-center gap-1">
                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                   let pageNum = currentPage
                   if (totalPages <= 5) {
@@ -745,7 +821,7 @@ export default function EventsPage() {
                       key={pageNum}
                       variant={currentPage === pageNum ? 'default' : 'outline'}
                       size="sm"
-                      className="w-8 h-8"
+                      className={`h-8 w-8 ${currentPage === pageNum ? activePaginationButtonClass : paginationButtonClass}`}
                       onClick={() => setCurrentPage(pageNum)}
                     >
                       {pageNum}
@@ -756,6 +832,7 @@ export default function EventsPage() {
               <Button
                 variant="outline"
                 size="icon"
+                className={paginationButtonClass}
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
               >
@@ -765,54 +842,54 @@ export default function EventsPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white rounded-lg border-2 border-gray-300">
+        <div className="grid grid-cols-1 gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900 md:grid-cols-3">
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">📊 Event Status:</h4>
+            <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Event Status:</h4>
             <div className="space-y-1 text-xs">
               <div className="flex items-center">
                 <span className="w-3 h-3 rounded-full bg-blue-500 mr-2"></span>
-                <span className="text-gray-600">Upcoming - Future events</span>
+                <span className="text-gray-600 dark:text-gray-400">Upcoming - Future events</span>
               </div>
               <div className="flex items-center">
                 <span className="w-3 h-3 rounded-full bg-green-500 mr-2"></span>
-                <span className="text-gray-600">Ongoing - Currently happening</span>
+                <span className="text-gray-600 dark:text-gray-400">Ongoing - Currently happening</span>
               </div>
               <div className="flex items-center">
                 <span className="w-3 h-3 rounded-full bg-gray-400 mr-2"></span>
-                <span className="text-gray-600">Past - Completed events</span>
+                <span className="text-gray-600 dark:text-gray-400">Past - Completed events</span>
               </div>
             </div>
           </div>
 
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">👥 Staff Roles:</h4>
+            <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Staff Roles:</h4>
             <div className="space-y-1 text-xs">
               <div className="flex items-center">
                 <div className="w-3 h-3 rounded-full mr-2 bg-blue-500"></div>
-                <span className="text-gray-600"><strong>PIC</strong> (Person In Charge) - Single person responsible</span>
+                <span className="text-gray-600 dark:text-gray-400"><strong>PIC</strong> (Person In Charge) - Single person responsible</span>
               </div>
               <div className="flex items-center">
                 <div className="w-3 h-3 rounded-full mr-2 bg-green-500"></div>
-                <span className="text-gray-600"><strong>Support Staff</strong> - Multiple people can be assigned</span>
+                <span className="text-gray-600 dark:text-gray-400"><strong>Support Staff</strong> - Multiple people can be assigned</span>
               </div>
             </div>
           </div>
 
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">🔧 Available Actions:</h4>
+            <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Available Actions:</h4>
             <div className="space-y-1 text-xs">
               <div className="flex items-center">
                 <Eye className="h-3 w-3 mr-2 text-blue-600" />
-                <span className="text-gray-600">View in Calendar - See event on calendar</span>
+                <span className="text-gray-600 dark:text-gray-400">View in Calendar - See event on calendar</span>
               </div>
               <div className="flex items-center">
                 <Edit2 className="h-3 w-3 mr-2 text-purple-600" />
-                <span className="text-gray-600">Edit Event - Modify event details</span>
+                <span className="text-gray-600 dark:text-gray-400">Edit Event - Modify event details</span>
               </div>
               {isAdmin && (
                 <div className="flex items-center">
                   <Trash2 className="h-3 w-3 mr-2 text-red-600" />
-                  <span className="text-gray-600">Delete Event - Permanently remove (Admin only)</span>
+                  <span className="text-gray-600 dark:text-gray-400">Delete Event - Permanently remove (Admin only)</span>
                 </div>
               )}
             </div>

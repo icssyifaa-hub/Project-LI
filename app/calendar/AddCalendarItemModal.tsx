@@ -43,6 +43,7 @@ import {
 import { useCallback, useEffect, useState, useRef } from 'react'
 // PDF upload/delete removed — using job order number/final report number instead
 import { Combobox } from '@/components/ui/combobox'
+import { getDotClass } from '@/lib/colors'
 
 interface AddCalendarItemModalProps {
   isOpen: boolean
@@ -84,19 +85,19 @@ const computeTaskStatus = (data: {
   jobOrderNumber: string | null
   finalReportNumber: string | null
 }) => {
-  if (!data.dateStart) return 'onhold'
-  
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  
-  const dueDate = data.dateStop ? new Date(data.dateStop) : new Date(data.dateStart)
-  dueDate.setHours(0, 0, 0, 0)
-  
-  const isDueDatePassed = dueDate < today
   const hasJobOrder = !!data.jobOrderNumber
   const hasFinalReport = !!data.finalReportNumber
   
   if (hasJobOrder && hasFinalReport) return 'completed'
+  if (!data.dateStart) return 'onhold'
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const dueDate = data.dateStop ? new Date(data.dateStop) : new Date(data.dateStart)
+  dueDate.setHours(0, 0, 0, 0)
+
+  const isDueDatePassed = dueDate < today
   if (isDueDatePassed && (!hasJobOrder || !hasFinalReport)) return 'incomplete'
   return 'in-progress'
 }
@@ -165,6 +166,7 @@ export default function AddCalendarItemModal({
   isOpen, 
   onClose, 
   selectedDate, 
+  selectedEndDate,
   selectedItem,
   selectedType,
   prefilledData,
@@ -181,6 +183,7 @@ export default function AddCalendarItemModal({
   const [showDescription, setShowDescription] = useState(false)
   const [showLocation, setShowLocation] = useState(false)
   const [showSupport, setShowSupport] = useState(false)
+  const [showJobOrderNumber, setShowJobOrderNumber] = useState(false)
   const [showFinalReport, setShowFinalReport] = useState(false)
   const [showEventPic, setShowEventPic] = useState(false)
   const [showEventSupport, setShowEventSupport] = useState(false)
@@ -329,8 +332,8 @@ export default function AddCalendarItemModal({
         const type = action === 'created' ? 'task_assignment' : 'task_update'
         const title = action === 'created' ? '📋 New Task Assignment' : '✏️ Task Assignment Updated'
         const message = action === 'created' 
-          ? `${assignedByName} has assigned you as ${role} for task: ${data.clientName || data.client_name || 'New Task'} (Due: ${formattedDate})`
-          : `${assignedByName} has updated your assignment for "${data.clientName || data.client_name || 'Task'}" (Role: ${role})`
+          ? `${assignedByName} has assigned ${user.name} as ${role} for task: ${data.clientName || data.client_name || 'New Task'} (Due: ${formattedDate})`
+          : `${assignedByName} has updated ${user.name}'s assignment for "${data.clientName || data.client_name || 'Task'}" (Role: ${role})`
         
         return {
           user_id: user.id,
@@ -408,8 +411,8 @@ export default function AddCalendarItemModal({
         const type = action === 'created' ? 'event_assignment' : 'event_update'
         const title = action === 'created' ? '📅 New Event Assignment' : '✏️ Event Assignment Updated'
         const message = action === 'created' 
-          ? `${assignedByName} has assigned you as ${role} for event: ${data.title || 'New Event'} (Date: ${formattedDate})`
-          : `${assignedByName} has updated your assignment for "${data.title || 'Event'}" (Role: ${role})`
+          ? `${assignedByName} has assigned ${user.name} as ${role} for event: ${data.title || 'New Event'} (Date: ${formattedDate})`
+          : `${assignedByName} has updated ${user.name}'s assignment for "${data.title || 'Event'}" (Role: ${role})`
         
         return {
           user_id: user.id,
@@ -460,6 +463,7 @@ export default function AddCalendarItemModal({
     setShowDescription(false)
     setShowLocation(false)
     setShowSupport(false)
+    setShowJobOrderNumber(false)
     setShowFinalReport(false)
     setShowEventPic(false)
     setShowEventSupport(false)
@@ -544,6 +548,17 @@ export default function AddCalendarItemModal({
       }
     }
     
+    const taskPicId = item.task_pic_id || ''
+    const normalizedTaskSupportIds = taskSupportIdsArray.filter(id => id && id !== taskPicId)
+    const normalizedTaskSupportNames = normalizedTaskSupportIds.map((id) => {
+      const originalIndex = taskSupportIdsArray.indexOf(id)
+      return taskSupportNamesArray[originalIndex] || ''
+    })
+    const normalizedTaskSupportColors = normalizedTaskSupportIds.map((id) => {
+      const originalIndex = taskSupportIdsArray.indexOf(id)
+      return taskSupportColorsArray[originalIndex] || 'blue'
+    })
+
     setTaskData({
       clientName: item.client_name || item.clientName || '',
       runningNumber: item.running_number || item.runningNumber || '',
@@ -554,20 +569,21 @@ export default function AddCalendarItemModal({
       timeStop: item.time_stop || item.timeStop || '',
       additionalRemark: item.additional_remark || item.additionalRemark || '',
       jobOrderNumber: item.job_order_number || item.jobOrderNumber || '',
-      task_pic_id: item.task_pic_id || '',
-      task_support_ids: taskSupportIdsArray,
+      task_pic_id: taskPicId,
+      task_support_ids: normalizedTaskSupportIds,
       finalReportNumber: item.final_report_number || item.finalReportNumber || '',
       task_pic_name: item.task_pic_name || '',
       task_pic_color: item.task_pic_color || '',
-      task_support_names: taskSupportNamesArray,
-      task_support_colors: taskSupportColorsArray,
+      task_support_names: normalizedTaskSupportNames,
+      task_support_colors: normalizedTaskSupportColors,
     })
     
     const timeStart = item.time_start || item.timeStart || ''
     const timeStop = item.time_stop || item.timeStop || ''
     setShowTime(!!(timeStart || timeStop))
     setShowDescription(!!(item.additional_remark || item.additionalRemark))
-    setShowSupport(taskSupportIdsArray.length > 0 || taskSupportNamesArray.length > 0)
+    setShowSupport(normalizedTaskSupportIds.length > 0 || normalizedTaskSupportNames.length > 0)
+    setShowJobOrderNumber(!!(item.job_order_number || item.jobOrderNumber))
     setShowFinalReport(!!(item.final_report_number))
     setRunningNumberValid(true)
     setRunningNumberError('')
@@ -602,6 +618,17 @@ export default function AddCalendarItemModal({
       }
     }
     
+    const eventPicId = item.event_pic_id || ''
+    const normalizedEventSupportIds = eventSupportIdsArray.filter(id => id && id !== eventPicId)
+    const normalizedEventSupportNames = normalizedEventSupportIds.map((id) => {
+      const originalIndex = eventSupportIdsArray.indexOf(id)
+      return eventSupportNamesArray[originalIndex] || ''
+    })
+    const normalizedEventSupportColors = normalizedEventSupportIds.map((id) => {
+      const originalIndex = eventSupportIdsArray.indexOf(id)
+      return eventSupportColorsArray[originalIndex] || 'purple'
+    })
+
     setEventData({
       title: item.title || '',
       description: item.description || '',
@@ -610,12 +637,12 @@ export default function AddCalendarItemModal({
       timeStart: item.time_start || item.timeStart || '',
       timeStop: item.time_stop || item.timeStop || '',
       location: item.location || '',
-      event_pic_id: item.event_pic_id || '',
-      event_support_ids: eventSupportIdsArray,
+      event_pic_id: eventPicId,
+      event_support_ids: normalizedEventSupportIds,
       event_pic_name: item.event_pic_name || '',
       event_pic_color: item.event_pic_color || '',
-      event_support_names: eventSupportNamesArray,
-      event_support_colors: eventSupportColorsArray,
+      event_support_names: normalizedEventSupportNames,
+      event_support_colors: normalizedEventSupportColors,
     })
     
     const timeStart = item.time_start || item.timeStart || ''
@@ -624,7 +651,7 @@ export default function AddCalendarItemModal({
     setShowDescription(!!item.description)
     setShowLocation(!!item.location)
     setShowEventPic(!!(item.event_pic_name || item.event_pic_id))
-    setShowEventSupport(eventSupportIdsArray.length > 0 || eventSupportNamesArray.length > 0)
+    setShowEventSupport(normalizedEventSupportIds.length > 0 || normalizedEventSupportNames.length > 0)
   }, [])
 
   // Auto-validate running number when user types (for new tasks only)
@@ -661,8 +688,9 @@ export default function AddCalendarItemModal({
         setActiveTab(selectedType || 'event')
       } else if (selectedDate) {
         const dateStr = formatDateToString(selectedDate)
+        const endDateStr = selectedEndDate ? formatDateToString(selectedEndDate) : ''
         
-        setEventData(prev => ({ ...prev, dateStart: dateStr, dateStop: '' }))
+        setEventData(prev => ({ ...prev, dateStart: dateStr, dateStop: endDateStr }))
         setTaskData(prev => ({
           ...prev,
           clientName: prefilledData?.clientName || prev.clientName,
@@ -673,8 +701,9 @@ export default function AddCalendarItemModal({
           task_pic_color: prefilledData?.task_pic_color || prev.task_pic_color,
           jobOrderNumber: prefilledData?.jobOrderNumber || prev.jobOrderNumber,
           dateStart: dateStr,
-          dateStop: '',
+          dateStop: endDateStr,
         }))
+        setShowJobOrderNumber(!!prefilledData?.jobOrderNumber)
       }
       
       initialLoadDone.current = true
@@ -686,7 +715,7 @@ export default function AddCalendarItemModal({
       resetForm()
       initialLoadDone.current = false
     }
-  }, [isOpen, selectedItem, selectedDate, selectedType, activeTab, prefilledData, populateEventForm, populateTaskForm, resetForm, fetchJobTasks, fetchStaff])
+  }, [isOpen, selectedItem, selectedDate, selectedEndDate, selectedType, activeTab, prefilledData, populateEventForm, populateTaskForm, resetForm, fetchJobTasks, fetchStaff])
 
   // ========== CONDITIONAL RETURN AFTER ALL HOOKS ==========
   if (!isOpen) return null
@@ -738,29 +767,45 @@ export default function AddCalendarItemModal({
     return ''
   }
 
+  const normalizeSupportSelection = (
+    ids: string[],
+    excludedPicId: string,
+    fallbackNames: string[] = [],
+    fallbackColors: string[] = [],
+    defaultColor = 'blue'
+  ) => {
+    const uniqueIds = Array.from(new Set(ids.filter(id => id && id !== excludedPicId)))
+
+    return uniqueIds.reduce(
+      (acc, id) => {
+        const fallbackIndex = ids.indexOf(id)
+        const staff = staffList.find(s => s.id === id)
+        acc.ids.push(id)
+        acc.names.push(staff?.name || fallbackNames[fallbackIndex] || '')
+        acc.colors.push(staff?.color || fallbackColors[fallbackIndex] || defaultColor)
+        return acc
+      },
+      { ids: [] as string[], names: [] as string[], colors: [] as string[] }
+    )
+  }
+
   // Rest of component functions (handlers, validators, etc.)
   const handleTaskSupportToggle = (staffId: string) => {
     const selectedStaff = staffList.find(s => s.id === staffId)
     
     setTaskData(prev => {
+      if (staffId === prev.task_pic_id) return prev
+
       const currentIds = [...prev.task_support_ids]
-      const currentNames = [...(prev.task_support_names || [])]
-      const currentColors = [...(prev.task_support_colors || [])]
       
       if (currentIds.includes(staffId)) {
-        const index = currentIds.indexOf(staffId)
-        currentIds.splice(index, 1)
-        currentNames.splice(index, 1)
-        currentColors.splice(index, 1)
-        return { ...prev, task_support_ids: currentIds, task_support_names: currentNames, task_support_colors: currentColors }
-      } else {
-        return {
-          ...prev,
-          task_support_ids: [...currentIds, staffId],
-          task_support_names: [...currentNames, selectedStaff?.name || ''],
-          task_support_colors: [...currentColors, selectedStaff?.color || 'blue']
-        }
+        currentIds.splice(currentIds.indexOf(staffId), 1)
+      } else if (selectedStaff) {
+        currentIds.push(staffId)
       }
+
+      const normalized = normalizeSupportSelection(currentIds, prev.task_pic_id, prev.task_support_names, prev.task_support_colors, 'blue')
+      return { ...prev, task_support_ids: normalized.ids, task_support_names: normalized.names, task_support_colors: normalized.colors }
     })
   }
 
@@ -768,24 +813,18 @@ export default function AddCalendarItemModal({
     const selectedStaff = staffList.find(s => s.id === staffId)
     
     setEventData(prev => {
+      if (staffId === prev.event_pic_id) return prev
+
       const currentIds = [...prev.event_support_ids]
-      const currentNames = [...(prev.event_support_names || [])]
-      const currentColors = [...(prev.event_support_colors || [])]
       
       if (currentIds.includes(staffId)) {
-        const index = currentIds.indexOf(staffId)
-        currentIds.splice(index, 1)
-        currentNames.splice(index, 1)
-        currentColors.splice(index, 1)
-        return { ...prev, event_support_ids: currentIds, event_support_names: currentNames, event_support_colors: currentColors }
-      } else {
-        return {
-          ...prev,
-          event_support_ids: [...currentIds, staffId],
-          event_support_names: [...currentNames, selectedStaff?.name || ''],
-          event_support_colors: [...currentColors, selectedStaff?.color || 'purple']
-        }
+        currentIds.splice(currentIds.indexOf(staffId), 1)
+      } else if (selectedStaff) {
+        currentIds.push(staffId)
       }
+
+      const normalized = normalizeSupportSelection(currentIds, prev.event_pic_id, prev.event_support_names, prev.event_support_colors, 'purple')
+      return { ...prev, event_support_ids: normalized.ids, event_support_names: normalized.names, event_support_colors: normalized.colors }
     })
   }
 
@@ -847,6 +886,7 @@ export default function AddCalendarItemModal({
         }
         break
       case 'jobTask':
+        if (!value?.trim()) return 'Job Task is required'
         if (value && value.length > 200) return 'Job task cannot exceed 200 characters'
         break
     }
@@ -889,10 +929,8 @@ export default function AddCalendarItemModal({
       const timeStopError = validateTaskField('timeStop', taskData.timeStop)
       if (timeStopError) newErrors.timeStop = timeStopError
     }
-    if (taskData.jobTask) {
-      const jobTaskError = validateTaskField('jobTask', taskData.jobTask)
-      if (jobTaskError) newErrors.jobTask = jobTaskError
-    }
+    const jobTaskError = validateTaskField('jobTask', taskData.jobTask)
+    if (jobTaskError) newErrors.jobTask = jobTaskError
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -981,6 +1019,14 @@ export default function AddCalendarItemModal({
       
       try {
         if (activeTab === 'event') {
+          const normalizedEventSupport = normalizeSupportSelection(
+            eventData.event_support_ids,
+            eventData.event_pic_id,
+            eventData.event_support_names,
+            eventData.event_support_colors,
+            'purple'
+          )
+
           const dataToSave = {
             title: eventData.title,
             description: eventData.description || '',
@@ -992,9 +1038,9 @@ export default function AddCalendarItemModal({
             event_pic_id: eventData.event_pic_id || null,
             event_pic_name: eventData.event_pic_name || '',
             event_pic_color: eventData.event_pic_color || '',
-            event_support_ids: eventData.event_support_ids.length > 0 ? eventData.event_support_ids.join(',') : null,
-            event_support_names: eventData.event_support_names.length > 0 ? eventData.event_support_names.join(',') : null,
-            event_support_colors: eventData.event_support_colors.length > 0 ? eventData.event_support_colors.join(',') : null,
+            event_support_ids: normalizedEventSupport.ids.length > 0 ? normalizedEventSupport.ids.join(',') : null,
+            event_support_names: normalizedEventSupport.names.length > 0 ? normalizedEventSupport.names.join(',') : null,
+            event_support_colors: normalizedEventSupport.colors.length > 0 ? normalizedEventSupport.colors.join(',') : null,
             created_by: currentUser?.id
           }
           
@@ -1007,8 +1053,13 @@ export default function AddCalendarItemModal({
 
           if (result && result.id) {
             const action = selectedItem ? 'updated' : 'created'
-            if (eventData.event_pic_id || eventData.event_support_ids.length > 0) {
-              await sendEventNotifications(eventData, result.id, action)
+            if (eventData.event_pic_id || normalizedEventSupport.ids.length > 0) {
+              await sendEventNotifications({
+                ...eventData,
+                event_support_ids: normalizedEventSupport.ids,
+                event_support_names: normalizedEventSupport.names,
+                event_support_colors: normalizedEventSupport.colors,
+              }, result.id, action)
             }
           }
 
@@ -1020,6 +1071,13 @@ export default function AddCalendarItemModal({
         } else {
           const runningNumber = taskData.runningNumber
           if (!runningNumber) throw new Error("Running number is required")
+          const normalizedTaskSupport = normalizeSupportSelection(
+            taskData.task_support_ids,
+            taskData.task_pic_id,
+            taskData.task_support_names,
+            taskData.task_support_colors,
+            'blue'
+          )
           
           const computedStatus = computeTaskStatus({
             dateStart: taskData.dateStart || null,
@@ -1031,7 +1089,7 @@ export default function AddCalendarItemModal({
           const dataToSave = {
             client_name: taskData.clientName,
             running_number: runningNumber,
-            job_task: taskData.jobTask || 'General Task',
+            job_task: taskData.jobTask,
             date_start: taskData.dateStart || null,
             date_stop: taskData.dateStop || null,
             time_start: taskData.timeStart || '',
@@ -1041,9 +1099,9 @@ export default function AddCalendarItemModal({
             task_pic_id: taskData.task_pic_id || null,
             task_pic_name: taskData.task_pic_name || '',
             task_pic_color: taskData.task_pic_color || '',
-            task_support_ids: taskData.task_support_ids.length > 0 ? taskData.task_support_ids.join(',') : null,
-            task_support_names: taskData.task_support_names.length > 0 ? taskData.task_support_names.join(',') : null,
-            task_support_colors: taskData.task_support_colors.length > 0 ? taskData.task_support_colors.join(',') : null,
+            task_support_ids: normalizedTaskSupport.ids.length > 0 ? normalizedTaskSupport.ids.join(',') : null,
+            task_support_names: normalizedTaskSupport.names.length > 0 ? normalizedTaskSupport.names.join(',') : null,
+            task_support_colors: normalizedTaskSupport.colors.length > 0 ? normalizedTaskSupport.colors.join(',') : null,
             final_report_number: taskData.finalReportNumber || null,
             job_status: computedStatus,
             created_by: currentUser?.id
@@ -1058,8 +1116,13 @@ export default function AddCalendarItemModal({
 
           if (result && result.id) {
             const action = selectedItem ? 'updated' : 'created'
-            if (taskData.task_pic_id || taskData.task_support_ids.length > 0) {
-              await sendTaskNotifications(taskData, result.id, action)
+            if (taskData.task_pic_id || normalizedTaskSupport.ids.length > 0) {
+              await sendTaskNotifications({
+                ...taskData,
+                task_support_ids: normalizedTaskSupport.ids,
+                task_support_names: normalizedTaskSupport.names,
+                task_support_colors: normalizedTaskSupport.colors,
+              }, result.id, action)
             }
           }
 
@@ -1135,7 +1198,7 @@ export default function AddCalendarItemModal({
   const ErrorMessage = ({ field }: { field: string }) => {
     if (!touched[field] || !errors[field]) return null
     return (
-      <p className="text-xs text-red-500 mt-1 flex items-center">
+      <p className="mt-1 flex items-center text-xs text-red-600">
         <AlertCircle className="h-3 w-3 mr-1" />
         {errors[field]}
       </p>
@@ -1175,16 +1238,28 @@ export default function AddCalendarItemModal({
   const staffDetails = getStaffDetails()
   const currentTaskStatus = activeTab === 'task' ? getCurrentTaskStatus() : null
   const hasDate = activeTab === 'task' && taskData.dateStart
+  const lockedEditType = selectedItem ? (selectedType || activeTab) : null
+  const eventTabDisabled = isSaving || lockedEditType === 'task'
+  const taskTabDisabled = isSaving || lockedEditType === 'event'
+  const lockedTypeTooltip = lockedEditType ? 'Type is locked while editing. Create a new item to use another type.' : undefined
+  const labelClass = 'text-sm font-medium text-gray-900'
+  const requiredClass = 'ml-1 text-red-600'
+  const inputClass = 'border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus-visible:ring-gray-400'
+  const invalidInputClass = 'border-red-500 focus-visible:ring-red-500'
+  const actionButtonClass = 'flex items-center text-sm font-medium text-gray-900 transition-colors hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50'
+  const fieldPanelClass = 'space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4'
+  const tabBaseClass = 'relative flex items-center space-x-2 px-1 pb-1 text-sm font-medium transition-colors'
+  const inactiveTabClass = 'text-gray-500 hover:text-gray-900'
 
   // ========== RENDER COMPONENT ==========
   return (
     <>
-      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-          <Card className="border-0">
-            <CardHeader className="border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
+        <div className="flex h-[calc(100dvh-0.75rem)] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:h-auto sm:max-h-[90vh] sm:rounded-lg">
+          <Card className="flex h-full min-h-0 flex-col border-0">
+            <CardHeader className="shrink-0 border-b border-gray-200 bg-gray-50 px-4 py-3 sm:px-6 sm:py-4">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="min-w-0 truncate text-lg">
                   {selectedItem ? 'Edit' : 'Add New'} {activeTab === 'event' ? 'Event' : 'Job Task'}
                 </CardTitle>
                 <Button variant="ghost" size="icon" onClick={() => { resetForm(); onClose() }} type="button" disabled={isSaving}>
@@ -1192,28 +1267,50 @@ export default function AddCalendarItemModal({
                 </Button>
               </div>
 
-              <div className="flex items-center space-x-4 mt-2 border-b border-gray-200 pb-2">
-                <button type="button" onClick={() => { setActiveTab('event'); setErrors({}); setTouched({}); setRunningNumberValid(null); setRunningNumberError(''); }} disabled={isSaving}
-                  className={`pb-1 px-1 text-sm font-medium transition-colors relative flex items-center space-x-2 ${
-                    activeTab === 'event' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500 hover:text-gray-700'
-                  } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+              <div className="mt-2 flex items-center gap-3 overflow-x-auto border-b border-gray-200 pb-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (eventTabDisabled) return
+                    setActiveTab('event')
+                    setErrors({})
+                    setTouched({})
+                    setRunningNumberValid(null)
+                    setRunningNumberError('')
+                  }}
+                  disabled={eventTabDisabled}
+                  title={eventTabDisabled && lockedEditType === 'task' ? lockedTypeTooltip : undefined}
+                  aria-disabled={eventTabDisabled}
+                  className={`${tabBaseClass} ${
+                    activeTab === 'event' ? 'border-b-2 border-purple-600 text-purple-600' : inactiveTabClass
+                  } ${eventTabDisabled ? 'cursor-not-allowed opacity-40 hover:text-gray-500' : 'cursor-pointer'}`}>
                   <CalendarCheck className="h-4 w-4" />
                   <span>Event</span>
                 </button>
-                <button type="button" onClick={() => { setActiveTab('task'); setErrors({}); setTouched({}); }} disabled={isSaving}
-                  className={`pb-1 px-1 text-sm font-medium transition-colors relative flex items-center space-x-2 ${
-                    activeTab === 'task' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'
-                  } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (taskTabDisabled) return
+                    setActiveTab('task')
+                    setErrors({})
+                    setTouched({})
+                  }}
+                  disabled={taskTabDisabled}
+                  title={taskTabDisabled && lockedEditType === 'event' ? lockedTypeTooltip : undefined}
+                  aria-disabled={taskTabDisabled}
+                  className={`${tabBaseClass} ${
+                    activeTab === 'task' ? 'border-b-2 border-blue-600 text-blue-600' : inactiveTabClass
+                  } ${taskTabDisabled ? 'cursor-not-allowed opacity-40 hover:text-gray-500' : 'cursor-pointer'}`}>
                   <Briefcase className="h-4 w-4" />
                   <span>Task</span>
                 </button>
               </div>
             </CardHeader>
 
-            <form onSubmit={handleSubmit}>
-              <CardContent className="space-y-4 pt-4">
+            <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+              <CardContent className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pt-4 pb-6 sm:px-6">
                 {selectedDate && !selectedItem && (
-                  <div className="flex items-center text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+                  <div className="flex items-center rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600">
                     <CalendarIcon className="h-4 w-4 mr-2 text-gray-500" />
                     <span>{formatDateDisplay(selectedDate)}</span>
                   </div>
@@ -1221,7 +1318,7 @@ export default function AddCalendarItemModal({
 
                 {activeTab === 'task' && (
                   <>
-                    <div className="flex justify-between items-center mb-2 p-3 bg-gray-50 rounded-lg">
+                    <div className="mb-2 flex flex-col gap-2 rounded-lg bg-gray-50 p-3 sm:flex-row sm:items-center sm:justify-between">
                       <span className="text-sm font-medium text-gray-600">Current Status:</span>
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(currentTaskStatus || 'in-progress')}`}>
                         {getStatusText(currentTaskStatus || 'in-progress')}
@@ -1229,7 +1326,7 @@ export default function AddCalendarItemModal({
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-gray-700 font-medium">Client Name <span className="text-red-500">*</span></Label>
+                      <Label className={labelClass}>Client Name <span className={requiredClass}>*</span></Label>
                       <Input 
                         value={taskData.clientName} 
                         onChange={(e) => { 
@@ -1241,7 +1338,7 @@ export default function AddCalendarItemModal({
                         }} 
                         onBlur={() => handleBlur('clientName')} 
                         placeholder="Enter client name" 
-                        className={`border-gray-300 bg-white ${touched.clientName && errors.clientName ? 'border-red-500' : ''}`} 
+                        className={`${inputClass} ${touched.clientName && errors.clientName ? invalidInputClass : ''}`}
                         disabled={isSaving} 
                         autoFocus 
                       />
@@ -1250,8 +1347,8 @@ export default function AddCalendarItemModal({
 
                     {/* RUNNING NUMBER - USER INPUT WITH REAL-TIME VALIDATION */}
                     <div className="space-y-2">
-                      <Label className="text-gray-700 font-medium">
-                        Running Number <span className="text-red-500">*</span>
+                      <Label className={labelClass}>
+                        Running Number <span className={requiredClass}>*</span>
                       </Label>
                       <div className="relative">
                         <Input 
@@ -1271,20 +1368,20 @@ export default function AddCalendarItemModal({
                             }
                           }}
                           placeholder="e.g., JOB2401001, INV-001, etc." 
-                          className={`border-gray-300 bg-white font-mono text-sm pr-10 ${
+                          className={`${inputClass} pr-10 font-mono text-sm ${
                             !selectedItem && taskData.runningNumber && runningNumberValid === true 
                               ? 'border-green-500 border-2 bg-green-50' 
                               : !selectedItem && runningNumberValid === false
                               ? 'border-red-500 border-2 bg-red-50'
                               : touched.runningNumber && errors.runningNumber
-                              ? 'border-red-500'
+                              ? invalidInputClass
                               : ''
                           }`}
                           disabled={isSaving} 
                         />
                         {!selectedItem && isCheckingRunningNumber && (
                           <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                            <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                            <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
                           </div>
                         )}
                         {!selectedItem && runningNumberValid === true && !isCheckingRunningNumber && taskData.runningNumber && (
@@ -1318,10 +1415,10 @@ export default function AddCalendarItemModal({
                     </div>
                     
                     <div className="space-y-2">
-                      <Label className="text-gray-700 font-medium">Job Task</Label>
+                      <Label className={labelClass}>Job Task <span className={requiredClass}>*</span></Label>
                       {loadingTasks ? (
                         <div className="flex items-center space-x-2 border border-gray-300 rounded-md p-2 bg-gray-50">
-                          <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                          <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
                           <span className="text-sm text-gray-500">Loading job tasks...</span>
                         </div>
                       ) : (
@@ -1338,15 +1435,15 @@ export default function AddCalendarItemModal({
                           placeholder="Select job task"
                           emptyMessage="No job tasks found."
                           disabled={isSaving}
-                          className={touched.jobTask && errors.jobTask ? 'border-red-500' : ''}
+                          className={touched.jobTask && errors.jobTask ? invalidInputClass : ''}
                         />
                       )}
                       <ErrorMessage field="jobTask" />
                     </div>
 
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-gray-700 font-medium">Start Date (Optional)</Label>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <Label className={labelClass}>Start Date (Optional)</Label>
                         {hasDate && (
                           <Button 
                             type="button" 
@@ -1366,7 +1463,7 @@ export default function AddCalendarItemModal({
                         onChange={(e) => { 
                           setTaskData(prev => ({...prev, dateStart: e.target.value}))
                         }} 
-                        className="border-gray-300 bg-white" 
+                        className={inputClass}
                         disabled={isSaving} 
                       />
                       <p className="text-xs text-gray-500">
@@ -1378,7 +1475,7 @@ export default function AddCalendarItemModal({
 
                     {hasDate && (
                       <div className="space-y-2">
-                        <Label className="text-gray-700 font-medium">End Date (Optional)</Label>
+                        <Label className={labelClass}>End Date (Optional)</Label>
                         <Input 
                           type="date" 
                           value={taskData.dateStop} 
@@ -1389,7 +1486,7 @@ export default function AddCalendarItemModal({
                             } 
                           }} 
                           onBlur={() => handleBlur('dateStop')} 
-                          className={`border-gray-300 bg-white ${touched.dateStop && errors.dateStop ? 'border-red-500' : ''}`} 
+                          className={`${inputClass} ${touched.dateStop && errors.dateStop ? invalidInputClass : ''}`}
                           disabled={isSaving} 
                         />
                         <ErrorMessage field="dateStop" />
@@ -1397,17 +1494,17 @@ export default function AddCalendarItemModal({
                     )}
 
                     {hasDate && !showTime ? (
-                      <button type="button" onClick={() => setShowTime(true)} className="flex items-center text-sm text-blue-600 hover:text-blue-700" disabled={isSaving}>
+                      <button type="button" onClick={() => setShowTime(true)} className={actionButtonClass} disabled={isSaving}>
                         <Clock className="h-4 w-4 mr-2" /> Add time
                       </button>
                     ) : hasDate && showTime ? (
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div className="space-y-2">
-                          <Label className="text-gray-700 font-medium">Time Start</Label>
-                          <Input type="time" value={taskData.timeStart} onChange={(e) => setTaskData(prev => ({...prev, timeStart: e.target.value}))} className="border-gray-300 bg-white" disabled={isSaving} />
+                          <Label className={labelClass}>Time Start</Label>
+                          <Input type="time" value={taskData.timeStart} onChange={(e) => setTaskData(prev => ({...prev, timeStart: e.target.value}))} className={inputClass} disabled={isSaving} />
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-gray-700 font-medium">Time Stop</Label>
+                          <Label className={labelClass}>Time Stop</Label>
                           <Input 
                             type="time" 
                             value={taskData.timeStop} 
@@ -1416,7 +1513,7 @@ export default function AddCalendarItemModal({
                               if (touched.timeStop) { setErrors(prev => ({ ...prev, timeStop: validateTaskField('timeStop', e.target.value) })) }
                             }} 
                             onBlur={() => handleBlur('timeStop')} 
-                            className={`border-gray-300 bg-white ${touched.timeStop && errors.timeStop ? 'border-red-500' : ''}`} 
+                            className={`${inputClass} ${touched.timeStop && errors.timeStop ? invalidInputClass : ''}`}
                             disabled={isSaving} 
                           />
                           <ErrorMessage field="timeStop" />
@@ -1425,44 +1522,53 @@ export default function AddCalendarItemModal({
                     ) : null}
 
                     {!showDescription ? (
-                      <button type="button" onClick={() => setShowDescription(true)} className="flex items-center text-sm text-gray-600 hover:text-gray-900" disabled={isSaving}>
+                      <button type="button" onClick={() => setShowDescription(true)} className={actionButtonClass} disabled={isSaving}>
                         <FileText className="h-4 w-4 mr-2" /> Add additional remark
                       </button>
                     ) : (
                       <div className="space-y-2">
-                        <Label className="text-gray-700 font-medium">Additional Remark</Label>
-                        <Textarea value={taskData.additionalRemark} onChange={(e) => setTaskData(prev => ({...prev, additionalRemark: e.target.value}))} placeholder="Enter any additional remarks..." className="border-gray-300 bg-white min-h-[80px]" disabled={isSaving} />
+                        <Label className={labelClass}>Additional Remark</Label>
+                        <Textarea value={taskData.additionalRemark} onChange={(e) => setTaskData(prev => ({...prev, additionalRemark: e.target.value}))} placeholder="Enter any additional remarks..." className={`${inputClass} min-h-[80px]`} disabled={isSaving} />
                       </div>
                     )}
 
-                    {/* PDF Job Order */}
-                    <div className="border-t border-gray-200 pt-4">
-                      <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center justify-between">
-                        <div className="flex items-center">
-                          <FileText className="h-4 w-4 mr-2 text-blue-600" />
-                          Job Order Number
+                    {/* Job Order Number */}
+                    {!showJobOrderNumber ? (
+                      <button type="button" onClick={() => setShowJobOrderNumber(true)} className={actionButtonClass} disabled={isSaving}>
+                        <FileText className="mr-2 h-4 w-4" /> Add Job Order Number
+                      </button>
+                    ) : (
+                      <div className="space-y-2 border-t border-gray-200 pt-4">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <Label className="flex items-center font-medium text-gray-900">
+                            <FileText className="mr-2 h-4 w-4 text-gray-500" />Job Order Number
+                          </Label>
+                          {!taskData.jobOrderNumber && (
+                            <Button type="button" variant="ghost" size="sm" onClick={() => setShowJobOrderNumber(false)} className="h-6 w-6 p-0 text-gray-500" disabled={isSaving}>
+                              <X className="h-3 w-3" />
+                            </Button>
+                          )}
                         </div>
-                        {taskData.jobOrderNumber && (
-                          <div className="text-sm text-gray-700">Current: {taskData.jobOrderNumber}</div>
-                        )}
-                      </h4>
-                      
-                      <Input
-                        value={taskData.jobOrderNumber}
-                        onChange={(e) => setTaskData(prev => ({ ...prev, jobOrderNumber: e.target.value }))}
-                        placeholder="Enter job order number"
-                        className="border-gray-300 bg-white"
-                        disabled={isSaving}
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Enter job order number (optional)</p>
-                    </div>
+                        <Input
+                          value={taskData.jobOrderNumber}
+                          onChange={(e) => setTaskData(prev => ({ ...prev, jobOrderNumber: e.target.value }))}
+                          placeholder="Enter job order number"
+                          className={inputClass}
+                          disabled={isSaving}
+                        />
+                      </div>
+                    )}
 
                     {/* PIC */}
                     <div className="space-y-2">
-                      <Label className="text-gray-700 font-medium">PIC (Person In Charge) <span className="text-red-500">*</span></Label>
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <Label className="flex items-center font-medium text-gray-700">
+                          <Users className="mr-2 h-4 w-4 text-gray-500" />Task PIC <span className={requiredClass}>*</span>
+                        </Label>
+                      </div>
                       {loadingStaff ? (
                         <div className="flex items-center space-x-2 border border-gray-300 rounded-md p-2">
-                          <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                          <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
                           <span className="text-sm text-gray-500">Loading staff...</span>
                         </div>
                       ) : (
@@ -1470,20 +1576,31 @@ export default function AddCalendarItemModal({
                           value={taskData.task_pic_id} 
                           onValueChange={(value) => { 
                             const selectedStaff = staffList.find(s => s.id === value)
-                            setTaskData(prev => ({ ...prev, task_pic_id: value, task_pic_name: selectedStaff?.name || '', task_pic_color: selectedStaff?.color || 'blue' }))
+                            setTaskData(prev => {
+                              const normalized = normalizeSupportSelection(prev.task_support_ids, value, prev.task_support_names, prev.task_support_colors, 'blue')
+                              return {
+                                ...prev,
+                                task_pic_id: value,
+                                task_pic_name: selectedStaff?.name || '',
+                                task_pic_color: selectedStaff?.color || 'blue',
+                                task_support_ids: normalized.ids,
+                                task_support_names: normalized.names,
+                                task_support_colors: normalized.colors,
+                              }
+                            })
                             if (touched.task_pic_id) { setErrors(prev => ({ ...prev, task_pic_id: validateTaskField('task_pic_id', value) })) }
                           }} 
                           onOpenChange={() => handleBlur('task_pic_id')} 
                           disabled={isSaving}
                         >
-                          <SelectTrigger className={`bg-white border-gray-300 ${touched.task_pic_id && errors.task_pic_id ? 'border-red-500' : ''}`}>
+                          <SelectTrigger className={`${inputClass} ${touched.task_pic_id && errors.task_pic_id ? invalidInputClass : ''}`}>
                             <SelectValue placeholder="Select main PIC" />
                           </SelectTrigger>
-                          <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                          <SelectContent className="max-h-[45vh] bg-white border border-gray-200 shadow-lg">
                             {staffList.map((staff) => (
                               <SelectItem key={staff.id} value={staff.id} className="hover:bg-gray-100 text-gray-900">
                                 <div className="flex items-center gap-2">
-                                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: staff.color || '#3b82f6' }} />
+                                  <div className={`w-3 h-3 rounded-full ${getDotClass(staff.color || 'blue')}`} />
                                   <span>{staff.name}</span>
                                 </div>
                               </SelectItem>
@@ -1494,8 +1611,8 @@ export default function AddCalendarItemModal({
                       )}
                       <ErrorMessage field="task_pic_id" />
                       {taskData.task_pic_name && (
-                        <div className="mt-1 flex items-center gap-2 text-xs text-green-600">
-                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: taskData.task_pic_color || '#3b82f6' }} />
+                        <div className="mt-2 flex items-center gap-2 text-sm text-gray-700">
+                          <div className={`w-3 h-3 rounded-full ${getDotClass(taskData.task_pic_color || 'blue')}`} />
                           <span>Selected: {taskData.task_pic_name}</span>
                         </div>
                       )}
@@ -1503,39 +1620,39 @@ export default function AddCalendarItemModal({
 
                     {/* Support Staff */}
                     {!showSupport ? (
-                      <button type="button" onClick={() => setShowSupport(true)} className="flex items-center text-sm text-gray-600 hover:text-gray-900" disabled={isSaving}>
+                      <button type="button" onClick={() => setShowSupport(true)} className={actionButtonClass} disabled={isSaving}>
                         <UserPlus className="h-4 w-4 mr-2" /> Add Support Staff (Optional)
                       </button>
                     ) : (
-                      <div className="space-y-3 border rounded-lg p-4 bg-gray-50">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-gray-700 font-medium flex items-center">
-                            <Users className="h-4 w-4 mr-2" />Task Support Staff
+                      <div className={fieldPanelClass}>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <Label className="flex items-center font-medium text-gray-700">
+                            <Users className="mr-2 h-4 w-4 text-gray-500" />Task Support Staff
                           </Label>
                           <Button type="button" variant="ghost" size="sm" onClick={() => setShowSupport(false)} className="h-6 w-6 p-0" disabled={isSaving}>
                             <X className="h-3 w-3" />
                           </Button>
                         </div>
                         {loadingStaff ? (
-                          <div className="flex items-center justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-blue-600" /></div>
+                          <div className="flex items-center justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-gray-500" /></div>
                         ) : (
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                             {staffList.filter(staff => staff.id !== taskData.task_pic_id).map((staff) => (
-                              <div key={staff.id} className="flex items-center space-x-2">
-                                <Checkbox id={`task-support-${staff.id}`} checked={taskData.task_support_ids.includes(staff.id)} onCheckedChange={() => handleTaskSupportToggle(staff.id)} disabled={isSaving} />
-                                <label htmlFor={`task-support-${staff.id}`} className="text-sm cursor-pointer text-gray-700 flex items-center gap-1">
-                                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: staff.color || '#3b82f6' }} />
-                                  {staff.name}
+                              <div key={staff.id} className="flex min-w-0 items-center space-x-2">
+                                <Checkbox className="staff-support-checkbox" id={`task-support-${staff.id}`} checked={taskData.task_support_ids.includes(staff.id)} onCheckedChange={() => handleTaskSupportToggle(staff.id)} disabled={isSaving} />
+                                <label htmlFor={`task-support-${staff.id}`} className="flex min-w-0 cursor-pointer items-center gap-1 text-sm text-gray-700">
+                                  <div className={`h-2 w-2 flex-shrink-0 rounded-full ${getDotClass(staff.color || 'blue')}`} />
+                                  <span className="truncate">{staff.name}</span>
                                 </label>
                               </div>
                             ))}
                           </div>
                         )}
                         {taskData.task_support_names && taskData.task_support_names.length > 0 && (
-                          <div className="mt-2 text-xs text-green-600 flex flex-wrap gap-2">
+                          <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-700">
                             {taskData.task_support_names.map((name, index) => (
                               <span key={index} className="inline-flex items-center gap-1">
-                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: taskData.task_support_colors?.[index] || '#3b82f6' }} />
+                                <div className={`w-2 h-2 rounded-full ${getDotClass(taskData.task_support_colors?.[index] || 'blue')}`} />
                                 {name}
                               </span>
                             ))}
@@ -1544,16 +1661,16 @@ export default function AddCalendarItemModal({
                       </div>
                     )}
 
-                    {/* PDF Final Report */}
+                    {/* Final Report Number */}
                     {!showFinalReport ? (
-                      <button type="button" onClick={() => setShowFinalReport(true)} className="flex items-center text-sm text-gray-600 hover:text-gray-900 mt-2" disabled={isSaving}>
-                        <FileText className="h-4 w-4 mr-2" /> Add PDF Final Report
+                      <button type="button" onClick={() => setShowFinalReport(true)} className={`${actionButtonClass} mt-2`} disabled={isSaving}>
+                        <FileText className="h-4 w-4 mr-2" /> Add Final Report Number
                       </button>
                     ) : (
                       <div className="space-y-4 border-t border-gray-200 pt-4">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <h4 className="text-sm font-semibold text-gray-800 flex items-center">
-                            <FileText className="h-4 w-4 mr-2 text-green-600" />Final Report Number
+                            <FileText className="mr-2 h-4 w-4 text-gray-500" />Final Report Number
                           </h4>
                           <div className="flex gap-2">
                             <Button type="button" variant="ghost" size="sm" onClick={() => setShowFinalReport(false)} className="h-6 w-6 p-0 text-gray-500" disabled={isSaving}>
@@ -1566,10 +1683,9 @@ export default function AddCalendarItemModal({
                           value={taskData.finalReportNumber}
                           onChange={(e) => setTaskData(prev => ({ ...prev, finalReportNumber: e.target.value }))}
                           placeholder="Enter final report number"
-                          className="border-gray-300 bg-white"
+                          className={inputClass}
                           disabled={isSaving}
                         />
-                        <p className="text-xs text-gray-500">Enter final report number (optional)</p>
                       </div>
                     )}
                   </>
@@ -1578,7 +1694,7 @@ export default function AddCalendarItemModal({
                 {activeTab === 'event' && (
                   <>
                     <div className="space-y-2">
-                      <Label className="text-gray-700 font-medium">Title <span className="text-red-500">*</span></Label>
+                      <Label className={labelClass}>Title <span className={requiredClass}>*</span></Label>
                       <Input 
                         value={eventData.title} 
                         onChange={(e) => { 
@@ -1587,16 +1703,16 @@ export default function AddCalendarItemModal({
                         }} 
                         onBlur={() => handleBlur('title')} 
                         placeholder="Enter event title" 
-                        className={`border-gray-300 bg-white ${touched.title && errors.title ? 'border-red-500' : ''}`} 
+                        className={`${inputClass} ${touched.title && errors.title ? invalidInputClass : ''}`}
                         disabled={isSaving} 
                         autoFocus 
                       />
                       <ErrorMessage field="title" />
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label className="text-gray-700 font-medium">Date Start <span className="text-red-500">*</span></Label>
+                        <Label className={labelClass}>Date Start <span className={requiredClass}>*</span></Label>
                         <Input 
                           type="date" 
                           value={eventData.dateStart} 
@@ -1605,13 +1721,13 @@ export default function AddCalendarItemModal({
                             if (touched.dateStart) { setErrors(prev => ({ ...prev, dateStart: validateEventField('dateStart', e.target.value) })) }
                           }} 
                           onBlur={() => handleBlur('dateStart')} 
-                          className={`border-gray-300 bg-white ${touched.dateStart && errors.dateStart ? 'border-red-500' : ''}`} 
+                          className={`${inputClass} ${touched.dateStart && errors.dateStart ? invalidInputClass : ''}`}
                           disabled={isSaving} 
                         />
                         <ErrorMessage field="dateStart" />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-gray-700 font-medium">Date Stop (Optional)</Label>
+                        <Label className={labelClass}>Date Stop (Optional)</Label>
                         <Input 
                           type="date" 
                           value={eventData.dateStop} 
@@ -1620,7 +1736,7 @@ export default function AddCalendarItemModal({
                             if (touched.dateStop) { setErrors(prev => ({ ...prev, dateStop: validateEventField('dateStop', e.target.value) })) }
                           }} 
                           onBlur={() => handleBlur('dateStop')} 
-                          className={`border-gray-300 bg-white ${touched.dateStop && errors.dateStop ? 'border-red-500' : ''}`} 
+                          className={`${inputClass} ${touched.dateStop && errors.dateStop ? invalidInputClass : ''}`}
                           disabled={isSaving} 
                         />
                         <ErrorMessage field="dateStop" />
@@ -1628,17 +1744,17 @@ export default function AddCalendarItemModal({
                     </div>
 
                     {!showTime ? (
-                      <button type="button" onClick={() => setShowTime(true)} className="flex items-center text-sm text-blue-600 hover:text-blue-700" disabled={isSaving}>
+                      <button type="button" onClick={() => setShowTime(true)} className={actionButtonClass} disabled={isSaving}>
                         <Clock className="h-4 w-4 mr-2" /> Add time
                       </button>
                     ) : (
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div className="space-y-2">
-                          <Label className="text-gray-700 font-medium">Time Start</Label>
-                          <Input type="time" value={eventData.timeStart} onChange={(e) => setEventData(prev => ({...prev, timeStart: e.target.value}))} className="border-gray-300 bg-white" disabled={isSaving} />
+                          <Label className={labelClass}>Time Start</Label>
+                          <Input type="time" value={eventData.timeStart} onChange={(e) => setEventData(prev => ({...prev, timeStart: e.target.value}))} className={inputClass} disabled={isSaving} />
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-gray-700 font-medium">Time Stop</Label>
+                          <Label className={labelClass}>Time Stop</Label>
                           <Input 
                             type="time" 
                             value={eventData.timeStop} 
@@ -1647,7 +1763,7 @@ export default function AddCalendarItemModal({
                               if (touched.timeStop) { setErrors(prev => ({ ...prev, timeStop: validateEventField('timeStop', e.target.value) })) }
                             }} 
                             onBlur={() => handleBlur('timeStop')} 
-                            className={`border-gray-300 bg-white ${touched.timeStop && errors.timeStop ? 'border-red-500' : ''}`} 
+                            className={`${inputClass} ${touched.timeStop && errors.timeStop ? invalidInputClass : ''}`}
                             disabled={isSaving} 
                           />
                           <ErrorMessage field="timeStop" />
@@ -1656,123 +1772,123 @@ export default function AddCalendarItemModal({
                     )}
 
                     {!showLocation ? (
-                      <button type="button" onClick={() => setShowLocation(true)} className="flex items-center text-sm text-gray-600 hover:text-gray-900" disabled={isSaving}>
+                      <button type="button" onClick={() => setShowLocation(true)} className={actionButtonClass} disabled={isSaving}>
                         <Users className="h-4 w-4 mr-2" /> Add location
                       </button>
                     ) : (
                       <div className="space-y-2">
-                        <Label className="text-gray-700 font-medium">Location</Label>
-                        <Input value={eventData.location} onChange={(e) => setEventData(prev => ({...prev, location: e.target.value}))} placeholder="Enter location" className="border-gray-300 bg-white" disabled={isSaving} />
+                        <Label className={labelClass}>Location</Label>
+                        <Input value={eventData.location} onChange={(e) => setEventData(prev => ({...prev, location: e.target.value}))} placeholder="Enter location" className={inputClass} disabled={isSaving} />
                       </div>
                     )}
 
                     {!showDescription ? (
-                      <button type="button" onClick={() => setShowDescription(true)} className="flex items-center text-sm text-gray-600 hover:text-gray-900" disabled={isSaving}>
+                      <button type="button" onClick={() => setShowDescription(true)} className={actionButtonClass} disabled={isSaving}>
                         <FileText className="h-4 w-4 mr-2" /> Add description
                       </button>
                     ) : (
                       <div className="space-y-2">
-                        <Label className="text-gray-700 font-medium">Description</Label>
-                        <Textarea value={eventData.description} onChange={(e) => setEventData(prev => ({...prev, description: e.target.value}))} placeholder="Enter description" className="border-gray-300 bg-white min-h-[80px]" disabled={isSaving} />
+                        <Label className={labelClass}>Description</Label>
+                        <Textarea value={eventData.description} onChange={(e) => setEventData(prev => ({...prev, description: e.target.value}))} placeholder="Enter description" className={`${inputClass} min-h-[80px]`} disabled={isSaving} />
                       </div>
                     )}
                     
                     {/* Event PIC */}
-                    {!showEventPic ? (
-                      <button type="button" onClick={() => setShowEventPic(true)} className="flex items-center text-sm text-blue-600 hover:text-blue-700" disabled={isSaving}>
-                        <UserPlus className="h-4 w-4 mr-2" /> Add PIC (Person In Charge) <span className="text-red-500 ml-1">*</span>
-                      </button>
-                    ) : (
-                      <div className="space-y-2 border rounded-lg p-4 bg-gray-50">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-gray-700 font-medium flex items-center">
-                            <Users className="h-4 w-4 mr-2" />Event PIC <span className="text-red-500 ml-1">*</span>
-                          </Label>
-                          <Button type="button" variant="ghost" size="sm" onClick={() => setShowEventPic(false)} className="h-6 w-6 p-0" disabled={isSaving}>
-                            <X className="h-3 w-3" />
-                          </Button>
+                    <div className="space-y-2">
+                      <Label className="flex items-center font-medium text-gray-900">
+                        <Users className="mr-2 h-4 w-4 text-gray-500" />Event PIC <span className={requiredClass}>*</span>
+                      </Label>
+                      {loadingStaff ? (
+                        <div className="flex items-center space-x-2 rounded-md border border-gray-300 p-2">
+                          <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
+                          <span className="text-sm text-gray-500">Loading staff...</span>
                         </div>
-                        {loadingStaff ? (
-                          <div className="flex items-center space-x-2 border border-gray-300 rounded-md p-2">
-                            <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                            <span className="text-sm text-gray-500">Loading staff...</span>
-                          </div>
-                        ) : (
-                          <>
-                            <Select 
-                              value={eventData.event_pic_id} 
-                              onValueChange={(value) => { 
-                                const selectedStaff = staffList.find(s => s.id === value)
-                                setEventData(prev => ({ ...prev, event_pic_id: value, event_pic_name: selectedStaff?.name || '', event_pic_color: selectedStaff?.color || 'purple' }))
-                                if (touched.event_pic_id && errors.event_pic_id) {
-                                  setErrors(prev => ({ ...prev, event_pic_id: '' }))
+                      ) : (
+                        <>
+                          <Select
+                            value={eventData.event_pic_id}
+                            onValueChange={(value) => {
+                              const selectedStaff = staffList.find(s => s.id === value)
+                              setEventData(prev => {
+                                const normalized = normalizeSupportSelection(prev.event_support_ids, value, prev.event_support_names, prev.event_support_colors, 'purple')
+                                return {
+                                  ...prev,
+                                  event_pic_id: value,
+                                  event_pic_name: selectedStaff?.name || '',
+                                  event_pic_color: selectedStaff?.color || 'purple',
+                                  event_support_ids: normalized.ids,
+                                  event_support_names: normalized.names,
+                                  event_support_colors: normalized.colors,
                                 }
-                              }} 
-                              onOpenChange={() => handleBlur('event_pic_id')}
-                              disabled={isSaving}
-                            >
-                              <SelectTrigger className={`bg-white border-gray-300 ${touched.event_pic_id && errors.event_pic_id ? 'border-red-500' : ''}`}>
-                                <SelectValue placeholder="Select PIC for this event" />
-                              </SelectTrigger>
-                              <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                                {staffList.map((staff) => (
-                                  <SelectItem key={staff.id} value={staff.id} className="hover:bg-gray-100 text-gray-900">
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: staff.color || '#8b5cf6' }} />
-                                      <span>{staff.name}</span>
-                                    </div>
-                                  </SelectItem>
-                                ))}
-                                {staffList.length === 0 && <div className="px-2 py-3 text-sm text-gray-500 text-center">No staff found.</div>}
-                              </SelectContent>
-                            </Select>
-                            <ErrorMessage field="event_pic_id" />
-                          </>
-                        )}
-                        {eventData.event_pic_name && (
-                          <div className="mt-2 flex items-center gap-2 p-2 rounded bg-white border">
-                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: eventData.event_pic_color || '#8b5cf6' }} />
-                            <span className="text-sm text-gray-700">Selected: {eventData.event_pic_name}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                              })
+                              if (touched.event_pic_id && errors.event_pic_id) {
+                                setErrors(prev => ({ ...prev, event_pic_id: '' }))
+                              }
+                            }}
+                            onOpenChange={() => handleBlur('event_pic_id')}
+                            disabled={isSaving}
+                          >
+                            <SelectTrigger className={`${inputClass} ${touched.event_pic_id && errors.event_pic_id ? invalidInputClass : ''}`}>
+                              <SelectValue placeholder="Select main PIC" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-[45vh] border border-gray-200 bg-white shadow-lg">
+                              {staffList.map((staff) => (
+                                <SelectItem key={staff.id} value={staff.id} className="text-gray-900 hover:bg-gray-100">
+                                  <div className="flex items-center gap-2">
+                                    <div className={`h-3 w-3 rounded-full ${getDotClass(staff.color || 'purple')}`} />
+                                    <span>{staff.name}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                              {staffList.length === 0 && <div className="px-2 py-3 text-center text-sm text-gray-500">No staff found.</div>}
+                            </SelectContent>
+                          </Select>
+                          <ErrorMessage field="event_pic_id" />
+                        </>
+                      )}
+                      {eventData.event_pic_name && (
+                        <div className="mt-2 flex items-center gap-2 text-sm text-gray-700">
+                          <div className={`h-3 w-3 rounded-full ${getDotClass(eventData.event_pic_color || 'purple')}`} />
+                          <span>Selected: {eventData.event_pic_name}</span>
+                        </div>
+                      )}
+                    </div>
                     
                     {/* Event Support Staff */}
                     {!showEventSupport ? (
-                      <button type="button" onClick={() => setShowEventSupport(true)} className="flex items-center text-sm text-gray-600 hover:text-gray-900" disabled={isSaving}>
+                      <button type="button" onClick={() => setShowEventSupport(true)} className={actionButtonClass} disabled={isSaving}>
                         <UserPlus className="h-4 w-4 mr-2" /> Add Support Staff (Optional)
                       </button>
                     ) : (
-                      <div className="space-y-3 border rounded-lg p-4 bg-gray-50">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-gray-700 font-medium flex items-center">
-                            <Users className="h-4 w-4 mr-2" />Event Support Staff
+                      <div className={fieldPanelClass}>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <Label className="flex items-center font-medium text-gray-700">
+                            <Users className="mr-2 h-4 w-4 text-gray-500" />Event Support Staff
                           </Label>
                           <Button type="button" variant="ghost" size="sm" onClick={() => setShowEventSupport(false)} className="h-6 w-6 p-0" disabled={isSaving}>
                             <X className="h-3 w-3" />
                           </Button>
                         </div>
                         {loadingStaff ? (
-                          <div className="flex items-center justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-blue-600" /></div>
+                          <div className="flex items-center justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-gray-500" /></div>
                         ) : (
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                             {staffList.filter(staff => staff.id !== eventData.event_pic_id).map((staff) => (
-                              <div key={staff.id} className="flex items-center space-x-2">
-                                <Checkbox id={`event-support-${staff.id}`} checked={eventData.event_support_ids.includes(staff.id)} onCheckedChange={() => handleEventSupportToggle(staff.id)} disabled={isSaving} />
-                                <label htmlFor={`event-support-${staff.id}`} className="text-sm cursor-pointer text-gray-700 flex items-center gap-1">
-                                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: staff.color || '#8b5cf6' }} />
-                                  {staff.name}
+                              <div key={staff.id} className="flex min-w-0 items-center space-x-2">
+                                <Checkbox className="staff-support-checkbox" id={`event-support-${staff.id}`} checked={eventData.event_support_ids.includes(staff.id)} onCheckedChange={() => handleEventSupportToggle(staff.id)} disabled={isSaving} />
+                                <label htmlFor={`event-support-${staff.id}`} className="flex min-w-0 cursor-pointer items-center gap-1 text-sm text-gray-700">
+                                  <div className={`h-2 w-2 flex-shrink-0 rounded-full ${getDotClass(staff.color || 'purple')}`} />
+                                  <span className="truncate">{staff.name}</span>
                                 </label>
                               </div>
                             ))}
                           </div>
                         )}
                         {eventData.event_support_names && eventData.event_support_names.length > 0 && (
-                          <div className="mt-2 text-xs text-green-600 flex flex-wrap gap-2">
+                          <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-700">
                             {eventData.event_support_names.map((name, index) => (
                               <span key={index} className="inline-flex items-center gap-1">
-                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: eventData.event_support_colors?.[index] || '#8b5cf6' }} />
+                                <div className={`w-2 h-2 rounded-full ${getDotClass(eventData.event_support_colors?.[index] || 'purple')}`} />
                                 {name}
                               </span>
                             ))}
@@ -1784,21 +1900,21 @@ export default function AddCalendarItemModal({
                 )}
               </CardContent>
 
-              <CardFooter className="border-t border-gray-200 bg-gray-50 flex justify-between sticky bottom-0">
-                <div className="flex space-x-2">
+              <CardFooter className="shrink-0 flex flex-col gap-3 border-t border-gray-200 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                   {selectedItem && (
-                    <Button type="button" variant="destructive" size="sm" onClick={handleDelete} disabled={isSaving}>
+                    <Button type="button" variant="destructive" size="sm" onClick={handleDelete} disabled={isSaving} className="w-full sm:w-auto">
                       <Trash2 className="h-4 w-4 mr-2" />Delete
                     </Button>
                   )}
-                  <Button type="button" variant="outline" size="sm" onClick={() => { resetForm(); onClose() }} disabled={isSaving}>
+                  <Button type="button" variant="outline" size="sm" onClick={() => { resetForm(); onClose() }} disabled={isSaving} className="w-full sm:w-auto">
                     <X className="h-4 w-4 mr-2" />Cancel
                   </Button>
                 </div>
                 <Button 
                   type="submit" 
                   size="sm" 
-                  className={activeTab === 'event' ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'} 
+                  className={`w-full sm:w-auto ${activeTab === 'event' ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
                   disabled={isSaveDisabled()}
                   title={getSaveButtonTitle()}
                 >
@@ -1814,10 +1930,10 @@ export default function AddCalendarItemModal({
 
       {/* Confirmation Dialog */}
       {showConfirmDialog && (
-        <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-3 sm:p-4">
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-4 sm:p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center">
-              <Bell className="h-5 w-5 mr-2 text-blue-600" />
+              <Bell className="mr-2 h-5 w-5 text-blue-600" />
               {getConfirmTitle()}
             </h3>
             <p className="text-gray-600 mb-4">{getConfirmMessage()}</p>
@@ -1825,7 +1941,7 @@ export default function AddCalendarItemModal({
               <div className="text-sm">
                 <span className="font-medium text-gray-700">PIC (Main):</span>{' '}
                 <span className="text-gray-900 flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: staffDetails.picColor || (activeTab === 'event' ? '#8b5cf6' : '#3b82f6') }} />
+                  <div className={`w-2 h-2 rounded-full ${getDotClass(staffDetails.picColor || (activeTab === 'event' ? 'purple' : 'blue'))}`} />
                   {staffDetails.picName || 'Not selected'}
                 </span>
               </div>
@@ -1835,7 +1951,7 @@ export default function AddCalendarItemModal({
                   <ul className="mt-1 ml-4 list-disc space-y-1">
                     {staffDetails.supportNames.map((name: string, index: number) => (
                       <li key={index} className="text-gray-900 flex items-center gap-1">
-                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: staffDetails.supportColors?.[index] || (activeTab === 'event' ? '#8b5cf6' : '#3b82f6') }} />
+                        <div className={`w-2 h-2 rounded-full ${getDotClass(staffDetails.supportColors?.[index] || (activeTab === 'event' ? 'purple' : 'blue'))}`} />
                         {name}
                       </li>
                     ))}
@@ -1849,7 +1965,7 @@ export default function AddCalendarItemModal({
                 </p>
               </div>
             </div>
-            <div className="flex justify-end space-x-3">
+            <div className="flex flex-col justify-end gap-2 sm:flex-row">
               <Button type="button" variant="outline" onClick={() => { setShowConfirmDialog(false); setPendingSubmit(null) }} disabled={isSaving}>
                 Cancel
               </Button>

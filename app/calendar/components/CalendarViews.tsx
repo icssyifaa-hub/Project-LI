@@ -1,7 +1,7 @@
 'use client'
 import React, { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { Plus, CalendarCheck, X, Edit2 } from 'lucide-react'
+import { Plus, CalendarCheck, X, Edit2, PartyPopper } from 'lucide-react'
 import type { Task, Event } from '@/app/calendar/types/calendar'
 import { MALAYSIA_STATES } from '@/app/settings/types'
 import { getItemStyleClasses, getItemBgClass, getBadgeClass, getDotClass, getSolidClass, getHeaderGradientClass } from '@/lib/colors'
@@ -533,12 +533,6 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
       : { start: fixedEnd, end: fixedStart }
   }
 
-  const isDateInPreviewRange = (date: Date) => {
-    if (!monthRangePreview) return false
-    const dateKey = formatDateKey(date)
-    return dateKey >= monthRangePreview.start && dateKey <= monthRangePreview.end
-  }
-
   const isMonthRangeBlockedTarget = (target: HTMLElement) => {
     const targetButton = target.closest('button')
     const isDateSurfaceButton = targetButton?.hasAttribute('data-month-date-key')
@@ -982,7 +976,7 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                 <h3 className="truncate text-base font-semibold text-gray-900 dark:text-gray-100">{month}</h3>
                 {monthHolidays.length > 0 && (
                   <div className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">
-                    <CalendarCheck className="h-3 w-3" />
+                    <PartyPopper className="h-3 w-3" />
                     {monthHolidays.length}
                   </div>
                 )}
@@ -1467,7 +1461,6 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                       continuesAfter: previewEnd > weekEnd,
                     }
                   : null
-
                 return (
                   <div key={`range-week-${weekIndex}`} className="relative grid min-h-[150px] grid-cols-7 border-b border-gray-200 sm:min-h-[140px] lg:min-h-[92px] lg:flex-1 dark:border-gray-800">
                     {week.map((date, dayIndex) => {
@@ -1475,7 +1468,6 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                       const isToday = dateKey === formatDateKey(new Date())
                       const isFocusedDate = dateKey === focusedDateKey
                       const isCurrentMonth = date.getMonth() === month
-                      const isRangePreviewDate = isDateInPreviewRange(date)
                       const dayHolidays = getHolidaysForDate(date)
                       const rangesOnDay = weekSegments.filter((segment: any) =>
                         segment.colStart <= dayIndex &&
@@ -1497,7 +1489,6 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                             hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/60
                             ${isCurrentMonth ? 'bg-white dark:bg-gray-950' : 'bg-gray-50 dark:bg-gray-900/80'}
                             ${isToday ? 'bg-blue-50 dark:bg-blue-950/40' : ''}
-                            ${isRangePreviewDate ? 'bg-blue-100 ring-1 ring-inset ring-blue-300 dark:bg-blue-950/60 dark:ring-blue-500' : ''}
                             ${isFocusedDate ? 'ring-2 ring-blue-600 ring-inset dark:ring-blue-400' : ''}
                             ${draggedOverDate === dateKey ? 'bg-blue-100 border-2 border-dashed border-blue-400 dark:bg-blue-950/60 dark:border-blue-400' : ''}
                           `}

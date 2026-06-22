@@ -169,7 +169,11 @@ export function NumberFieldsTab() {
               />
             </div>
             <div className="flex gap-2">
-              <Button type="button" onClick={handleSearch} className="w-full sm:w-auto">
+              <Button
+                type="button"
+                onClick={handleSearch}
+                className="w-full bg-blue-600 text-white shadow-sm hover:bg-blue-700 focus-visible:ring-blue-500 dark:bg-blue-500 dark:text-white dark:hover:bg-blue-600 sm:w-auto"
+              >
                 <Search className="h-4 w-4" />
                 Search
               </Button>

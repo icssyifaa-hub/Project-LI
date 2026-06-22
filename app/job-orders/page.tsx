@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar as CalendarIcon,
+  Trash2,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -31,6 +32,7 @@ import {
 import {
   AlertDialog,
   AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -193,6 +195,7 @@ export default function JobOrdersPage() {
   const [staffList, setStaffList] = useState<string[]>([])
   const [staffStatusMap, setStaffStatusMap] = useState<Map<string, boolean>>(new Map())
   const [unscheduledJob, setUnscheduledJob] = useState<JobOrder | null>(null)
+  const [jobToDelete, setJobToDelete] = useState<JobOrder | null>(null)
   const itemsPerPage = 10
   const router = useRouter()
   const { toast } = useToast()
@@ -419,6 +422,32 @@ export default function JobOrdersPage() {
     router.push(`/calendar?date=${formattedDate}&view=month&focus=${formattedDate}`)
   }
 
+  const confirmDeleteJob = async () => {
+    if (!jobToDelete) return
+
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', jobToDelete.id)
+
+      if (error) throw error
+
+      setJobOrders(jobOrders.filter(job => job.id !== jobToDelete.id))
+      setJobToDelete(null)
+      toast({
+        title: "Success",
+        description: "Job order deleted successfully",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to delete job order",
+        variant: "destructive",
+      })
+    }
+  }
+
   const matchesStaffFilter = (job: JobOrder, filterStaffValue: string): boolean => {
     if (filterStaffValue === 'all') return true
     if (job.task_pic_name === filterStaffValue) return true
@@ -508,6 +537,23 @@ export default function JobOrdersPage() {
             <AlertDialogFooter>
               <AlertDialogAction onClick={() => setUnscheduledJob(null)}>
                 OK
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={!!jobToDelete} onOpenChange={(open) => !open && setJobToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Job Order?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete "{jobToDelete?.client_name}"? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDeleteJob} className="bg-red-600 text-white hover:bg-red-700">
+                Delete
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -640,13 +686,14 @@ export default function JobOrdersPage() {
                 <th className={tableHeaderCellClass}>Support Staff</th>
                 <th className={tableHeaderCellClass}>Job Order</th>
                 <th className={tableHeaderCellClass}>Final Report</th>
-                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase text-gray-700 dark:text-gray-200">Status</th>
+                <th className={tableHeaderCellClass}>Status</th>
+                <th className={tableHeaderCellClass}>Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-black">
               {loading ? (
                 <tr>
-                  <td colSpan={12} className="border-t border-black px-4 py-12 text-center">
+                  <td colSpan={13} className="border-t border-black px-4 py-12 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Loading job orders...</p>
@@ -655,7 +702,7 @@ export default function JobOrdersPage() {
                 </tr>
               ) : paginatedJobs.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="border-t border-black px-4 py-12 text-center">
+                  <td colSpan={13} className="border-t border-black px-4 py-12 text-center">
                     <div className="text-gray-400 text-4xl mb-2">📋</div>
                     <p className="text-gray-500 dark:text-gray-300">No job orders found</p>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
@@ -733,10 +780,21 @@ export default function JobOrdersPage() {
                           </span>
                         ) : <span className="text-black">-</span>}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className={tableCellClass}>
                         <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm ${getStatusColor(job.job_status)}`}>
                           {getStatusText(job.job_status)}
                         </span>
+                      </td>
+                      <td className={tableCellClass}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                          onClick={() => setJobToDelete(job)}
+                          title="Delete job order"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </td>
                     </tr>
                   )

@@ -23,6 +23,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { useToast } from '@/components/ui/use-toast'
 import { 
   Plus, 
@@ -61,6 +71,7 @@ export function JobTasksTab() {
   
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<JobTask | null>(null)
+  const [pendingDeleteTask, setPendingDeleteTask] = useState<JobTask | null>(null)
   const [saving, setSaving] = useState(false)
   const [formData, setFormData] = useState({
     name: ''
@@ -105,10 +116,11 @@ export function JobTasksTab() {
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this job task?')) return
+  const handleDelete = async () => {
+    if (!pendingDeleteTask) return
     try {
-      await deleteJobTask(id)
+      await deleteJobTask(pendingDeleteTask.id)
+      setPendingDeleteTask(null)
     } catch (error) {
       // Error dah handle dalam hook
     }
@@ -181,7 +193,7 @@ export function JobTasksTab() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => handleDelete(task.id)}
+                            onClick={() => setPendingDeleteTask(task)}
                             title="Delete task"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -245,6 +257,23 @@ export function JobTasksTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!pendingDeleteTask} onOpenChange={(open) => !open && setPendingDeleteTask(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Job Task?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{pendingDeleteTask?.name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 text-white hover:bg-red-700">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

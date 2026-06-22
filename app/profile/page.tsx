@@ -478,6 +478,7 @@ export default function ProfilePage() {
 
   const currentColorValue = profileData.color
   const currentColor = getColorByValue(currentColorValue)
+  const avatarTextClass = ['lime', 'yellow', 'peach'].includes(currentColorValue) ? 'text-gray-900' : 'text-white'
 
   if (loading) {
     return (
@@ -530,7 +531,7 @@ export default function ProfilePage() {
           <CardContent className="px-6 py-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-end gap-6">
               <div className="relative group">
-                <div className={`w-28 h-28 rounded-full flex items-center justify-center text-white text-3xl font-bold ${getSolidClass(currentColorValue)} shadow-md ring-4 ring-white transition-colors duration-300`}>
+                <div className={`w-28 h-28 rounded-full flex items-center justify-center ${avatarTextClass} text-3xl font-bold ${getSolidClass(currentColorValue)} shadow-md ring-4 ring-white transition-colors duration-300`}>
                   {getInitials(profileData.name)}
                 </div>
                 <div className={`absolute -bottom-2 -right-2 bg-white ${getColorClass(currentColorValue, 'text')} text-xs font-semibold px-3 py-1.5 rounded-full shadow border border-gray-200`}>
@@ -585,7 +586,7 @@ export default function ProfilePage() {
                 {/* Avatar Preview */}
                 <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
                   <div className="flex flex-col sm:flex-row items-center gap-6">
-                    <div className={`flex h-24 w-24 items-center justify-center rounded-full text-3xl font-bold text-white shadow-md ring-4 sm:h-32 sm:w-32 sm:text-4xl ${getSolidClass(currentColorValue)} ${getColorClass(currentColorValue, 'ring')}`}>
+                    <div className={`flex h-24 w-24 items-center justify-center rounded-full text-3xl font-bold ${avatarTextClass} shadow-md ring-4 sm:h-32 sm:w-32 sm:text-4xl ${getSolidClass(currentColorValue)} ${getColorClass(currentColorValue, 'ring')}`}>
                       {getInitials(profileData.name)}
                     </div>
                     <div className="flex-1 text-center sm:text-left">
@@ -979,7 +980,7 @@ export default function ProfilePage() {
                     <Eye className="h-4 w-4 text-blue-500" />Live Preview
                   </h3>
                   <div className="flex flex-col sm:flex-row items-center gap-6">
-                    <div className={`w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl font-bold ${getSolidClass(currentColorValue)} shadow-md ring-4 ${getColorClass(currentColorValue, 'ring')} transition-colors duration-300`}>
+                    <div className={`w-20 h-20 rounded-full flex items-center justify-center ${avatarTextClass} text-2xl font-bold ${getSolidClass(currentColorValue)} shadow-md ring-4 ${getColorClass(currentColorValue, 'ring')} transition-colors duration-300`}>
                       {getInitials(profileData.name)}
                     </div>
                     <div className="flex-1 text-center sm:text-left">

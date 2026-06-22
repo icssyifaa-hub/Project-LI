@@ -45,11 +45,21 @@ import { useCallback, useEffect, useState, useRef } from 'react'
 import { Combobox } from '@/components/ui/combobox'
 import { getDotClass } from '@/lib/colors'
 import {
-  FINAL_REPORT_NUMBER_EXAMPLE,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
+  getFinalReportNumberExample,
   JOB_ORDER_NUMBER_EXAMPLE,
   normalizeFinalReportNumber,
   normalizeJobOrderNumber,
-  validateFinalReportNumberFormat,
+  validateFinalReportNumberForJobTask,
   validateJobOrderNumberFormat,
 } from '@/lib/number-formats'
 
@@ -203,6 +213,7 @@ export default function AddCalendarItemModal({
   const [staffList, setStaffList] = useState<Staff[]>([])
   const [loadingStaff, setLoadingStaff] = useState(false)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false)
   const [pendingSubmit, setPendingSubmit] = useState<(() => Promise<void>) | null>(null)
   const { toast } = useToast()
   const supabase = createClient()
@@ -224,30 +235,41 @@ export default function AddCalendarItemModal({
     })
   }, [taskData.dateStart, taskData.dateStop, taskData.jobOrderNumber, taskData.finalReportNumber])
 
-  // ========== FUNCTION TO CHECK IF RUNNING NUMBER EXISTS ==========
-  const checkRunningNumberExists = useCallback(async (runningNumber: string): Promise<boolean> => {
-    if (!runningNumber || runningNumber.trim() === '') return false
+  const checkTaskNumberExists = useCallback(async (
+    column: 'running_number' | 'job_order_number' | 'final_report_number',
+    value: string,
+    currentTaskId?: string
+  ): Promise<boolean> => {
+    if (!value || value.trim() === '') return false
     
     try {
       const { data, error } = await supabase
         .from('tasks')
-        .select('running_number, id')
-        .eq('running_number', runningNumber.trim())
+        .select('id')
+        .eq(column, value.trim())
         .maybeSingle()
       
       if (error) throw error
       
-      // If editing an existing task, allow the same running number
-      if (selectedItem && selectedItem.id && data?.id === selectedItem.id) {
+      if (currentTaskId && data?.id === currentTaskId) {
         return false
       }
       
       return !!data
     } catch (error) {
-      console.error('Error checking running number:', error)
+      console.error(`Error checking ${column}:`, error)
       return false
     }
-  }, [supabase, selectedItem])
+  }, [supabase])
+
+  // ========== FUNCTION TO CHECK IF RUNNING NUMBER EXISTS ==========
+  const checkRunningNumberExists = useCallback(async (runningNumber: string): Promise<boolean> => {
+    return checkTaskNumberExists(
+      'running_number',
+      runningNumber.trim().toUpperCase(),
+      selectedItem?.id
+    )
+  }, [checkTaskNumberExists, selectedItem])
 
   // Function to validate running number in real-time
   const validateRunningNumber = useCallback(async (runningNumber: string) => {
@@ -725,6 +747,55 @@ export default function AddCalendarItemModal({
     }
   }, [isOpen, selectedItem, selectedDate, selectedEndDate, selectedType, activeTab, prefilledData, populateEventForm, populateTaskForm, resetForm, fetchJobTasks, fetchStaff])
 
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'task') return
+
+    const jobOrderNumber = normalizeJobOrderNumber(taskData.jobOrderNumber)
+    const finalReportNumber = normalizeFinalReportNumber(taskData.finalReportNumber)
+    if (!jobOrderNumber && !finalReportNumber) return
+
+    const timer = setTimeout(async () => {
+      const currentTaskId = selectedItem?.id
+      const duplicateErrors: {[key: string]: string} = {}
+
+      if (jobOrderNumber && validateJobOrderNumberFormat(jobOrderNumber)) {
+        const exists = await checkTaskNumberExists('job_order_number', jobOrderNumber, currentTaskId)
+        if (exists) {
+          duplicateErrors.jobOrderNumber = `Job Order Number "${jobOrderNumber}" already exists. Please use a different number.`
+        }
+      }
+
+      if (finalReportNumber && validateFinalReportNumberForJobTask(finalReportNumber, taskData.jobTask)) {
+        const exists = await checkTaskNumberExists('final_report_number', finalReportNumber, currentTaskId)
+        if (exists) {
+          duplicateErrors.finalReportNumber = `Final Report Number "${finalReportNumber}" already exists. Please use a different number.`
+        }
+      }
+
+      setTouched(prev => ({
+        ...prev,
+        ...(jobOrderNumber ? { jobOrderNumber: true } : {}),
+        ...(finalReportNumber ? { finalReportNumber: true } : {}),
+      }))
+      setErrors(prev => {
+        const next = { ...prev }
+        if (next.jobOrderNumber?.includes('already exists')) delete next.jobOrderNumber
+        if (next.finalReportNumber?.includes('already exists')) delete next.finalReportNumber
+        return { ...next, ...duplicateErrors }
+      })
+    }, 800)
+
+    return () => clearTimeout(timer)
+  }, [
+    isOpen,
+    activeTab,
+    selectedItem,
+    taskData.jobOrderNumber,
+    taskData.finalReportNumber,
+    taskData.jobTask,
+    checkTaskNumberExists
+  ])
+
   // ========== CONDITIONAL RETURN AFTER ALL HOOKS ==========
   if (!isOpen) return null
 
@@ -903,8 +974,8 @@ export default function AddCalendarItemModal({
         }
         break
       case 'finalReportNumber':
-        if (value && !validateFinalReportNumberFormat(value)) {
-          return `Final Report Number must use format ${FINAL_REPORT_NUMBER_EXAMPLE}`
+        if (value && !validateFinalReportNumberForJobTask(value, taskData.jobTask)) {
+          return `Final Report Number must use format ${getFinalReportNumberExample(taskData.jobTask)}`
         }
         break
     }
@@ -1016,23 +1087,41 @@ export default function AddCalendarItemModal({
       return
     }
 
-    if (activeTab === 'task' && !selectedItem) {
-      const currentRunningNumber = taskData.runningNumber
-      if (currentRunningNumber && currentRunningNumber.trim() !== '') {
-        setIsCheckingRunningNumber(true)
-        const exists = await checkRunningNumberExists(currentRunningNumber)
-        setIsCheckingRunningNumber(false)
-        
-        if (exists) {
-          toast({ 
-            title: "Validation Error", 
-            description: `Running number "${currentRunningNumber}" already exists. Please use a different number.`, 
-            variant: "destructive" 
-          })
-          setRunningNumberValid(false)
-          setRunningNumberError(`Running number "${currentRunningNumber}" already exists`)
-          return
-        }
+    if (activeTab === 'task') {
+      const currentTaskId = selectedItem?.id
+      const runningNumber = taskData.runningNumber.trim().toUpperCase()
+      const jobOrderNumber = normalizeJobOrderNumber(taskData.jobOrderNumber)
+      const finalReportNumber = normalizeFinalReportNumber(taskData.finalReportNumber)
+      const duplicateErrors: {[key: string]: string} = {}
+
+      setIsCheckingRunningNumber(true)
+      const [runningExists, jobOrderExists, finalReportExists] = await Promise.all([
+        runningNumber ? checkTaskNumberExists('running_number', runningNumber, currentTaskId) : Promise.resolve(false),
+        jobOrderNumber ? checkTaskNumberExists('job_order_number', jobOrderNumber, currentTaskId) : Promise.resolve(false),
+        finalReportNumber ? checkTaskNumberExists('final_report_number', finalReportNumber, currentTaskId) : Promise.resolve(false),
+      ])
+      setIsCheckingRunningNumber(false)
+
+      if (runningExists) {
+        duplicateErrors.runningNumber = `Running number "${runningNumber}" already exists. Please use a different number.`
+        setRunningNumberValid(false)
+        setRunningNumberError(`Running number "${runningNumber}" already exists`)
+      }
+      if (jobOrderExists) {
+        duplicateErrors.jobOrderNumber = `Job Order Number "${jobOrderNumber}" already exists. Please use a different number.`
+      }
+      if (finalReportExists) {
+        duplicateErrors.finalReportNumber = `Final Report Number "${finalReportNumber}" already exists. Please use a different number.`
+      }
+
+      if (Object.keys(duplicateErrors).length > 0) {
+        setErrors(prev => ({ ...prev, ...duplicateErrors }))
+        toast({
+          title: "Validation Error",
+          description: Object.values(duplicateErrors)[0],
+          variant: "destructive"
+        })
+        return
       }
     }
 
@@ -1091,7 +1180,7 @@ export default function AddCalendarItemModal({
           })
 
         } else {
-          const runningNumber = taskData.runningNumber
+          const runningNumber = taskData.runningNumber.trim().toUpperCase()
           if (!runningNumber) throw new Error("Running number is required")
           const normalizedTaskSupport = normalizeSupportSelection(
             taskData.task_support_ids,
@@ -1185,10 +1274,12 @@ export default function AddCalendarItemModal({
 
   const handleDelete = async () => {
     if (!selectedItem) return
-    
-    const confirmDelete = window.confirm(`Are you sure you want to delete this ${selectedType}?`)
-    if (!confirmDelete) return
-    
+    setShowDeleteConfirmDialog(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!selectedItem) return
+
     setIsSaving(true)
     
     try {
@@ -1202,6 +1293,7 @@ export default function AddCalendarItemModal({
       }
       
       toast({ title: "Success", description: "Deleted successfully" })
+      setShowDeleteConfirmDialog(false)
       resetForm()
       onClose()
       if (onSuccess) onSuccess()
@@ -1721,7 +1813,7 @@ export default function AddCalendarItemModal({
                             }
                           }}
                           onBlur={() => handleBlur('finalReportNumber')}
-                          placeholder={FINAL_REPORT_NUMBER_EXAMPLE}
+                          placeholder={getFinalReportNumberExample(taskData.jobTask)}
                           className={`${inputClass} ${touched.finalReportNumber && errors.finalReportNumber ? invalidInputClass : ''}`}
                           disabled={isSaving}
                         />
@@ -1943,7 +2035,13 @@ export default function AddCalendarItemModal({
               <CardFooter className="shrink-0 flex flex-col gap-3 border-t border-gray-200 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                   {selectedItem && (
-                    <Button type="button" variant="destructive" size="sm" onClick={handleDelete} disabled={isSaving} className="w-full sm:w-auto">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleDelete}
+                      disabled={isSaving}
+                      className="w-full border border-red-700 bg-red-600 text-white shadow-sm hover:bg-red-700 disabled:border-red-300 disabled:bg-red-300 disabled:text-white disabled:opacity-80 sm:w-auto"
+                    >
                       <Trash2 className="h-4 w-4 mr-2" />Delete
                     </Button>
                   )}
@@ -1967,6 +2065,30 @@ export default function AddCalendarItemModal({
       </div>
 
       {/* PDF preview removed — using numbers instead */}
+
+      <AlertDialog open={showDeleteConfirmDialog} onOpenChange={setShowDeleteConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedType === 'event' ? 'Event' : 'Task'}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this {selectedType === 'event' ? 'event' : 'task'}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSaving}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                confirmDelete()
+              }}
+              disabled={isSaving}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              {isSaving ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Confirmation Dialog */}
       {showConfirmDialog && (

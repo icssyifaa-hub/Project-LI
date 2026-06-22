@@ -10,6 +10,16 @@ import {
   SelectItem,
   SelectTrigger,
 } from '@/components/ui/select'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Combobox } from '@/components/ui/combobox'
 import { 
   Briefcase, 
@@ -111,17 +121,27 @@ const findStaffForPic = (
   })
 }
 
+const getTaskPicDetails = (staffList: Staff[], task: Pick<UnscheduledTask, 'task_pic_id' | 'task_pic_name' | 'task_pic_color'>) => {
+  const staff = findStaffForPic(staffList, task.task_pic_id, task.task_pic_name)
+
+  return {
+    id: staff?.id || task.task_pic_id || '',
+    name: staff?.name || task.task_pic_name || '',
+    color: staff?.color || task.task_pic_color || 'blue',
+  }
+}
+
 function SortableTaskItem({ 
   task, 
   onTaskClick,
   onEdit,
-  onDelete,
+  onRequestDelete,
   isDeleting
 }: { 
   task: UnscheduledTask, 
   onTaskClick?: (task: UnscheduledTask) => void,
   onEdit?: (task: UnscheduledTask) => void,
-  onDelete?: (id: string) => Promise<void>,
+  onRequestDelete?: (task: UnscheduledTask) => void,
   isDeleting?: boolean
 }) {
   const {
@@ -144,9 +164,7 @@ function SortableTaskItem({
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (confirm(`Delete task for "${task.clientName}"?`)) {
-      await onDelete?.(task.id)
-    }
+    onRequestDelete?.(task)
   }
 
   const handleEdit = (e: React.MouseEvent) => {
@@ -260,23 +278,30 @@ function AddTaskModal({
   const supabase = createClient()
   const activeStaffList = staffList.filter((staff) => staff.is_active !== false)
 
-  // Function to check if running number exists
-  const checkRunningNumberExists = async (runningNumber: string): Promise<boolean> => {
-    if (!runningNumber || runningNumber.trim() === '') return false
+  const checkTaskNumberExists = async (
+    column: 'running_number' | 'job_order_number',
+    value: string
+  ): Promise<boolean> => {
+    if (!value || value.trim() === '') return false
     
     try {
       const { data, error } = await supabase
         .from('tasks')
-        .select('running_number')
-        .eq('running_number', runningNumber.trim())
+        .select('id')
+        .eq(column, value.trim())
         .maybeSingle()
       
       if (error) throw error
       return !!data
     } catch (error) {
-      console.error('Error checking running number:', error)
+      console.error(`Error checking ${column}:`, error)
       return false
     }
+  }
+
+  // Function to check if running number exists
+  const checkRunningNumberExists = async (runningNumber: string): Promise<boolean> => {
+    return checkTaskNumberExists('running_number', runningNumber.trim().toUpperCase())
   }
 
   // Function to validate running number
@@ -337,6 +362,35 @@ function AddTaskModal({
     }
   }, [formData.runningNumber])
 
+  useEffect(() => {
+    const jobOrderNumber = normalizeJobOrderNumber(formData.jobOrderNumber)
+    if (!jobOrderNumber) {
+      setErrors(prev => {
+        if (!prev.jobOrderNumber?.includes('already exists')) return prev
+        const next = { ...prev }
+        delete next.jobOrderNumber
+        return next
+      })
+      return
+    }
+    if (!validateJobOrderNumberFormat(jobOrderNumber)) return
+
+    const timer = setTimeout(async () => {
+      const exists = await checkTaskNumberExists('job_order_number', jobOrderNumber)
+      setTouched(prev => ({ ...prev, jobOrderNumber: true }))
+      setErrors(prev => {
+        const next = { ...prev }
+        if (next.jobOrderNumber?.includes('already exists')) delete next.jobOrderNumber
+        if (exists) {
+          next.jobOrderNumber = `Job Order Number "${jobOrderNumber}" already exists. Please use a different number.`
+        }
+        return next
+      })
+    }, 800)
+
+    return () => clearTimeout(timer)
+  }, [formData.jobOrderNumber])
+
   // No file inputs: using jobOrderNumber instead
 
   const validateField = (field: string, value: string): string => {
@@ -393,12 +447,21 @@ function AddTaskModal({
     
     // Check if running number already exists
     if (formData.runningNumber && !runningNumberError) {
-      const exists = await checkRunningNumberExists(formData.runningNumber)
+      const normalizedRunningNumber = formData.runningNumber.trim().toUpperCase()
+      const exists = await checkRunningNumberExists(normalizedRunningNumber)
       if (exists) {
-        newErrors.runningNumber = `Running number "${formData.runningNumber}" already exists. Please use a different number.`
+        newErrors.runningNumber = `Running number "${normalizedRunningNumber}" already exists. Please use a different number.`
         setRunningNumberValid(false)
       } else {
         setRunningNumberValid(true)
+      }
+    }
+
+    const normalizedJobOrderNumber = normalizeJobOrderNumber(formData.jobOrderNumber)
+    if (normalizedJobOrderNumber && !jobOrderNumberError) {
+      const exists = await checkTaskNumberExists('job_order_number', normalizedJobOrderNumber)
+      if (exists) {
+        newErrors.jobOrderNumber = `Job Order Number "${normalizedJobOrderNumber}" already exists. Please use a different number.`
       }
     }
 
@@ -415,17 +478,17 @@ function AddTaskModal({
 
     setSaving(true)
     try {
-      const selectedStaff = staffList.find(s => s.id === formData.task_pic_id)
+      const selectedStaff = findStaffForPic(staffList, formData.task_pic_id)
 
       const newTask: UnscheduledTask = {
         id: `temp-${Date.now()}`,
         clientName: formData.clientName,
-        runningNumber: formData.runningNumber.toUpperCase(),
+        runningNumber: formData.runningNumber.trim().toUpperCase(),
         jobTask: formData.jobTask,
-        task_pic_id: formData.task_pic_id,
+        task_pic_id: selectedStaff?.id || formData.task_pic_id,
         task_pic_name: selectedStaff?.name,
         task_pic_color: selectedStaff?.color || 'blue',
-        jobOrderNumber: normalizeJobOrderNumber(formData.jobOrderNumber) || undefined,
+        jobOrderNumber: normalizedJobOrderNumber || undefined,
         createdAt: new Date()
       }
 
@@ -679,6 +742,7 @@ function EditTaskModal({
   const [errors, setErrors] = useState<{[key: string]: string}>({})
   const [touched, setTouched] = useState<{[key: string]: boolean}>({})
   const { toast } = useToast()
+  const supabase = createClient()
 
   useEffect(() => {
     if (task && isOpen) {
@@ -732,6 +796,53 @@ function EditTaskModal({
 
   // No file inputs for edit modal; using number fields instead
 
+  const checkJobOrderNumberExists = async (jobOrderNumber: string): Promise<boolean> => {
+    if (!jobOrderNumber || !task?.id) return false
+
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('id')
+        .eq('job_order_number', jobOrderNumber)
+        .maybeSingle()
+
+      if (error) throw error
+      return !!data && data.id !== task.id
+    } catch (error) {
+      console.error('Error checking job order number:', error)
+      return false
+    }
+  }
+
+  useEffect(() => {
+    const jobOrderNumber = normalizeJobOrderNumber(formData.jobOrderNumber)
+    if (!jobOrderNumber) {
+      setErrors(prev => {
+        if (!prev.jobOrderNumber?.includes('already exists')) return prev
+        const next = { ...prev }
+        delete next.jobOrderNumber
+        return next
+      })
+      return
+    }
+    if (!validateJobOrderNumberFormat(jobOrderNumber)) return
+
+    const timer = setTimeout(async () => {
+      const exists = await checkJobOrderNumberExists(jobOrderNumber)
+      setTouched(prev => ({ ...prev, jobOrderNumber: true }))
+      setErrors(prev => {
+        const next = { ...prev }
+        if (next.jobOrderNumber?.includes('already exists')) delete next.jobOrderNumber
+        if (exists) {
+          next.jobOrderNumber = `Job Order Number "${jobOrderNumber}" already exists. Please use a different number.`
+        }
+        return next
+      })
+    }, 800)
+
+    return () => clearTimeout(timer)
+  }, [formData.jobOrderNumber, task?.id])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -745,6 +856,14 @@ function EditTaskModal({
     if (picError) newErrors.task_pic_id = picError
     const jobOrderNumberError = validateField('jobOrderNumber', formData.jobOrderNumber)
     if (jobOrderNumberError) newErrors.jobOrderNumber = jobOrderNumberError
+
+    const normalizedJobOrderNumber = normalizeJobOrderNumber(formData.jobOrderNumber)
+    if (normalizedJobOrderNumber && !jobOrderNumberError) {
+      const exists = await checkJobOrderNumberExists(normalizedJobOrderNumber)
+      if (exists) {
+        newErrors.jobOrderNumber = `Job Order Number "${normalizedJobOrderNumber}" already exists. Please use a different number.`
+      }
+    }
     
     setErrors(newErrors)
     
@@ -759,16 +878,16 @@ function EditTaskModal({
 
     setSaving(true)
     try {
-      const selectedStaff = staffList.find(s => s.id === formData.task_pic_id)
+      const selectedStaff = findStaffForPic(staffList, formData.task_pic_id, task!.task_pic_name)
 
       const updatedTask: UnscheduledTask = {
         ...task!,
         clientName: formData.clientName,
         jobTask: formData.jobTask,
-        task_pic_id: formData.task_pic_id,
+        task_pic_id: selectedStaff?.id || formData.task_pic_id,
         task_pic_name: selectedStaff?.name,
         task_pic_color: selectedStaff?.color || 'blue',
-        jobOrderNumber: normalizeJobOrderNumber(formData.jobOrderNumber) || undefined,
+        jobOrderNumber: normalizedJobOrderNumber || undefined,
       }
 
       await onSave(updatedTask)
@@ -801,6 +920,11 @@ function EditTaskModal({
   }
 
   if (!isOpen || !task) return null
+  const selectedPic = findStaffForPic(staffList, formData.task_pic_id, task.task_pic_name)
+  const selectedPicLabel = selectedPic?.name || task.task_pic_name || formData.task_pic_id
+  const selectedPicValue = selectedPic?.id || formData.task_pic_id || ''
+  const selectedPicColor = selectedPic?.color || task.task_pic_color || 'blue'
+  const hasSelectedPicOption = staffList.some(staff => staff.id === selectedPicValue)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4">
@@ -856,7 +980,7 @@ function EditTaskModal({
           <div className="space-y-2">
             <Label className="text-gray-700 font-medium">PIC (Person In Charge) <span className="text-red-500">*</span></Label>
             <Select
-              value={formData.task_pic_id}
+              value={selectedPicValue}
               onValueChange={(value) => {
                 setFormData({...formData, task_pic_id: value})
                 if (touched.task_pic_id) {
@@ -864,18 +988,28 @@ function EditTaskModal({
                   setErrors(prev => ({ ...prev, task_pic_id: error }))
                 }
               }}
+              disabled={saving}
               onOpenChange={() => handleBlur('task_pic_id')}
             >
               <SelectTrigger className={`bg-white border-gray-300 ${touched.task_pic_id && errors.task_pic_id ? 'border-red-500' : ''}`}>
-                {formData.task_pic_id ? (
-                  <span className="truncate">
-                    {staffList.find(s => s.id === formData.task_pic_id)?.name || task.task_pic_name || 'Select PIC'}
-                  </span>
+                {selectedPicValue && selectedPicLabel ? (
+                  <div className="flex min-w-0 items-center gap-2 truncate">
+                    <span className={`h-3 w-3 flex-shrink-0 rounded-full ${getDotClass(selectedPicColor)}`} />
+                    <span className="truncate">{selectedPicLabel}</span>
+                  </div>
                 ) : (
                   <span className="text-muted-foreground">Select PIC</span>
                 )}
               </SelectTrigger>
               <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
+                {selectedPicValue && selectedPicLabel && !hasSelectedPicOption && (
+                  <SelectItem value={selectedPicValue} textValue={selectedPicLabel}>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-3 h-3 rounded-full ${getDotClass(selectedPicColor)}`}></div>
+                      <span>{selectedPicLabel}</span>
+                    </div>
+                  </SelectItem>
+                )}
                 {staffList.map((staff) => (
                   <SelectItem key={staff.id} value={staff.id} textValue={staff.name}>
                     <div className="flex items-center gap-2">
@@ -887,11 +1021,6 @@ function EditTaskModal({
               </SelectContent>
             </Select>
             <ErrorMessage field="task_pic_id" />
-            {formData.task_pic_id && (
-              <div className="mt-1 text-xs text-green-600">
-                Selected: {staffList.find(s => s.id === formData.task_pic_id)?.name || task.task_pic_name || 'Unknown'}
-              </div>
-            )}
           </div>
 
           <div className="space-y-2">
@@ -933,6 +1062,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [editingTask, setEditingTask] = useState<UnscheduledTask | null>(null)
+  const [pendingDeleteTask, setPendingDeleteTask] = useState<UnscheduledTask | null>(null)
   const [staffList, setStaffList] = useState<Staff[]>([])
   const [jobTasks, setJobTasks] = useState<JobTask[]>([])
   const [loadingData, setLoadingData] = useState(true)
@@ -952,7 +1082,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
       if (staffError) throw staffError
       
       const formattedStaff: Staff[] = (staffData || []).map((user: {id: string; name:string; color?: string; is_active?: boolean})=> ({
-        id: user.id,
+        id: String(user.id),
         name: user.name,
         color: user.color || 'blue',
         is_active: user.is_active,
@@ -979,10 +1109,10 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
         id: string;
         client_name: string;
         job_task: string;
-        task_pic_id: string;
-        task_pic_name: string;
-        task_pic_color: string;
-        job_order_number: string;
+        task_pic_id: string | null;
+        task_pic_name: string | null;
+        task_pic_color: string | null;
+        job_order_number: string | null;
         running_number: string;
         created_at: string;
         additional_remark: string;
@@ -994,9 +1124,9 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
           clientName: task.client_name || 'Unknown Client',
           jobTask: task.job_task || '',
           task_pic_id: staffInfo?.id || task.task_pic_id || '',
-          task_pic_name: staffInfo?.name || task.task_pic_name,
+          task_pic_name: staffInfo?.name || task.task_pic_name || undefined,
           task_pic_color: staffInfo?.color || task.task_pic_color || 'blue',
-          jobOrderNumber: task.job_order_number,
+          jobOrderNumber: task.job_order_number || undefined,
           runningNumber: task.running_number,
           createdAt: new Date(task.created_at),
           notes: task.additional_remark
@@ -1061,13 +1191,13 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
     const userData = localStorage.getItem('user')
     const currentUser = userData ? JSON.parse(userData) : null
     
-    const selectedStaff = staffList.find(s => s.id === taskData.task_pic_id)
+    const selectedStaff = findStaffForPic(staffList, taskData.task_pic_id, taskData.task_pic_name)
 
     const baseData = {
       client_name: taskData.clientName,
       running_number: taskData.runningNumber,
       job_task: taskData.jobTask,
-      task_pic_id: taskData.task_pic_id,
+      task_pic_id: selectedStaff?.id || taskData.task_pic_id,
       task_pic_name: selectedStaff?.name || taskData.task_pic_name,
       task_pic_color: selectedStaff?.color || taskData.task_pic_color || 'blue',
       job_order_number: taskData.jobOrderNumber || null,
@@ -1132,13 +1262,36 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
         throw new Error(`Running number "${newTask.runningNumber}" already exists. Please use a different number.`)
       }
 
+      const normalizedJobOrderNumber = normalizeJobOrderNumber(newTask.jobOrderNumber || '')
+      if (normalizedJobOrderNumber) {
+        const { data: existingJobOrder } = await supabase
+          .from('tasks')
+          .select('id')
+          .eq('job_order_number', normalizedJobOrderNumber)
+          .maybeSingle()
+
+        if (existingJobOrder) {
+          throw new Error(`Job Order Number "${normalizedJobOrderNumber}" already exists. Please use a different number.`)
+        }
+
+        newTask.jobOrderNumber = normalizedJobOrderNumber
+      }
+
       const savedTask = await saveTaskToDatabase(newTask, true)
+      const savedPic = getTaskPicDetails(staffList, {
+        task_pic_id: savedTask.task_pic_id || newTask.task_pic_id,
+        task_pic_name: savedTask.task_pic_name || newTask.task_pic_name,
+        task_pic_color: savedTask.task_pic_color || newTask.task_pic_color,
+      })
 
       const finalTask: UnscheduledTask = {
         ...newTask,
         id: savedTask.id,
         runningNumber: savedTask.running_number,
         jobOrderNumber: savedTask.job_order_number,
+        task_pic_id: savedPic.id,
+        task_pic_name: savedPic.name,
+        task_pic_color: savedPic.color,
       }
 
       setTasks([finalTask, ...tasks])
@@ -1164,11 +1317,34 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
 
   const handleUpdateTask = async (updatedTask: UnscheduledTask) => {
     try {
+      const normalizedJobOrderNumber = normalizeJobOrderNumber(updatedTask.jobOrderNumber || '')
+      if (normalizedJobOrderNumber) {
+        const { data: existingJobOrder } = await supabase
+          .from('tasks')
+          .select('id')
+          .eq('job_order_number', normalizedJobOrderNumber)
+          .maybeSingle()
+
+        if (existingJobOrder && existingJobOrder.id !== updatedTask.id) {
+          throw new Error(`Job Order Number "${normalizedJobOrderNumber}" already exists. Please use a different number.`)
+        }
+
+        updatedTask.jobOrderNumber = normalizedJobOrderNumber
+      }
+
       const savedTask = await saveTaskToDatabase(updatedTask, false)
+      const savedPic = getTaskPicDetails(staffList, {
+        task_pic_id: savedTask.task_pic_id || updatedTask.task_pic_id,
+        task_pic_name: savedTask.task_pic_name || updatedTask.task_pic_name,
+        task_pic_color: savedTask.task_pic_color || updatedTask.task_pic_color,
+      })
       
       const finalTask: UnscheduledTask = {
         ...updatedTask,
         jobOrderNumber: savedTask.job_order_number,
+        task_pic_id: savedPic.id,
+        task_pic_name: savedPic.name,
+        task_pic_color: savedPic.color,
       }
       
       setTasks(tasks.map(t => t.id === finalTask.id ? finalTask : t))
@@ -1190,6 +1366,39 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
     }
   }
 
+  const handleEditTask = async (task: UnscheduledTask) => {
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('task_pic_id, task_pic_name, task_pic_color, job_order_number')
+        .eq('id', task.id)
+        .maybeSingle()
+
+      if (error) throw error
+
+      const savedPic = getTaskPicDetails(staffList, {
+        task_pic_id: data?.task_pic_id || task.task_pic_id,
+        task_pic_name: data?.task_pic_name || task.task_pic_name,
+        task_pic_color: data?.task_pic_color || task.task_pic_color,
+      })
+
+      setEditingTask({
+        ...task,
+        task_pic_id: savedPic.id,
+        task_pic_name: savedPic.name || task.task_pic_name,
+        task_pic_color: savedPic.color,
+        jobOrderNumber: data?.job_order_number || task.jobOrderNumber,
+      })
+    } catch (error: any) {
+      console.error('Error loading task for edit:', error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to load task details",
+        variant: "destructive",
+      })
+    }
+  }
+
   const handleDeleteTask = async (id: string) => {
     const taskToDelete = tasks.find(t => t.id === id)
     
@@ -1208,6 +1417,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
         title: "Success",
         description: "Task deleted successfully",
       })
+      setPendingDeleteTask(null)
 
       onTaskSaved?.()
     } catch (error: any) {
@@ -1282,8 +1492,8 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
                   key={task.id} 
                   task={task} 
                   onTaskClick={onTaskClick}
-                  onEdit={setEditingTask}
-                  onDelete={handleDeleteTask}
+                  onEdit={handleEditTask}
+                  onRequestDelete={setPendingDeleteTask}
                   isDeleting={deletingId === task.id}
                 />
               ))}
@@ -1312,6 +1522,30 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
           Drag tasks to calendar to schedule
         </div>
       </div>
+
+      <AlertDialog open={!!pendingDeleteTask} onOpenChange={(open) => !open && setPendingDeleteTask(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Task?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete task for "{pendingDeleteTask?.clientName}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!deletingId}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                if (pendingDeleteTask) handleDeleteTask(pendingDeleteTask.id)
+              }}
+              disabled={!!deletingId}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              {deletingId ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AddTaskModal
         isOpen={showAddModal}

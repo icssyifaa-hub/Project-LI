@@ -39,6 +39,7 @@ const STORAGE_KEYS = {
   SHOW_FILTER: 'calendar_show_filter',
   SHOW_NOTIFICATIONS: 'calendar_show_notifications',
   SHOW_TASK_INBOX: 'calendar_show_task_inbox',
+  VIEW: 'calendar_view',
 }
 
 const createStableDate = (date: Date): Date => {
@@ -425,6 +426,7 @@ export default function CalendarPage() {
       const dateFromUrl = urlParams.get('date')
       const focusFromUrl = urlParams.get('focus')
       const viewFromUrl = urlParams.get('view') as ViewType | null
+      const savedView = localStorage.getItem(STORAGE_KEYS.VIEW) as ViewType | null
 
       if (dateFromUrl) {
         const [year, month, day] = dateFromUrl.split('-').map(Number)
@@ -448,6 +450,8 @@ export default function CalendarPage() {
 
       if (viewFromUrl && ['day', 'week', 'month', 'year', 'schedule'].includes(viewFromUrl)) {
         setView(viewFromUrl)
+      } else if (savedView && ['day', 'week', 'month', 'year', 'schedule'].includes(savedView)) {
+        setView(savedView)
       }
 
     } catch (error) {
@@ -511,6 +515,15 @@ export default function CalendarPage() {
       console.error('Error saving showTaskInbox:', error)
     }
   }, [showTaskInbox, isInitialized])
+
+  useEffect(() => {
+    if (!isInitialized) return
+    try {
+      localStorage.setItem(STORAGE_KEYS.VIEW, view)
+    } catch (error) {
+      console.error('Error saving calendar view:', error)
+    }
+  }, [view, isInitialized])
 
   const handlePrev = useCallback(() => {
     const newDate = new Date(currentDate)

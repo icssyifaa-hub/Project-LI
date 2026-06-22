@@ -17,9 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar as CalendarIcon,
-  Edit2,
   Trash2,
-  Eye,
   User,
   UserPlus
 } from 'lucide-react'
@@ -388,10 +386,6 @@ export default function EventsPage() {
     router.push(`/calendar?date=${formattedDate}&view=month&focus=${formattedDate}`)
   }
 
-  const handleEditEvent = (event: Event) => {
-    router.push(`/calendar?editEvent=${event.id}`)
-  }
-
   const matchesStaffFilter = (event: Event, filterStaffValue: string): boolean => {
     if (filterStaffValue === 'all') return true
     if (event.event_pic_name === filterStaffValue) return true
@@ -746,26 +740,6 @@ export default function EventsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                            onClick={() => handleViewInCalendar(event.date_start)}
-                            title="View in Calendar"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-purple-600 hover:text-purple-700 hover:bg-purple-50"
-                            onClick={() => handleEditEvent(event)}
-                            title="Edit Event"
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          
                           {isAdmin && (
                             <Button
                               variant="ghost"
@@ -878,14 +852,6 @@ export default function EventsPage() {
           <div>
             <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Available Actions:</h4>
             <div className="space-y-1 text-xs">
-              <div className="flex items-center">
-                <Eye className="h-3 w-3 mr-2 text-blue-600" />
-                <span className="text-gray-600 dark:text-gray-400">View in Calendar - See event on calendar</span>
-              </div>
-              <div className="flex items-center">
-                <Edit2 className="h-3 w-3 mr-2 text-purple-600" />
-                <span className="text-gray-600 dark:text-gray-400">Edit Event - Modify event details</span>
-              </div>
               {isAdmin && (
                 <div className="flex items-center">
                   <Trash2 className="h-3 w-3 mr-2 text-red-600" />

@@ -22,6 +22,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -67,6 +77,7 @@ export function HolidaysTab() {
   
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingHoliday, setEditingHoliday] = useState<Holiday | null>(null)
+  const [pendingDeleteHoliday, setPendingDeleteHoliday] = useState<Holiday | null>(null)
   const [saving, setSaving] = useState(false)
   const [filterYear, setFilterYear] = useState(new Date().getFullYear())
   const [filterState, setFilterState] = useState('all')
@@ -147,10 +158,11 @@ export function HolidaysTab() {
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this holiday?')) return
+  const handleDelete = async () => {
+    if (!pendingDeleteHoliday) return
     try {
-      await deleteHoliday(id)
+      await deleteHoliday(pendingDeleteHoliday.id)
+      setPendingDeleteHoliday(null)
     } catch (error) {
     }
   }
@@ -313,7 +325,7 @@ export function HolidaysTab() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => handleDelete(holiday.id)}
+                            onClick={() => setPendingDeleteHoliday(holiday)}
                             title="Delete holiday"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -475,6 +487,23 @@ export function HolidaysTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!pendingDeleteHoliday} onOpenChange={(open) => !open && setPendingDeleteHoliday(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Holiday?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{pendingDeleteHoliday?.name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 text-white hover:bg-red-700">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

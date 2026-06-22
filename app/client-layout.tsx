@@ -17,6 +17,8 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { getColorClass, getSolidClass, getItemBgClass } from '@/lib/colors'
 
+const SIDEBAR_STORAGE_KEY = 'ics_sidebar_open'
+
 type AppUser = {
   id?: string
   name?: string
@@ -34,13 +36,21 @@ export default function ClientLayout({
   const [user, setUser] = useState<AppUser | null>(null)
   const [userColor, setUserColor] = useState('blue')
   const [loading, setLoading] = useState(true)
-  const [drawerOpen, setDrawerOpen] = useState(true)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
+
+  useEffect(() => {
+    try {
+      setDrawerOpen(localStorage.getItem(SIDEBAR_STORAGE_KEY) === 'true')
+    } catch (error) {
+      console.error('Error loading sidebar state:', error)
+    }
+  }, [])
 
   useEffect(() => {
     try {
@@ -106,6 +116,14 @@ export default function ClientLayout({
   const handleLogout = () => {
     localStorage.removeItem('user')
     router.push('/login')
+  }
+
+  const toggleDrawer = () => {
+    setDrawerOpen((current) => {
+      const next = !current
+      localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next))
+      return next
+    })
   }
 
   const handleNavigation = (path: string) => {
@@ -179,7 +197,7 @@ export default function ClientLayout({
               <Button 
                 variant="ghost" 
                 size="icon"
-                onClick={() => setDrawerOpen(!drawerOpen)}
+                onClick={toggleDrawer}
                 className="hidden text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white lg:flex"
               >
                 <Menu className="h-5 w-5" />

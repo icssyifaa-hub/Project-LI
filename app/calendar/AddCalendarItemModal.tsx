@@ -44,6 +44,14 @@ import { useCallback, useEffect, useState, useRef } from 'react'
 // PDF upload/delete removed — using job order number/final report number instead
 import { Combobox } from '@/components/ui/combobox'
 import { getDotClass } from '@/lib/colors'
+import {
+  FINAL_REPORT_NUMBER_EXAMPLE,
+  JOB_ORDER_NUMBER_EXAMPLE,
+  normalizeFinalReportNumber,
+  normalizeJobOrderNumber,
+  validateFinalReportNumberFormat,
+  validateJobOrderNumberFormat,
+} from '@/lib/number-formats'
 
 interface AddCalendarItemModalProps {
   isOpen: boolean
@@ -889,6 +897,16 @@ export default function AddCalendarItemModal({
         if (!value?.trim()) return 'Job Task is required'
         if (value && value.length > 200) return 'Job task cannot exceed 200 characters'
         break
+      case 'jobOrderNumber':
+        if (value && !validateJobOrderNumberFormat(value)) {
+          return `Job Order Number must use format ${JOB_ORDER_NUMBER_EXAMPLE}`
+        }
+        break
+      case 'finalReportNumber':
+        if (value && !validateFinalReportNumberFormat(value)) {
+          return `Final Report Number must use format ${FINAL_REPORT_NUMBER_EXAMPLE}`
+        }
+        break
     }
     return ''
   }
@@ -931,6 +949,10 @@ export default function AddCalendarItemModal({
     }
     const jobTaskError = validateTaskField('jobTask', taskData.jobTask)
     if (jobTaskError) newErrors.jobTask = jobTaskError
+    const jobOrderNumberError = validateTaskField('jobOrderNumber', taskData.jobOrderNumber)
+    if (jobOrderNumberError) newErrors.jobOrderNumber = jobOrderNumberError
+    const finalReportNumberError = validateTaskField('finalReportNumber', taskData.finalReportNumber)
+    if (finalReportNumberError) newErrors.finalReportNumber = finalReportNumberError
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -1082,9 +1104,11 @@ export default function AddCalendarItemModal({
           const computedStatus = computeTaskStatus({
             dateStart: taskData.dateStart || null,
             dateStop: taskData.dateStop || null,
-            jobOrderNumber: taskData.jobOrderNumber || null,
-            finalReportNumber: taskData.finalReportNumber || null,
+            jobOrderNumber: normalizeJobOrderNumber(taskData.jobOrderNumber) || null,
+            finalReportNumber: normalizeFinalReportNumber(taskData.finalReportNumber) || null,
           })
+          const jobOrderNumber = normalizeJobOrderNumber(taskData.jobOrderNumber)
+          const finalReportNumber = normalizeFinalReportNumber(taskData.finalReportNumber)
 
           const dataToSave = {
             client_name: taskData.clientName,
@@ -1095,14 +1119,14 @@ export default function AddCalendarItemModal({
             time_start: taskData.timeStart || '',
             time_stop: taskData.timeStop || '',
             additional_remark: taskData.additionalRemark || '',
-            job_order_number: taskData.jobOrderNumber || null,
+            job_order_number: jobOrderNumber || null,
             task_pic_id: taskData.task_pic_id || null,
             task_pic_name: taskData.task_pic_name || '',
             task_pic_color: taskData.task_pic_color || '',
             task_support_ids: normalizedTaskSupport.ids.length > 0 ? normalizedTaskSupport.ids.join(',') : null,
             task_support_names: normalizedTaskSupport.names.length > 0 ? normalizedTaskSupport.names.join(',') : null,
             task_support_colors: normalizedTaskSupport.colors.length > 0 ? normalizedTaskSupport.colors.join(',') : null,
-            final_report_number: taskData.finalReportNumber || null,
+            final_report_number: finalReportNumber || null,
             job_status: computedStatus,
             created_by: currentUser?.id
           }
@@ -1551,11 +1575,19 @@ export default function AddCalendarItemModal({
                         </div>
                         <Input
                           value={taskData.jobOrderNumber}
-                          onChange={(e) => setTaskData(prev => ({ ...prev, jobOrderNumber: e.target.value }))}
-                          placeholder="Enter job order number"
-                          className={inputClass}
+                          onChange={(e) => {
+                            const value = normalizeJobOrderNumber(e.target.value)
+                            setTaskData(prev => ({ ...prev, jobOrderNumber: value }))
+                            if (touched.jobOrderNumber) {
+                              setErrors(prev => ({ ...prev, jobOrderNumber: validateTaskField('jobOrderNumber', value) }))
+                            }
+                          }}
+                          onBlur={() => handleBlur('jobOrderNumber')}
+                          placeholder={JOB_ORDER_NUMBER_EXAMPLE}
+                          className={`${inputClass} ${touched.jobOrderNumber && errors.jobOrderNumber ? invalidInputClass : ''}`}
                           disabled={isSaving}
                         />
+                        <ErrorMessage field="jobOrderNumber" />
                       </div>
                     )}
 
@@ -1681,11 +1713,19 @@ export default function AddCalendarItemModal({
                         
                         <Input
                           value={taskData.finalReportNumber}
-                          onChange={(e) => setTaskData(prev => ({ ...prev, finalReportNumber: e.target.value }))}
-                          placeholder="Enter final report number"
-                          className={inputClass}
+                          onChange={(e) => {
+                            const value = normalizeFinalReportNumber(e.target.value)
+                            setTaskData(prev => ({ ...prev, finalReportNumber: value }))
+                            if (touched.finalReportNumber) {
+                              setErrors(prev => ({ ...prev, finalReportNumber: validateTaskField('finalReportNumber', value) }))
+                            }
+                          }}
+                          onBlur={() => handleBlur('finalReportNumber')}
+                          placeholder={FINAL_REPORT_NUMBER_EXAMPLE}
+                          className={`${inputClass} ${touched.finalReportNumber && errors.finalReportNumber ? invalidInputClass : ''}`}
                           disabled={isSaving}
                         />
+                        <ErrorMessage field="finalReportNumber" />
                       </div>
                     )}
                   </>

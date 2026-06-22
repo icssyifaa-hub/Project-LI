@@ -48,6 +48,11 @@ import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/use-toast'
 // PDFs removed per request: use job order number/final report number instead
 import { getDotClass } from '@/lib/colors'
+import {
+  JOB_ORDER_NUMBER_EXAMPLE,
+  normalizeJobOrderNumber,
+  validateJobOrderNumberFormat,
+} from '@/lib/number-formats'
 
 export interface UnscheduledTask {
   id: string
@@ -351,6 +356,9 @@ function AddTaskModal({
         if (!value) return 'PIC is required'
         return ''
       case 'jobOrderNumber':
+        if (value && !validateJobOrderNumberFormat(value)) {
+          return `Job Order Number must use format ${JOB_ORDER_NUMBER_EXAMPLE}`
+        }
         return ''
       default:
         return ''
@@ -380,6 +388,8 @@ function AddTaskModal({
     if (jobTaskError) newErrors.jobTask = jobTaskError
     const picError = validateField('task_pic_id', formData.task_pic_id)
     if (picError) newErrors.task_pic_id = picError
+    const jobOrderNumberError = validateField('jobOrderNumber', formData.jobOrderNumber)
+    if (jobOrderNumberError) newErrors.jobOrderNumber = jobOrderNumberError
     
     // Check if running number already exists
     if (formData.runningNumber && !runningNumberError) {
@@ -415,7 +425,7 @@ function AddTaskModal({
         task_pic_id: formData.task_pic_id,
         task_pic_name: selectedStaff?.name,
         task_pic_color: selectedStaff?.color || 'blue',
-        jobOrderNumber: formData.jobOrderNumber || undefined,
+        jobOrderNumber: normalizeJobOrderNumber(formData.jobOrderNumber) || undefined,
         createdAt: new Date()
       }
 
@@ -612,10 +622,19 @@ function AddTaskModal({
             <Label className="text-gray-700 font-medium">Job Order Number (Optional)</Label>
             <Input
               value={formData.jobOrderNumber}
-              onChange={(e) => setFormData({...formData, jobOrderNumber: e.target.value})}
-              placeholder="Enter job order number"
-              className="border-gray-300 bg-white"
+              onChange={(e) => {
+                const value = normalizeJobOrderNumber(e.target.value)
+                setFormData({...formData, jobOrderNumber: value})
+                if (touched.jobOrderNumber) {
+                  const error = validateField('jobOrderNumber', value)
+                  setErrors(prev => ({ ...prev, jobOrderNumber: error }))
+                }
+              }}
+              onBlur={() => handleBlur('jobOrderNumber')}
+              placeholder={JOB_ORDER_NUMBER_EXAMPLE}
+              className={`border-gray-300 bg-white ${touched.jobOrderNumber && errors.jobOrderNumber ? 'border-red-500' : ''}`}
             />
+            <ErrorMessage field="jobOrderNumber" />
           </div>
 
           <div className="flex flex-col gap-2 pt-2 sm:flex-row">
@@ -695,6 +714,11 @@ function EditTaskModal({
       case 'task_pic_id':
         if (!value) return 'PIC is required'
         return ''
+      case 'jobOrderNumber':
+        if (value && !validateJobOrderNumberFormat(value)) {
+          return `Job Order Number must use format ${JOB_ORDER_NUMBER_EXAMPLE}`
+        }
+        return ''
       default:
         return ''
     }
@@ -719,6 +743,8 @@ function EditTaskModal({
     if (jobTaskError) newErrors.jobTask = jobTaskError
     const picError = validateField('task_pic_id', formData.task_pic_id)
     if (picError) newErrors.task_pic_id = picError
+    const jobOrderNumberError = validateField('jobOrderNumber', formData.jobOrderNumber)
+    if (jobOrderNumberError) newErrors.jobOrderNumber = jobOrderNumberError
     
     setErrors(newErrors)
     
@@ -742,7 +768,7 @@ function EditTaskModal({
         task_pic_id: formData.task_pic_id,
         task_pic_name: selectedStaff?.name,
         task_pic_color: selectedStaff?.color || 'blue',
-        jobOrderNumber: formData.jobOrderNumber || undefined,
+        jobOrderNumber: normalizeJobOrderNumber(formData.jobOrderNumber) || undefined,
       }
 
       await onSave(updatedTask)
@@ -872,10 +898,19 @@ function EditTaskModal({
             <Label className="text-gray-700 font-medium">Job Order Number (Optional)</Label>
             <Input
               value={formData.jobOrderNumber}
-              onChange={(e) => setFormData({...formData, jobOrderNumber: e.target.value})}
-              placeholder="Enter job order number"
-              className="border-gray-300 bg-white"
+              onChange={(e) => {
+                const value = normalizeJobOrderNumber(e.target.value)
+                setFormData({...formData, jobOrderNumber: value})
+                if (touched.jobOrderNumber) {
+                  const error = validateField('jobOrderNumber', value)
+                  setErrors(prev => ({ ...prev, jobOrderNumber: error }))
+                }
+              }}
+              onBlur={() => handleBlur('jobOrderNumber')}
+              placeholder={JOB_ORDER_NUMBER_EXAMPLE}
+              className={`border-gray-300 bg-white ${touched.jobOrderNumber && errors.jobOrderNumber ? 'border-red-500' : ''}`}
             />
+            <ErrorMessage field="jobOrderNumber" />
           </div>
 
           <div className="flex flex-col gap-2 pt-2 sm:flex-row">

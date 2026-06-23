@@ -82,7 +82,7 @@ const getEventStatus = (dateStart: string | null, dateStop: string | null) => {
   if (!dateStart) {
     return {
       label: 'Past',
-      color: 'border [border-color:#4b5563] [background-color:#f3f4f6] [color:#374151]'
+      color: 'border border-gray-300 [background-color:white] [color:#111827]'
     }
   }
 
@@ -98,7 +98,7 @@ const getEventStatus = (dateStart: string | null, dateStop: string | null) => {
   if (today > stop) {
     return {
       label: 'Past',
-      color: 'border [border-color:#4b5563] [background-color:#f3f4f6] [color:#374151]'
+      color: 'border border-gray-300 [background-color:white] [color:#111827]'
     }
   } else if (today >= start && today <= stop) {
     return {
@@ -122,7 +122,7 @@ const activePaginationButtonClass = 'bg-blue-600 text-white hover:bg-blue-700 da
 const getEventRowClass = (statusLabel: string) => {
   switch (statusLabel) {
     case 'Past':
-      return '[background-color:#e5e7eb] hover:[background-color:#d1d5db] [&_td]:border-black [&_td]:text-black [&_button]:text-black'
+      return '[background-color:white] hover:[background-color:#f9fafb] [&_td]:border-black [&_td]:text-black [&_button]:text-black'
     case 'Ongoing':
       return '[background-color:#bbf7d0] hover:[background-color:#86efac] [&_td]:border-black [&_td]:text-black [&_button]:text-black'
     case 'Upcoming':
@@ -152,7 +152,7 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
-  const [sortField, setSortField] = useState<keyof Event>('date_start')
+  const [sortField, setSortField] = useState<keyof Event>('created_at')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [filterStaff, setFilterStaff] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
@@ -220,7 +220,7 @@ export default function EventsPage() {
       const { data: eventsData, error: eventsError } = await supabase
         .from('events')
         .select('*')
-        .order('date_start', { ascending: false })
+        .order('created_at', { ascending: false })
       
       if (eventsError) throw eventsError
       
@@ -411,8 +411,8 @@ export default function EventsPage() {
       let aValue = a[sortField]
       let bValue = b[sortField]
       
-      if (aValue === undefined) aValue = ''
-      if (bValue === undefined) bValue = ''
+      if (aValue == null) aValue = ''
+      if (bValue == null) bValue = ''
       
       if (typeof aValue === 'string' && typeof bValue === 'string') {
         return sortDirection === 'asc' 
@@ -829,7 +829,7 @@ export default function EventsPage() {
                 <span className="text-gray-600 dark:text-gray-400">Ongoing - Currently happening</span>
               </div>
               <div className="flex items-center">
-                <span className="w-3 h-3 rounded-full bg-gray-400 mr-2"></span>
+                <span className="mr-2 h-3 w-3 rounded-full border border-gray-300 [background-color:white]"></span>
                 <span className="text-gray-600 dark:text-gray-400">Past - Completed events</span>
               </div>
             </div>
@@ -838,12 +838,10 @@ export default function EventsPage() {
           <div>
             <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Staff Roles:</h4>
             <div className="space-y-1 text-xs">
-              <div className="flex items-center">
-                <div className="w-3 h-3 rounded-full mr-2 bg-blue-500"></div>
+              <div>
                 <span className="text-gray-600 dark:text-gray-400"><strong>PIC</strong> (Person In Charge) - Single person responsible</span>
               </div>
-              <div className="flex items-center">
-                <div className="w-3 h-3 rounded-full mr-2 bg-green-500"></div>
+              <div>
                 <span className="text-gray-600 dark:text-gray-400"><strong>Support Staff</strong> - Multiple people can be assigned</span>
               </div>
             </div>

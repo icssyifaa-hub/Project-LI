@@ -188,7 +188,7 @@ export default function JobOrdersPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
-  const [sortField, setSortField] = useState<keyof JobOrder>('running_number')
+  const [sortField, setSortField] = useState<keyof JobOrder>('created_at')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [filterStaff, setFilterStaff] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
@@ -263,7 +263,7 @@ export default function JobOrdersPage() {
       const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
         .select('*')
-        .order('date_start', { ascending: false })
+        .order('created_at', { ascending: false })
       
       if (tasksError) throw tasksError
       
@@ -471,8 +471,8 @@ export default function JobOrdersPage() {
     .sort((a, b) => {
       let aValue = a[sortField]
       let bValue = b[sortField]
-      if (aValue === undefined) aValue = ''
-      if (bValue === undefined) bValue = ''
+      if (aValue == null) aValue = ''
+      if (bValue == null) bValue = ''
       if (typeof aValue === 'string' && typeof bValue === 'string') {
         return sortDirection === 'asc' 
           ? aValue.localeCompare(bValue)
@@ -535,7 +535,10 @@ export default function JobOrdersPage() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogAction onClick={() => setUnscheduledJob(null)}>
+              <AlertDialogAction
+                onClick={() => setUnscheduledJob(null)}
+                className="bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-white dark:hover:bg-blue-600"
+              >
                 OK
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -672,9 +675,7 @@ export default function JobOrdersPage() {
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('client_name')}>
                   <div className="flex items-center space-x-1">Client Name <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
-                <th className={sortableHeaderCellClass} onClick={() => handleSort('job_task')}>
-                  <div className="flex items-center space-x-1">Job Task <ArrowUpDown className="h-3 w-3" /></div>
-                </th>
+                <th className={tableHeaderCellClass}>Job Task</th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('date_start')}>
                   <div className="flex items-center space-x-1">Start Date <ArrowUpDown className="h-3 w-3" /></div>
                 </th>

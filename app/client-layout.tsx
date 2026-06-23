@@ -187,8 +187,9 @@ export default function ClientLayout({
     <div className="min-h-screen flex flex-col bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100">
           {/* Header */}
           <header className={`
-            fixed right-0 top-0 z-30 flex h-16 items-center border-b border-gray-200 bg-white px-3 shadow-sm transition-all duration-300
+            fixed right-0 top-0 flex h-16 items-center border-b border-gray-200 bg-white px-3 shadow-sm transition-all duration-300
             dark:border-slate-800 dark:bg-slate-950 sm:px-4
+            ${profileMenuOpen ? 'z-[80]' : 'z-30'}
             ${drawerOpen ? 'left-64' : 'left-12'}
             max-lg:left-0
           `}>

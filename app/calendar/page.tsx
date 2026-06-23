@@ -42,6 +42,8 @@ const STORAGE_KEYS = {
   VIEW: 'calendar_view',
 }
 
+const FOCUS_HIGHLIGHT_DURATION_MS = 5000
+
 const createStableDate = (date: Date): Date => {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0)
 }
@@ -227,7 +229,7 @@ export default function CalendarPage() {
       setFocusedDateKey(focusFromUrl)
       focusTimeoutId = setTimeout(() => {
         setFocusedDateKey(null)
-      }, 15000)
+      }, FOCUS_HIGHLIGHT_DURATION_MS)
 
       urlParams.delete('focus')
       const newQuery = urlParams.toString()
@@ -439,7 +441,7 @@ export default function CalendarPage() {
             setFocusedDateKey(focusFromUrl)
             focusTimeoutId = setTimeout(() => {
               setFocusedDateKey(null)
-            }, 15000)
+            }, FOCUS_HIGHLIGHT_DURATION_MS)
 
             urlParams.delete('focus')
             const newQuery = urlParams.toString()

@@ -73,7 +73,7 @@ export const colorClasses = {
     lightBg: 'bg-yellow-50',
     badge: 'bg-yellow-100 text-yellow-800',
     badgeLight: 'bg-yellow-50 text-yellow-700',
-    dot: 'bg-yellow-600',
+    dot: 'bg-yellow-500',
     ring: 'ring-yellow-200',
     gradient: 'from-yellow-600 to-yellow-700',
     solid: 'bg-yellow-600',

@@ -7,8 +7,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { 
-  ChevronDown, 
-  ChevronRight, 
   Search,
   Users,
   CalendarDays,
@@ -46,7 +44,6 @@ export default function CalendarFilter({
   onStaffTaskToggle: externalTaskToggle,
   onStaffEventToggle: externalEventToggle
 }: CalendarFilterProps) {
-  const [myCalendarsOpen, setMyCalendarsOpen] = useState(true)
   const [staffSearch, setStaffSearch] = useState('')
   const [internalFilters, setInternalFilters] = useState<StaffFilters>({})
   const hasExternalHandlers = !!externalTaskToggle && !!externalEventToggle
@@ -170,56 +167,37 @@ export default function CalendarFilter({
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col border-b bg-background lg:border-b-0 lg:border-r">
-      {/* Header */}
-      <div className="p-4 border-b">
-        <Button
-          variant="ghost"
-          onClick={() => setMyCalendarsOpen(!myCalendarsOpen)}
-          className="flex items-center justify-start w-full px-0 hover:bg-transparent"
-          aria-expanded={myCalendarsOpen}
-        >
-          {myCalendarsOpen ? (
-            <ChevronDown className="h-4 w-4 mr-2" />
-          ) : (
-            <ChevronRight className="h-4 w-4 mr-2" />
-          )}
-          <span className="font-semibold">My calendars</span>
-        </Button>
-      </div>
-
       {/* Content */}
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-4">
-          {myCalendarsOpen && (
-            <>
-              {/* Holidays Section */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <Checkbox 
-                    id="holidays" 
-                    checked={showHolidays}
-                    onCheckedChange={onHolidaysToggle}
-                    className="border-green-500 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
-                  />
-                  <label 
-                    htmlFor="holidays" 
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex items-center gap-2"
-                  >
-                    <CalendarDays className="h-4 w-4 text-green-600" />
-                    <span>Malaysia Holidays</span>
-                    {holidays.length > 0 && (
-                      <Badge variant="secondary" className="text-xs">
-                        {holidays.length}
-                      </Badge>
-                    )}
-                  </label>
-                </div>
-              </div>
+          {/* Holidays Section */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <Checkbox
+                id="holidays"
+                checked={showHolidays}
+                onCheckedChange={onHolidaysToggle}
+                className="border-green-500 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
+              />
+              <label
+                htmlFor="holidays"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex items-center gap-2"
+              >
+                <CalendarDays className="h-4 w-4 text-green-600" />
+                <span>Malaysia Holidays</span>
+                {holidays.length > 0 && (
+                  <Badge variant="secondary" className="text-xs">
+                    {holidays.length}
+                  </Badge>
+                )}
+              </label>
+            </div>
+          </div>
 
-              <Separator />
+          <Separator />
 
-              {/* Staff Section */}
-              <div className="space-y-3">
+          {/* Staff Section */}
+          <div className="space-y-3">
                 {/* Staff Header */}
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
@@ -246,7 +224,7 @@ export default function CalendarFilter({
 
                 {/* Column Headers with Toggle All Buttons */}
                 <div className="grid grid-cols-12 gap-2 rounded-md bg-muted/30 px-2 py-1">
-                  <div className="col-span-5">
+                  <div className="col-span-6">
                     <span className="text-xs font-medium text-muted-foreground">Person</span>
                   </div>
                   <div className="col-span-3 text-center">
@@ -277,7 +255,6 @@ export default function CalendarFilter({
                       )}
                     </Button>
                   </div>
-                  <div className="col-span-1"></div>
                 </div>
 
                 {/* Staff List */}
@@ -297,7 +274,7 @@ export default function CalendarFilter({
                         )}
                       >
                         {/* Staff Name */}
-                        <div className="col-span-5 flex items-center gap-2 min-w-0">
+                        <div className="col-span-6 flex items-center gap-2 min-w-0">
                           <div
                             className={cn("w-2 h-2 rounded-full flex-shrink-0 ring-1 ring-black/10 dark:ring-white/20", colors.bg)}
                             style={colors.dotStyle}
@@ -333,13 +310,6 @@ export default function CalendarFilter({
                             }}
                             className="border-purple-300 data-[state=checked]:bg-purple-300 data-[state=checked]:border-purple-300"
                           />
-                        </div>
-
-                        {/* Status Indicator - shown when part of this staff row is hidden */}
-                        <div className="col-span-1 flex justify-center">
-                          {(!showStaffTasks || !showStaffEvents) && (
-                            <div className="h-2 w-2 rounded-full bg-amber-500" />
-                          )}
                         </div>
                       </div>
                     )
@@ -381,9 +351,7 @@ export default function CalendarFilter({
                     )}
                   </div>
                 )}
-              </div>
-            </>
-          )}
+          </div>
         </div>
       </ScrollArea>
     </div>

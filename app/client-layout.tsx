@@ -136,6 +136,7 @@ export default function ClientLayout({
   const currentSolidClass = getSolidClass(userColor)
   const currentTextClass = getColorClass(userColor, 'text')
   const currentLightBgClass = getItemBgClass(userColor)
+  const profileAvatarClass = `profile-avatar flex shrink-0 items-center justify-center rounded-full font-semibold shadow-sm ${currentSolidClass}`
 
   if (pathname === '/login') {
     return (
@@ -159,6 +160,8 @@ export default function ClientLayout({
 
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
   const isCalendarPage = pathname === '/calendar'
+  const isSettingsPage = pathname === '/settings'
+  const isListPage = pathname === '/job-orders' || pathname === '/event-lists'
   const getNavClass = (path: string) => {
     const isActive = pathname === path
     return [
@@ -226,8 +229,8 @@ export default function ClientLayout({
                   <p className="max-w-36 truncate text-sm font-medium text-gray-900 dark:text-slate-100">{user.name}</p>
                   <p className="text-xs text-gray-500 capitalize dark:text-slate-400">{user.role}</p>
                 </div>
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-sm ${currentSolidClass}`}>
-                  <span className="text-white font-semibold text-sm">
+                <div className={`${profileAvatarClass} h-9 w-9 text-sm`}>
+                  <span>
                     {getUserInitials()}
                   </span>
                 </div>
@@ -244,8 +247,8 @@ export default function ClientLayout({
                   <div className="absolute right-0 top-14 z-50 w-[calc(100vw-1.5rem)] max-w-64 rounded-lg border border-gray-200 bg-white py-2 shadow-xl dark:border-slate-800 dark:bg-slate-900">
                     <div className="border-b border-gray-200 px-4 py-3 dark:border-slate-800">
                       <div className="flex items-center gap-3 mb-2">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${currentSolidClass}`}>
-                          {getUserInitials()}
+                        <div className={`${profileAvatarClass} h-10 w-10 text-sm`}>
+                          <span>{getUserInitials()}</span>
                         </div>
                         <div>
                           <p className="font-medium text-gray-900 dark:text-slate-100">{user.name}</p>
@@ -402,8 +405,8 @@ export default function ClientLayout({
 
                 <div className="border-b border-gray-200 p-4 dark:border-slate-800">
                   <div className="flex items-center space-x-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${currentSolidClass}`}>
-                      {getUserInitials()}
+                    <div className={`${profileAvatarClass} h-10 w-10 text-sm`}>
+                      <span>{getUserInitials()}</span>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-900 dark:text-slate-100">{user.name || 'User'}</p>
@@ -471,7 +474,7 @@ export default function ClientLayout({
           {/* Main Content */}
           <main className={`
             flex-1 transition-all duration-300
-            mt-16 min-w-0 ${isCalendarPage ? 'p-0' : 'p-3 sm:p-4 lg:p-6'}
+            mt-16 min-w-0 ${isCalendarPage || isSettingsPage || isListPage ? 'p-0' : 'p-3 sm:p-4 lg:p-6'}
             ${drawerOpen ? 'lg:ml-64' : 'lg:ml-12'}
           `}>
             {children}

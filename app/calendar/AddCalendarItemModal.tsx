@@ -1049,14 +1049,11 @@ export default function AddCalendarItemModal({
     setTaskData(prev => ({ 
       ...prev, 
       dateStart: '', 
-      dateStop: '',
-      timeStart: '',
-      timeStop: ''
+      dateStop: ''
     }))
-    setShowTime(false)
     toast({ 
       title: "Date Removed", 
-      description: "Task will be moved to Task Inbox (On Hold)" 
+      description: "Task will move to Task Inbox. Other details are kept."
     })
   }
 
@@ -1609,11 +1606,11 @@ export default function AddCalendarItemModal({
                       </div>
                     )}
 
-                    {hasDate && !showTime ? (
+                    {!showTime ? (
                       <button type="button" onClick={() => setShowTime(true)} className={actionButtonClass} disabled={isSaving}>
                         <Clock className="h-4 w-4 mr-2" /> Add time
                       </button>
-                    ) : hasDate && showTime ? (
+                    ) : (
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div className="space-y-2">
                           <Label className={labelClass}>Time Start</Label>
@@ -1635,7 +1632,7 @@ export default function AddCalendarItemModal({
                           <ErrorMessage field="timeStop" />
                         </div>
                       </div>
-                    ) : null}
+                    )}
 
                     {!showDescription ? (
                       <button type="button" onClick={() => setShowDescription(true)} className={actionButtonClass} disabled={isSaving}>

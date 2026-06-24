@@ -1,7 +1,7 @@
 'use client'
 import React, { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { Plus, CalendarCheck, X, Edit2, PartyPopper } from 'lucide-react'
+import { Plus, CalendarCheck, X, Edit2, PartyPopper, UserRound } from 'lucide-react'
 import type { Task, Event } from '@/app/calendar/types/calendar'
 import { MALAYSIA_STATES } from '@/app/settings/types'
 import { getItemStyleClasses, getItemBgClass, getBadgeClass, getDotClass, getSolidClass, getHeaderGradientClass } from '@/lib/colors'
@@ -294,7 +294,10 @@ const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, position,
           </div>
           
           <div className="border-t pt-3 mt-2">
-            <p className="text-sm font-medium text-gray-700 mb-2 dark:text-gray-200">👥 Person In Charge:</p>
+            <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-200">
+              <UserRound className="h-4 w-4 shrink-0" />
+              <span>Person In Charge:</span>
+            </p>
             <div className={`flex flex-wrap items-center gap-2 rounded-lg p-2 ${eventPicPanelClass}`}>
               <div className="flex items-center gap-1">
                 <span className={`w-3 h-3 rounded-full ${getDotClass(item.event_pic_color)}`}></span>
@@ -340,7 +343,10 @@ const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, position,
           </div>
           
           <div className="border-t pt-3 mt-2">
-            <p className="text-sm font-medium text-gray-700 mb-2 dark:text-gray-200">👥 Person In Charge:</p>
+            <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-200">
+              <UserRound className="h-4 w-4 shrink-0" />
+              <span>Person In Charge:</span>
+            </p>
             <div className={`flex flex-wrap items-center gap-2 rounded-lg p-2 ${taskPicPanelClass}`}>
               <div className="flex items-center gap-1">
                 <span className={`w-3 h-3 rounded-full ${getDotClass(item.task_pic_color)}`}></span>
@@ -1847,8 +1853,10 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                                     </div>
                                     <div className="text-xs text-gray-600 dark:text-gray-300 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
                                       <span className="flex items-center gap-1">
+                                        <UserRound className="h-3 w-3 shrink-0" />
+                                        <span>PIC:</span>
                                         <span className={`w-2 h-2 rounded-full ${getDotClass(item.type === 'event' ? item.event_pic_color : item.task_pic_color)}`}></span>
-                                        <span>👤 PIC: {item.type === 'event' ? (item.event_pic_name || 'No PIC') : (item.task_pic_name || 'No PIC')}</span>
+                                        <span>{item.type === 'event' ? (item.event_pic_name || 'No PIC') : (item.task_pic_name || 'No PIC')}</span>
                                       </span>
                                       
                                       {item.type === 'event' && item.event_support_names && item.event_support_names.length > 0 && (

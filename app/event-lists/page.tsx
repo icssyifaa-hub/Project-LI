@@ -164,6 +164,7 @@ export default function EventsPage() {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClient()
+  const isAdmin = ['admin', 'superadmin'].includes(String(user?.role || '').toLowerCase())
 
   useEffect(() => {
     const userData = localStorage.getItem('user')
@@ -191,7 +192,7 @@ export default function EventsPage() {
       
       usersData?.forEach((user: {id: string; name: string; color?: string; role?: string; is_active?: boolean}) => {
         const isActive = user.is_active ?? true
-        const displayColor = isActive ? (user.color || 'purple') : 'gray'
+        const displayColor = user.color || 'purple'
         if (user.id) {
           userMap[user.id] = {
             name: user.name,
@@ -326,12 +327,31 @@ export default function EventsPage() {
   }, [user])
 
   const handleDeleteClick = (event: Event) => {
+    if (!isAdmin) {
+      toast({
+        title: "Access denied",
+        description: "Only admins can delete events",
+        variant: "destructive",
+      })
+      return
+    }
+
     setEventToDelete(event)
     setDeleteDialogOpen(true)
   }
 
   const confirmDelete = async () => {
     if (!eventToDelete) return
+    if (!isAdmin) {
+      setDeleteDialogOpen(false)
+      setEventToDelete(null)
+      toast({
+        title: "Access denied",
+        description: "Only admins can delete events",
+        variant: "destructive",
+      })
+      return
+    }
     
     try {
       console.log('🗑️ Deleting event:', eventToDelete.id)
@@ -430,8 +450,6 @@ export default function EventsPage() {
 
   if (!user) return null
 
-  const isAdmin = user.role === 'admin' || user.role === 'superadmin'
-  
   const activeStaffCount = Array.from(staffStatusMap.values()).filter(isActive => isActive === true).length
   const inactiveStaffCount = staffList.length - activeStaffCount
   const reportHeaders = ['Title', 'Start Date', 'End Date', 'Start Time', 'End Time', 'Location', 'PIC', 'Support Staff', 'Status']
@@ -471,7 +489,7 @@ export default function EventsPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-2 dark:bg-gray-950 sm:p-3 lg:p-4">
       <div className="w-full max-w-none space-y-6">
-        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialog open={isAdmin && deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Are you sure?</AlertDialogTitle>
@@ -492,7 +510,7 @@ export default function EventsPage() {
           </AlertDialogContent>
         </AlertDialog>
 
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="-mx-2 -mt-2 flex flex-col gap-4 border-b border-gray-200 bg-white px-2 py-4 dark:border-gray-800 dark:bg-gray-950 sm:-mx-3 sm:-mt-3 sm:flex-row sm:items-center sm:justify-between sm:px-3 lg:-mx-4 lg:-mt-4 lg:px-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Events List</h1>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -634,13 +652,15 @@ export default function EventsPage() {
                 <th className={tableHeaderCellClass}>PIC</th>
                 <th className={tableHeaderCellClass}>Support Staff</th>
                 <th className={tableHeaderCellClass}>Status</th>
-                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase text-gray-700 dark:text-gray-200">Actions</th>
+                {isAdmin && (
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase text-gray-700 dark:text-gray-200">Actions</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-black">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="border-t border-black px-4 py-12 text-center">
+                  <td colSpan={isAdmin ? 9 : 8} className="border-t border-black px-4 py-12 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mb-2"></div>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Loading events...</p>
@@ -649,7 +669,7 @@ export default function EventsPage() {
                 </tr>
               ) : paginatedEvents.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="border-t border-black px-4 py-12 text-center">
+                  <td colSpan={isAdmin ? 9 : 8} className="border-t border-black px-4 py-12 text-center">
                     <div className="text-gray-400 text-4xl mb-2">📅</div>
                     <p className="text-gray-500 dark:text-gray-300">No events found</p>
                     <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
@@ -738,9 +758,9 @@ export default function EventsPage() {
                           {status.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          {isAdmin && (
+                      {isAdmin && (
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1">
                             <Button
                               variant="ghost"
                               size="icon"
@@ -750,9 +770,9 @@ export default function EventsPage() {
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
-                          )}
-                        </div>
-                      </td>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   )
                 })

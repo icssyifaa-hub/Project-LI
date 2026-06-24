@@ -64,6 +64,19 @@
     color: rgb(255 255 255) !important;
   }
 
+  .profile-avatar,
+  .profile-avatar :where(:not(svg):not(svg *)) {
+    color: rgb(255 255 255) !important;
+  }
+
+  .profile-section-surface {
+    background-color: rgb(249 250 251 / 0.5);
+  }
+
+  .dark .profile-section-surface {
+    background-color: transparent;
+  }
+
   button:is(
     .bg-primary,
     .bg-destructive,

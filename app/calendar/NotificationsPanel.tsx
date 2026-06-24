@@ -74,11 +74,6 @@ const formatDateLabel = (dateKey: string | null) => {
   })
 }
 
-const formatTimeLabel = (time: string | null) => {
-  if (!time) return null
-  return time.slice(0, 5)
-}
-
 const getDismissedReminderStorageKey = (userId?: string | null) => {
   return `dismissed_upcoming_reminders:${userId || 'guest'}`
 }
@@ -234,14 +229,12 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
           supabase
             .from('tasks')
             .select('id, client_name, job_task, date_start, date_stop, time_start, task_pic_id, task_pic_name, task_support_ids, task_support_names, job_status')
-            .lte('date_start', tomorrowKey)
-            .or(`date_stop.is.null,date_stop.gte.${tomorrowKey}`)
+            .eq('date_start', tomorrowKey)
             .order('time_start', { ascending: true, nullsFirst: false }),
           supabase
             .from('events')
             .select('id, title, location, date_start, date_stop, time_start, event_pic_id, event_pic_name, event_support_ids, event_support_names')
-            .lte('date_start', tomorrowKey)
-            .or(`date_stop.is.null,date_stop.gte.${tomorrowKey}`)
+            .eq('date_start', tomorrowKey)
             .order('time_start', { ascending: true, nullsFirst: false }),
         ])
 
@@ -252,22 +245,14 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
           .filter((task: any) => task.date_start && task.job_status !== 'completed')
           .filter((task: any) => isAssignedToCurrentUser(task, 'task'))
           .map((task: any) => {
-            const time = formatTimeLabel(task.time_start)
-            const dateRange = task.date_stop && task.date_stop !== task.date_start
-              ? `${formatDateLabel(task.date_start)} - ${formatDateLabel(task.date_stop)}`
-              : formatDateLabel(task.date_start)
+            const picName = task.task_pic_name || 'Unassigned'
 
             return {
               id: `task-${task.id}`,
               sourceId: task.id,
               type: 'task',
               title: `Reminder: ${task.job_task || 'Untitled Task'}`,
-              message: [
-                task.date_start < tomorrowKey ? 'Continues tomorrow' : 'Starts tomorrow',
-                task.client_name || 'No client',
-                dateRange,
-                time ? `${time}` : null,
-              ].filter(Boolean).join(' - '),
+              message: `${task.client_name || 'No client'}\n${formatDateLabel(task.date_start)} (${picName})`,
               dateStart: task.date_start,
               dateStop: task.date_stop,
               timeStart: task.time_start,
@@ -278,22 +263,14 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
           .filter((event: any) => event.date_start)
           .filter((event: any) => isAssignedToCurrentUser(event, 'event'))
           .map((event: any) => {
-            const time = formatTimeLabel(event.time_start)
-            const dateRange = event.date_stop && event.date_stop !== event.date_start
-              ? `${formatDateLabel(event.date_start)} - ${formatDateLabel(event.date_stop)}`
-              : formatDateLabel(event.date_start)
+            const picName = event.event_pic_name || 'Unassigned'
 
             return {
               id: `event-${event.id}`,
               sourceId: event.id,
               type: 'event',
               title: `Reminder: ${event.title || 'Untitled Event'}`,
-              message: [
-                event.date_start < tomorrowKey ? 'Continues tomorrow' : 'Starts tomorrow',
-                event.location || 'No location',
-                dateRange,
-                time ? `${time}` : null,
-              ].filter(Boolean).join(' - '),
+              message: `${formatDateLabel(event.date_start)} (${picName})`,
               dateStart: event.date_start,
               dateStop: event.date_stop,
               timeStart: event.time_start,
@@ -494,41 +471,55 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'task_assignment':
-        return <Briefcase className="h-4 w-4 mr-2 mt-0.5 text-blue-600 flex-shrink-0" />
       case 'task_update':
-        return <Briefcase className="h-4 w-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
+        return <Briefcase className="h-4 w-4 text-blue-600" />
       case 'event_assignment':
-        return <Calendar className="h-4 w-4 mr-2 mt-0.5 text-purple-600 flex-shrink-0" />
       case 'event_update':
-        return <Calendar className="h-4 w-4 mr-2 mt-0.5 text-orange-600 flex-shrink-0" />
+        return <Calendar className="h-4 w-4 text-purple-600" />
       default:
-        return <Bell className="h-4 w-4 mr-2 mt-0.5 text-gray-600 flex-shrink-0" />
+        return <Bell className="h-4 w-4 text-gray-600" />
     }
   }
 
-  const getNotificationBgColor = (type: string, read: boolean) => {
-    if (read) return 'bg-white border-gray-200 dark:bg-gray-900 dark:border-gray-800'
-    
-    switch (type) {
-      case 'task_assignment':
-        return 'bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-900/60'
-      case 'task_update':
-        return 'bg-green-50 border-green-200 dark:bg-emerald-950/30 dark:border-emerald-900/60'
-      case 'event_assignment':
-        return 'bg-purple-50 border-purple-200 dark:bg-purple-950/30 dark:border-purple-900/60'
-      case 'event_update':
-        return 'bg-orange-50 border-orange-200 dark:bg-orange-950/30 dark:border-orange-900/60'
-      default:
-        return 'bg-gray-50 border-gray-200 dark:bg-gray-900 dark:border-gray-800'
+  const getNotificationTheme = (type: string, read: boolean) => {
+    const isTask = type === 'task_assignment' || type === 'task_update'
+    const isEvent = type === 'event_assignment' || type === 'event_update'
+
+    if (isTask) {
+      return {
+        border: 'border-blue-200 dark:border-blue-900/70',
+        background: read ? 'bg-white dark:bg-gray-900' : 'bg-blue-50/70 dark:bg-blue-950/30',
+        accent: 'bg-blue-500',
+        iconBackground: 'bg-blue-100 dark:bg-blue-950/70',
+        dot: 'bg-blue-500',
+      }
+    }
+
+    if (isEvent) {
+      return {
+        border: 'border-purple-200 dark:border-purple-900/70',
+        background: read ? 'bg-white dark:bg-gray-900' : 'bg-purple-50/70 dark:bg-purple-950/30',
+        accent: 'bg-purple-500',
+        iconBackground: 'bg-purple-100 dark:bg-purple-950/70',
+        dot: 'bg-purple-500',
+      }
+    }
+
+    return {
+      border: 'border-gray-200 dark:border-gray-800',
+      background: read ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-900',
+      accent: 'bg-gray-400',
+      iconBackground: 'bg-gray-100 dark:bg-gray-800',
+      dot: 'bg-gray-500',
     }
   }
 
   const getReminderIcon = (type: 'task' | 'event') => {
     if (type === 'task') {
-      return <Briefcase className="h-4 w-4 mr-2 mt-0.5 text-blue-600 flex-shrink-0" />
+      return <Briefcase className="h-4 w-4 text-blue-600" />
     }
 
-    return <Calendar className="h-4 w-4 mr-2 mt-0.5 text-purple-600 flex-shrink-0" />
+    return <Calendar className="h-4 w-4 text-purple-600" />
   }
 
   if (loading) {
@@ -627,33 +618,53 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
             {filteredTomorrowReminders.map((reminder) => (
               <div
                 key={reminder.id}
-                className="relative cursor-pointer rounded-lg border border-amber-200 bg-amber-50 p-3 shadow-sm transition-all duration-200 hover:shadow-md dark:border-amber-900/60 dark:bg-amber-950/30"
+                className={`relative cursor-pointer overflow-hidden rounded-lg border bg-white shadow-sm transition-all duration-200 hover:-translate-y-px hover:shadow-md dark:bg-gray-900 ${
+                  reminder.type === 'task'
+                    ? 'border-blue-200 dark:border-blue-900/70'
+                    : 'border-purple-200 dark:border-purple-900/70'
+                }`}
                 onClick={() => handleReminderClick(reminder)}
               >
+                <div
+                  className={`absolute inset-y-0 left-0 w-1 ${
+                    reminder.type === 'task' ? 'bg-blue-500' : 'bg-purple-500'
+                  }`}
+                />
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
                     dismissReminder(reminder.id)
                   }}
-                  className="absolute right-2 top-2 z-10 text-amber-700 transition-colors hover:text-amber-950"
+                  className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
                   aria-label="Dismiss reminder"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="h-3.5 w-3.5" />
                 </button>
 
-                <div className="flex items-start">
-                  {getReminderIcon(reminder.type)}
-                  <div className="min-w-0 flex-1 pr-5">
-                    <p className="break-words text-sm font-semibold text-gray-900 dark:text-gray-100">
-                      {reminder.title}
-                    </p>
-                    <p className="mt-1 break-words text-xs leading-relaxed text-gray-700 dark:text-gray-300">
-                      {reminder.message}
-                    </p>
-                    <div className="mt-2 flex items-center text-xs text-amber-800">
-                      <Clock className="mr-1 h-3 w-3" />
-                      1 day before
+                <div className="p-3 pl-4">
+                  <div className="flex items-start gap-3 pr-7">
+                    <span
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
+                        reminder.type === 'task'
+                          ? 'bg-blue-50 dark:bg-blue-950/60'
+                          : 'bg-purple-50 dark:bg-purple-950/60'
+                      }`}
+                    >
+                      {getReminderIcon(reminder.type)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="break-words text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        {reminder.title}
+                      </p>
+                      <p className="mt-1 whitespace-pre-line break-words text-xs leading-relaxed text-gray-600 dark:text-gray-300">
+                        {reminder.message}
+                      </p>
                     </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center border-t border-gray-100 pt-2 text-xs font-medium text-amber-700 dark:border-gray-800 dark:text-amber-300">
+                    <Clock className="mr-1.5 h-3.5 w-3.5" />
+                    <span>1 day before</span>
                   </div>
                 </div>
               </div>
@@ -672,50 +683,59 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
             </p>
           </div>
         ) : (
-          filteredNotifications.map((notif) => (
-            <div
-              key={notif.id}
-              className={`relative cursor-pointer rounded-lg border p-3 transition-all duration-200 hover:shadow-md ${
-                getNotificationBgColor(notif.type, notif.read)
-              } ${!notif.read ? 'shadow-sm' : ''}`}
-              onClick={() => handleNotificationClick(notif)}
-            >
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  deleteNotification(notif.id)
-                }}
-                className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 transition-colors z-10"
-                aria-label="Delete notification"
-              >
-                <X className="h-3 w-3" />
-              </button>
+          filteredNotifications.map((notif) => {
+            const theme = getNotificationTheme(notif.type, notif.read)
 
-              <div className="pr-6">
-                <div className="flex items-start">
-                  {getNotificationIcon(notif.type)}
-                  <div className="min-w-0 flex-1">
-                    <p className="break-words text-sm font-medium text-gray-900 dark:text-gray-100">
-                      {notif.title}
-                    </p>
-                    <p className="mt-1 break-words text-xs leading-relaxed text-gray-600 dark:text-gray-300">
-                      {notif.message}
-                    </p>
-                    <div className="flex items-center mt-2 text-xs text-gray-500 dark:text-gray-400">
-                      <Clock className="h-3 w-3 mr-1" />
-                      {getTimeAgo(notif.created_at)}
+            return (
+              <div
+                key={notif.id}
+                className={`relative cursor-pointer overflow-hidden rounded-lg border shadow-sm transition-all duration-200 hover:-translate-y-px hover:shadow-md ${theme.border} ${theme.background}`}
+                onClick={() => handleNotificationClick(notif)}
+              >
+                <div className={`absolute inset-y-0 left-0 w-1 ${theme.accent}`} />
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    deleteNotification(notif.id)
+                  }}
+                  className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-white/80 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                  aria-label="Delete notification"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+
+                <div className="p-3 pl-4">
+                  <div className="flex items-start gap-3 pr-7">
+                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${theme.iconBackground}`}>
+                      {getNotificationIcon(notif.type)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="break-words text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        {notif.title}
+                      </p>
+                      <p className="mt-1 break-words text-xs leading-relaxed text-gray-600 dark:text-gray-300">
+                        {notif.message}
+                      </p>
                     </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between border-t border-gray-200/70 pt-2 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                    <span className="flex items-center">
+                      <Clock className="mr-1.5 h-3.5 w-3.5" />
+                      {getTimeAgo(notif.created_at)}
+                    </span>
+                    {!notif.read && (
+                      <span className="flex items-center gap-1.5 font-medium">
+                        <span className={`h-2 w-2 rounded-full ${theme.dot}`} />
+                        New
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
-
-              {!notif.read && (
-                <div className="absolute bottom-2 right-2">
-                  <span className="block h-2 w-2 rounded-full bg-blue-600 animate-pulse"></span>
-                </div>
-              )}
-            </div>
-          ))
+            )
+          })
         )}
       </div>
 

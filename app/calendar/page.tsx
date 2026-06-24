@@ -221,8 +221,6 @@ export default function CalendarPage() {
 
     if (!dateFromUrl && !focusFromUrl) return
 
-    let focusTimeoutId: ReturnType<typeof setTimeout> | null = null
-
     if (dateFromUrl) {
       const [year, month, day] = dateFromUrl.split('-').map(Number)
       if (year && month && day) {
@@ -239,21 +237,22 @@ export default function CalendarPage() {
 
     if (focusFromUrl) {
       setFocusedDateKey(focusFromUrl)
-      focusTimeoutId = setTimeout(() => {
-        setFocusedDateKey(null)
-      }, FOCUS_HIGHLIGHT_DURATION_MS)
 
       urlParams.delete('focus')
       const newQuery = urlParams.toString()
       window.history.replaceState({}, '', `${window.location.pathname}${newQuery ? `?${newQuery}` : ''}`)
     }
-
-    return () => {
-      if (focusTimeoutId) {
-        clearTimeout(focusTimeoutId)
-      }
-    }
   }, [isInitialized, searchParamString])
+
+  useEffect(() => {
+    if (!focusedDateKey) return
+
+    const focusTimeoutId = setTimeout(() => {
+      setFocusedDateKey(null)
+    }, FOCUS_HIGHLIGHT_DURATION_MS)
+
+    return () => clearTimeout(focusTimeoutId)
+  }, [focusedDateKey])
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
@@ -370,14 +369,6 @@ export default function CalendarPage() {
     }))
   }, [allHolidays, showHolidays])
 
-  const activeFilterCount = useMemo(() => {
-    const hiddenStaffToggleCount = Object.values(staffFilters).reduce((count, filter) => {
-      return count + (filter.tasks === false ? 1 : 0) + (filter.events === false ? 1 : 0)
-    }, 0)
-
-    return hiddenStaffToggleCount + (showHolidays ? 1 : 0)
-  }, [staffFilters, showHolidays])
-  
   const viewOptions = useMemo(() => [
     { value: 'day', label: 'Day' },
     { value: 'week', label: 'Week' },
@@ -387,8 +378,6 @@ export default function CalendarPage() {
   ], [])
 
   useEffect(() => {
-    let focusTimeoutId: ReturnType<typeof setTimeout> | null = null
-
     try {
       const savedStaffFilters = localStorage.getItem(STORAGE_KEYS.STAFF_FILTERS)
       if (savedStaffFilters) {
@@ -435,9 +424,6 @@ export default function CalendarPage() {
 
           if (focusFromUrl) {
             setFocusedDateKey(focusFromUrl)
-            focusTimeoutId = setTimeout(() => {
-              setFocusedDateKey(null)
-            }, FOCUS_HIGHLIGHT_DURATION_MS)
 
             urlParams.delete('focus')
             const newQuery = urlParams.toString()
@@ -456,12 +442,6 @@ export default function CalendarPage() {
       console.error('Error loading state from localStorage:', error)
     } finally {
       setIsInitialized(true)
-    }
-
-    return () => {
-      if (focusTimeoutId) {
-        clearTimeout(focusTimeoutId)
-      }
     }
   }, [])
 
@@ -637,21 +617,39 @@ export default function CalendarPage() {
     e.preventDefault()
     
     if (draggedTask) {
-      setPrefilledTaskData({
+      const dateStart = createStableDate(date)
+      const dateStartValue = [
+        dateStart.getFullYear(),
+        String(dateStart.getMonth() + 1).padStart(2, '0'),
+        String(dateStart.getDate()).padStart(2, '0'),
+      ].join('-')
+
+      setSelectedTask({
+        id: draggedTask.id,
         clientName: draggedTask.clientName,
+        runningNumber: draggedTask.runningNumber || '',
         jobTask: draggedTask.jobTask,
-        task_pic_id: draggedTask.task_pic_id,     
-        task_pic_name: draggedTask.task_pic_name, 
-        task_pic_color: draggedTask.task_pic_color,
-        jobOrderNumber: draggedTask.jobOrderNumber,
-        runningNumber: draggedTask.runningNumber,
+        dateStart: dateStartValue,
+        dateStop: '',
+        timeStart: draggedTask.timeStart || '',
+        timeStop: draggedTask.timeStop || '',
+        additionalRemark: draggedTask.additionalRemark || draggedTask.notes || '',
+        jobOrderNumber: draggedTask.jobOrderNumber || '',
+        finalReportNumber: draggedTask.finalReportNumber || '',
+        jobStatus: draggedTask.jobStatus || 'onhold',
+        task_pic_id: draggedTask.task_pic_id || '',
+        task_pic_name: draggedTask.task_pic_name || '',
+        task_pic_color: draggedTask.task_pic_color || 'blue',
+        task_support_ids: draggedTask.task_support_ids || [],
+        task_support_names: draggedTask.task_support_names || [],
+        task_support_colors: draggedTask.task_support_colors || [],
       })
       
-      setSelectedDate(createStableDate(date))
+      setSelectedDate(dateStart)
       setSelectedEndDate(null)
-      setSelectedTask(null)
       setSelectedEvent(null)
       setSelectedItemType('task')
+      setPrefilledTaskData(null)
       setShowItemModal(true)
       setDraggedTask(null)
       setIsDragging(false)
@@ -828,7 +826,7 @@ export default function CalendarPage() {
       password: user.password || '',
       user_id: user.id,
       role: user.role,
-      color: user.is_active === false ? 'gray' : (user.color || 'blue'),
+      color: user.color || 'blue',
       created_at: user.created_at || new Date().toISOString()
     }))
   }, [allUsers])
@@ -870,11 +868,6 @@ export default function CalendarPage() {
             >
               <Filter className="h-4 w-4" />
               <span>Filter</span>
-              {activeFilterCount > 0 && !showFilter && (
-                <span className="notification-count-badge absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center px-1">
-                  {activeFilterCount > 99 ? '99+' : activeFilterCount}
-                </span>
-              )}
             </Button>
             
             <DropdownMenu>
@@ -1025,17 +1018,18 @@ export default function CalendarPage() {
                       jobTask: task.jobTask,
                       dateStart: '',
                       dateStop: '',
-                      timeStart: '',
-                      timeStop: '',
-                      additionalRemark: task.notes || '',
+                      timeStart: task.timeStart || '',
+                      timeStop: task.timeStop || '',
+                      additionalRemark: task.additionalRemark || task.notes || '',
                       jobOrderNumber: task.jobOrderNumber || '',
-                      jobStatus: 'onhold',
+                      finalReportNumber: task.finalReportNumber || '',
+                      jobStatus: task.jobStatus || 'onhold',
                       task_pic_id: task.task_pic_id || '',
                       task_pic_name: task.task_pic_name || '',
                       task_pic_color: task.task_pic_color || 'blue',
-                      task_support_ids: [],
-                      task_support_names: [],
-                      task_support_colors: []
+                      task_support_ids: task.task_support_ids || [],
+                      task_support_names: task.task_support_names || [],
+                      task_support_colors: task.task_support_colors || []
                     } as Task)
                     setSelectedItemType('task')
                     setPrefilledTaskData(null)

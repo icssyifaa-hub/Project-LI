@@ -200,6 +200,7 @@ export default function JobOrdersPage() {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClient()
+  const isAdmin = ['admin', 'superadmin'].includes(String(user?.role || '').toLowerCase())
 
   useEffect(() => {
     const userData = localStorage.getItem('user')
@@ -229,7 +230,7 @@ export default function JobOrdersPage() {
       
       staffData?.forEach((staff: { id: string; name: string; color?: string; role?: string; is_active?: boolean }) => {
         const isActive = staff.is_active ?? true
-        const displayColor = isActive ? (staff.color || 'blue') : 'gray'
+        const displayColor = staff.color || 'blue'
         if (staff.id) {
           staffMap[staff.id] = {
             name: staff.name,
@@ -424,6 +425,15 @@ export default function JobOrdersPage() {
 
   const confirmDeleteJob = async () => {
     if (!jobToDelete) return
+    if (!isAdmin) {
+      setJobToDelete(null)
+      toast({
+        title: "Access denied",
+        description: "Only admins can delete job orders",
+        variant: "destructive",
+      })
+      return
+    }
 
     try {
       const { error } = await supabase
@@ -545,7 +555,7 @@ export default function JobOrdersPage() {
           </AlertDialogContent>
         </AlertDialog>
 
-        <AlertDialog open={!!jobToDelete} onOpenChange={(open) => !open && setJobToDelete(null)}>
+        <AlertDialog open={isAdmin && !!jobToDelete} onOpenChange={(open) => !open && setJobToDelete(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Job Order?</AlertDialogTitle>
@@ -563,7 +573,7 @@ export default function JobOrdersPage() {
         </AlertDialog>
 
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="-mx-2 -mt-2 flex flex-col gap-4 border-b border-gray-200 bg-white px-2 py-4 dark:border-gray-800 dark:bg-gray-950 sm:-mx-3 sm:-mt-3 sm:flex-row sm:items-center sm:justify-between sm:px-3 lg:-mx-4 lg:-mt-4 lg:px-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Job Task Order List</h1>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -688,13 +698,13 @@ export default function JobOrdersPage() {
                 <th className={tableHeaderCellClass}>Job Order</th>
                 <th className={tableHeaderCellClass}>Final Report</th>
                 <th className={tableHeaderCellClass}>Status</th>
-                <th className={tableHeaderCellClass}>Actions</th>
+                {isAdmin && <th className={tableHeaderCellClass}>Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-black">
               {loading ? (
                 <tr>
-                  <td colSpan={13} className="border-t border-black px-4 py-12 text-center">
+                  <td colSpan={isAdmin ? 13 : 12} className="border-t border-black px-4 py-12 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Loading job orders...</p>
@@ -703,7 +713,7 @@ export default function JobOrdersPage() {
                 </tr>
               ) : paginatedJobs.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="border-t border-black px-4 py-12 text-center">
+                  <td colSpan={isAdmin ? 13 : 12} className="border-t border-black px-4 py-12 text-center">
                     <div className="text-gray-400 text-4xl mb-2">📋</div>
                     <p className="text-gray-500 dark:text-gray-300">No job orders found</p>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
@@ -786,17 +796,19 @@ export default function JobOrdersPage() {
                           {getStatusText(job.job_status)}
                         </span>
                       </td>
-                      <td className={tableCellClass}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
-                          onClick={() => setJobToDelete(job)}
-                          title="Delete job order"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </td>
+                      {isAdmin && (
+                        <td className={tableCellClass}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                            onClick={() => setJobToDelete(job)}
+                            title="Delete job order"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </td>
+                      )}
                     </tr>
                   )
                 })

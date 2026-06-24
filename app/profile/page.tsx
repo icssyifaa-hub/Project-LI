@@ -527,7 +527,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Profile Overview Card */}
-        <Card className="mb-8 border shadow-sm">
+        <Card className="mb-8 border shadow-sm dark:border-slate-800">
           <CardContent className="px-6 py-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-end gap-6">
               <div className="relative group">
@@ -563,7 +563,7 @@ export default function ProfilePage() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="flex h-auto w-full flex-nowrap justify-start overflow-x-auto rounded-2xl border border-gray-200 bg-white p-1 shadow-sm sm:flex-wrap">
+          <TabsList className="flex h-auto w-full flex-nowrap justify-start overflow-x-auto rounded-2xl border border-gray-200 bg-white p-1 shadow-sm dark:border-slate-800 sm:flex-wrap">
             <TabsTrigger value="general" className="flex items-center px-6 py-2.5 rounded-xl data-[state=active]:bg-blue-600 data-[state=active]:text-white">
               <User className="h-4 w-4 mr-2" />General
             </TabsTrigger>
@@ -577,8 +577,8 @@ export default function ProfilePage() {
 
           {/* ========== GENERAL TAB ========== */}
           <TabsContent value="general">
-            <Card className="border shadow-sm">
-              <CardHeader className="border-b border-gray-100 bg-gray-50/50">
+            <Card className="border shadow-sm dark:border-slate-800">
+              <CardHeader className="profile-section-surface border-b border-gray-100 dark:border-slate-800">
                 <CardTitle>General Information</CardTitle>
                 <CardDescription>Update your personal information</CardDescription>
               </CardHeader>
@@ -672,7 +672,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
               </CardContent>
-              <CardFooter className="flex flex-col items-start gap-3 border-t border-gray-100 bg-gray-50/50 pt-6 sm:flex-row sm:items-center">
+              <CardFooter className="profile-section-surface flex flex-col items-start gap-3 border-t border-gray-100 pt-6 dark:border-slate-800 sm:flex-row sm:items-center">
                 <Button 
                   onClick={handleSaveProfile} 
                   disabled={saving || (touchedFields.name && !!errors.name) || (touchedFields.phone && !!errors.phone)} 
@@ -686,8 +686,8 @@ export default function ProfilePage() {
 
           {/* ========== SECURITY TAB ========== */}
           <TabsContent value="security">
-            <Card className="border shadow-sm">
-              <CardHeader className="border-b border-gray-100 bg-gray-50/50">
+            <Card className="border shadow-sm dark:border-slate-800">
+              <CardHeader className="profile-section-surface border-b border-gray-100 dark:border-slate-800">
                 <CardTitle>Security Settings</CardTitle>
                 <CardDescription>Change your password to keep your account secure</CardDescription>
               </CardHeader>
@@ -845,7 +845,7 @@ export default function ProfilePage() {
                   </div>
                 )}
               </CardContent>
-              <CardFooter className="flex flex-col items-start gap-3 border-t border-gray-100 bg-gray-50/50 pt-6 sm:flex-row sm:items-center">
+              <CardFooter className="profile-section-surface flex flex-col items-start gap-3 border-t border-gray-100 pt-6 dark:border-slate-800 sm:flex-row sm:items-center">
                 <Button 
                   onClick={handleChangePassword} 
                   disabled={isPasswordButtonDisabled()} 
@@ -870,8 +870,8 @@ export default function ProfilePage() {
 
           {/* ========== APPEARANCE TAB ========== */}
           <TabsContent value="appearance">
-            <Card className="border shadow-sm">
-              <CardHeader className="border-b border-gray-100 bg-gray-50/50">
+            <Card className="border shadow-sm dark:border-slate-800">
+              <CardHeader className="profile-section-surface border-b border-gray-100 dark:border-slate-800">
                 <CardTitle>Appearance Settings</CardTitle>
                 <CardDescription>Customize your profile appearance</CardDescription>
               </CardHeader>
@@ -1014,7 +1014,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
               </CardContent>
-              <CardFooter className="flex flex-col items-start gap-3 border-t border-gray-100 bg-gray-50/50 pt-6 sm:flex-row sm:items-center">
+              <CardFooter className="profile-section-surface flex flex-col items-start gap-3 border-t border-gray-100 pt-6 dark:border-slate-800 sm:flex-row sm:items-center">
                 <Button 
                   onClick={handleSaveProfile} 
                   disabled={saving} 

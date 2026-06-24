@@ -75,6 +75,14 @@ export interface UnscheduledTask {
   runningNumber?: string
   createdAt: Date
   notes?: string
+  timeStart?: string
+  timeStop?: string
+  additionalRemark?: string
+  task_support_ids?: string[]
+  task_support_names?: string[]
+  task_support_colors?: string[]
+  finalReportNumber?: string
+  jobStatus?: 'onhold' | 'in-progress' | 'completed' | 'incomplete'
 }
 
 interface TaskInboxProps {
@@ -101,6 +109,17 @@ interface Staff {
 // PDF viewer removed — using job order number/final report number fields instead
 
 const normalizeText = (value?: string | null) => String(value || '').trim().toLowerCase()
+
+const toTextList = (value?: string | string[] | null): string[] => {
+  if (Array.isArray(value)) {
+    return value.map(item => String(item).trim()).filter(Boolean)
+  }
+
+  return String(value || '')
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean)
+}
 
 const findStaffForPic = (
   staffList: Staff[],
@@ -1113,11 +1132,21 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
         task_pic_name: string | null;
         task_pic_color: string | null;
         job_order_number: string | null;
+        final_report_number: string | null;
         running_number: string;
         created_at: string;
-        additional_remark: string;
+        additional_remark: string | null;
+        time_start: string | null;
+        time_stop: string | null;
+        task_support_ids: string | string[] | null;
+        task_support_names: string | string[] | null;
+        task_support_colors: string | string[] | null;
+        job_status: 'onhold' | 'in-progress' | 'completed' | 'incomplete' | null;
       }) => {
         const staffInfo = findStaffForPic(formattedStaff, task.task_pic_id, task.task_pic_name)
+        const supportIds = toTextList(task.task_support_ids)
+        const supportNames = toTextList(task.task_support_names)
+        const supportColors = toTextList(task.task_support_colors)
         
         return {
           id: task.id,
@@ -1129,7 +1158,15 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
           jobOrderNumber: task.job_order_number || undefined,
           runningNumber: task.running_number,
           createdAt: new Date(task.created_at),
-          notes: task.additional_remark
+          notes: task.additional_remark || undefined,
+          additionalRemark: task.additional_remark || undefined,
+          timeStart: task.time_start || undefined,
+          timeStop: task.time_stop || undefined,
+          task_support_ids: supportIds,
+          task_support_names: supportNames,
+          task_support_colors: supportColors,
+          finalReportNumber: task.final_report_number || undefined,
+          jobStatus: task.job_status || 'onhold',
         }
       })
       setTasks(formattedTasks)

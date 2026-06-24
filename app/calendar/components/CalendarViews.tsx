@@ -488,6 +488,9 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
   const [selectedMoreItems, setSelectedMoreItems] = useState<{date: Date, items: any[], holidays: any[], position: { x: number; y: number }} | null>(null)
   const [selectedYearDate, setSelectedYearDate] = useState<Date | null>(null)
   const [selectedYearPopupPosition, setSelectedYearPopupPosition] = useState<{ x: number; y: number } | null>(null)
+  const hiddenStaffFilterCount = Object.values(staffTaskEventFilters).reduce((count, filter) => {
+    return count + (filter.tasks === false ? 1 : 0) + (filter.events === false ? 1 : 0)
+  }, 0)
   const monthRangeDragStartRef = useRef<Date | null>(null)
   const monthRangeLastDateRef = useRef<Date | null>(null)
   const monthRangeDidMoveRef = useRef(false)
@@ -739,29 +742,25 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
   }
 
   const shouldShowTask = (task: Task): boolean => {
-    if (Object.keys(staffTaskEventFilters).length === 0) return true
-    
-    const picId = task.task_pic_id
-    if (picId && staffTaskEventFilters[picId]?.tasks === true) return true
-    
-    const supportIds = task.task_support_ids || []
-    for (const supportId of supportIds) {
-      if (staffTaskEventFilters[supportId]?.tasks === true) return true
-    }
-    return false
+    const assignedStaffIds = [
+      task.task_pic_id,
+      ...(task.task_support_ids || []),
+    ].filter((staffId): staffId is string => Boolean(staffId))
+
+    if (assignedStaffIds.length === 0) return true
+
+    return assignedStaffIds.some(staffId => staffTaskEventFilters[staffId]?.tasks !== false)
   }
 
   const shouldShowEvent = (event: Event): boolean => {
-    if (Object.keys(staffTaskEventFilters).length === 0) return true
-    
-    const picId = event.event_pic_id
-    if (picId && staffTaskEventFilters[picId]?.events === true) return true
-    
-    const supportIds = event.event_support_ids || []
-    for (const supportId of supportIds) {
-      if (staffTaskEventFilters[supportId]?.events === true) return true
-    }
-    return false
+    const assignedStaffIds = [
+      event.event_pic_id,
+      ...(event.event_support_ids || []),
+    ].filter((staffId): staffId is string => Boolean(staffId))
+
+    if (assignedStaffIds.length === 0) return true
+
+    return assignedStaffIds.some(staffId => staffTaskEventFilters[staffId]?.events !== false)
   }
 
   const getItemsForDate = (date: Date) => {
@@ -1744,9 +1743,9 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
               <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
                 Showing tasks and events for {months[currentDate.getMonth()]} {currentDate.getFullYear()}
               </p>
-              {Object.keys(staffTaskEventFilters).length > 0 && (
+              {hiddenStaffFilterCount > 0 && (
                 <p className="text-xs text-blue-600 mt-1">
-                  Filtered by {Object.values(staffTaskEventFilters).filter(f => f.tasks || f.events).length} staff member(s)
+                  {hiddenStaffFilterCount} staff selection(s) hidden
                 </p>
               )}
             </div>
@@ -1766,8 +1765,8 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                     <div className="text-6xl mb-4">📅</div>
                     <p className="text-base text-gray-500 sm:text-lg dark:text-gray-300">No tasks or events for {months[month]} {year}</p>
                     <p className="text-sm text-gray-400 mt-2 dark:text-gray-500">
-                      {Object.keys(staffTaskEventFilters).length > 0 
-                        ? 'Try selecting different staff filters or disable filters to see more items.'
+                      {hiddenStaffFilterCount > 0 
+                        ? 'Try enabling more staff filters to see more items.'
                         : 'Add tasks or events to get started.'}
                     </p>
                   </div>

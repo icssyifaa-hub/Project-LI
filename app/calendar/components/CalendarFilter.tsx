@@ -51,7 +51,8 @@ export default function CalendarFilter({
   const [internalFilters, setInternalFilters] = useState<StaffFilters>({})
   const hasExternalHandlers = !!externalTaskToggle && !!externalEventToggle
   const staffFilters = hasExternalHandlers ? externalFilters : internalFilters
-  const staffList = users.filter((staff) => staff.role === 'staff')
+  const filterableRoles = new Set(['admin', 'superadmin', 'staff'])
+  const staffList = users.filter((staff) => filterableRoles.has(String(staff.role || '').toLowerCase()))
   const filteredStaff = staffList.filter((staff) =>
     staff.name?.toLowerCase().includes(staffSearch.toLowerCase())
   )
@@ -75,11 +76,11 @@ export default function CalendarFilter({
   }
 
   const getStaffTasksChecked = (staffId: string): boolean => {
-    return staffFilters[staffId]?.tasks || false
+    return staffFilters[staffId]?.tasks ?? true
   }
 
   const getStaffEventsChecked = (staffId: string): boolean => {
-    return staffFilters[staffId]?.events || false
+    return staffFilters[staffId]?.events ?? true
   }
 
   const handleStaffTaskToggle = (staffId: string, value: boolean) => {
@@ -87,14 +88,20 @@ export default function CalendarFilter({
       externalTaskToggle(staffId, value)
     } else {
       setInternalFilters(prev => {
-        const current = prev[staffId] || { tasks: false, events: false }
-        return {
-          ...prev,
-          [staffId]: {
-            tasks: value,
-            events: current.events
-          }
+        const newFilters = { ...prev }
+        const current = prev[staffId] || { tasks: true, events: true }
+        const nextFilter = {
+          tasks: value,
+          events: current.events
         }
+
+        if (nextFilter.tasks && nextFilter.events) {
+          delete newFilters[staffId]
+        } else {
+          newFilters[staffId] = nextFilter
+        }
+
+        return newFilters
       })
     }
   }
@@ -104,14 +111,20 @@ export default function CalendarFilter({
       externalEventToggle(staffId, value)
     } else {
       setInternalFilters(prev => {
-        const current = prev[staffId] || { tasks: false, events: false }
-        return {
-          ...prev,
-          [staffId]: {
-            tasks: current.tasks,
-            events: value
-          }
+        const newFilters = { ...prev }
+        const current = prev[staffId] || { tasks: true, events: true }
+        const nextFilter = {
+          tasks: current.tasks,
+          events: value
         }
+
+        if (nextFilter.tasks && nextFilter.events) {
+          delete newFilters[staffId]
+        } else {
+          newFilters[staffId] = nextFilter
+        }
+
+        return newFilters
       })
     }
   }
@@ -212,11 +225,11 @@ export default function CalendarFilter({
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-muted-foreground" />
                     <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Staff ({staffList.length})
+                      People ({staffList.length})
                     </span>
                   </div>
                   <Badge variant="secondary" className="text-xs">
-                    {totalActiveSelections} active
+                    {totalActiveSelections} visible
                   </Badge>
                 </div>
 
@@ -224,7 +237,7 @@ export default function CalendarFilter({
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                   <Input
-                    placeholder="Search staff..."
+                    placeholder="Search people..."
                     value={staffSearch}
                     onChange={(e) => setStaffSearch(e.target.value)}
                     className="pl-9 h-9 text-sm"
@@ -234,7 +247,7 @@ export default function CalendarFilter({
                 {/* Column Headers with Toggle All Buttons */}
                 <div className="grid grid-cols-12 gap-2 rounded-md bg-muted/30 px-2 py-1">
                   <div className="col-span-5">
-                    <span className="text-xs font-medium text-muted-foreground">Staff</span>
+                    <span className="text-xs font-medium text-muted-foreground">Person</span>
                   </div>
                   <div className="col-span-3 text-center">
                     <Button
@@ -322,10 +335,10 @@ export default function CalendarFilter({
                           />
                         </div>
 
-                        {/* Status Indicator - Green dot when selected */}
+                        {/* Status Indicator - shown when part of this staff row is hidden */}
                         <div className="col-span-1 flex justify-center">
-                          {(showStaffTasks || showStaffEvents) && (
-                            <div className="w-2 h-2 rounded-full bg-green-500" />
+                          {(!showStaffTasks || !showStaffEvents) && (
+                            <div className="h-2 w-2 rounded-full bg-amber-500" />
                           )}
                         </div>
                       </div>
@@ -354,7 +367,7 @@ export default function CalendarFilter({
                   <div className="text-center py-8">
                     <Users className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
                     <p className="text-sm text-muted-foreground">
-                      {staffSearch ? 'No staff matching search' : 'No staff found'}
+                      {staffSearch ? 'No people matching search' : 'No people found'}
                     </p>
                     {staffSearch && (
                       <Button

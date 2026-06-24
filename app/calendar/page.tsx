@@ -151,6 +151,18 @@ export default function CalendarPage() {
   const { users: allUsers, loading: loadingUsers } = useUsers()
   const { holidays: allHolidays, loading: loadingHolidays } = useHolidays()
   const searchParamString = searchParams.toString()
+  const userIdByName = useMemo(() => {
+    const map = new Map<string, string>()
+
+    allUsers.forEach(user => {
+      const nameKey = user.name?.trim().toLowerCase()
+      if (nameKey) {
+        map.set(nameKey, user.id)
+      }
+    })
+
+    return map
+  }, [allUsers])
 
   useEffect(() => {
     localStorage.removeItem('notification_unread_count')
@@ -317,51 +329,35 @@ export default function CalendarPage() {
     }
   }, [tasks, events, view, currentDate])
 
-  const hasActiveStaffFilters = useMemo(() => {
-    return Object.values(staffFilters).some(filter => filter.tasks || filter.events)
-  }, [staffFilters])
-
   const filteredTasks = useMemo(() => {
-    if (!hasActiveStaffFilters) {
-      return tasks
-    }
-    
     return tasks.filter(task => {
-      if (task.task_pic_id && staffFilters[task.task_pic_id]?.tasks === true) {
-        return true
-      }
-      
-      const supportIds = task.task_support_ids || []
-      for (const supportId of supportIds) {
-        if (staffFilters[supportId]?.tasks === true) {
-          return true
-        }
-      }
-      
-      return false
+      const assignedStaffIds = [
+        task.task_pic_id,
+        userIdByName.get((task.task_pic_name || '').trim().toLowerCase()),
+        ...(task.task_support_ids || []),
+        ...(task.task_support_names || []).map(name => userIdByName.get(name.trim().toLowerCase())),
+      ].filter((staffId): staffId is string => Boolean(staffId))
+
+      if (assignedStaffIds.length === 0) return true
+
+      return assignedStaffIds.some(staffId => staffFilters[staffId]?.tasks !== false)
     })
-  }, [tasks, staffFilters, hasActiveStaffFilters])
+  }, [tasks, staffFilters, userIdByName])
 
   const filteredEvents = useMemo(() => {
-    if (!hasActiveStaffFilters) {
-      return events
-    }
-    
     return events.filter(event => {
-      if (event.event_pic_id && staffFilters[event.event_pic_id]?.events === true) {
-        return true
-      }
-      
-      const supportIds = event.event_support_ids || []
-      for (const supportId of supportIds) {
-        if (staffFilters[supportId]?.events === true) {
-          return true
-        }
-      }
-      
-      return false
+      const assignedStaffIds = [
+        event.event_pic_id,
+        userIdByName.get((event.event_pic_name || '').trim().toLowerCase()),
+        ...(event.event_support_ids || []),
+        ...(event.event_support_names || []).map(name => userIdByName.get(name.trim().toLowerCase())),
+      ].filter((staffId): staffId is string => Boolean(staffId))
+
+      if (assignedStaffIds.length === 0) return true
+
+      return assignedStaffIds.some(staffId => staffFilters[staffId]?.events !== false)
     })
-  }, [events, staffFilters, hasActiveStaffFilters])
+  }, [events, staffFilters, userIdByName])
 
   const filteredHolidays = useMemo(() => {
     if (!showHolidays) return []
@@ -375,11 +371,11 @@ export default function CalendarPage() {
   }, [allHolidays, showHolidays])
 
   const activeFilterCount = useMemo(() => {
-    const staffToggleCount = Object.values(staffFilters).reduce((count, filter) => {
-      return count + (filter.tasks ? 1 : 0) + (filter.events ? 1 : 0)
+    const hiddenStaffToggleCount = Object.values(staffFilters).reduce((count, filter) => {
+      return count + (filter.tasks === false ? 1 : 0) + (filter.events === false ? 1 : 0)
     }, 0)
 
-    return staffToggleCount + (showHolidays ? 1 : 0)
+    return hiddenStaffToggleCount + (showHolidays ? 1 : 0)
   }, [staffFilters, showHolidays])
   
   const viewOptions = useMemo(() => [
@@ -755,13 +751,13 @@ export default function CalendarPage() {
       const newFilters = { ...prev }
       const nextFilter = {
         tasks: value,
-        events: prev[staffId]?.events || false
+        events: prev[staffId]?.events ?? true
       }
 
-      if (nextFilter.tasks || nextFilter.events) {
-        newFilters[staffId] = nextFilter
-      } else {
+      if (nextFilter.tasks && nextFilter.events) {
         delete newFilters[staffId]
+      } else {
+        newFilters[staffId] = nextFilter
       }
       console.log('📊 New staff filters:', newFilters)
       return newFilters
@@ -773,14 +769,14 @@ export default function CalendarPage() {
     setStaffFilters(prev => {
       const newFilters = { ...prev }
       const nextFilter = {
-        tasks: prev[staffId]?.tasks || false,
+        tasks: prev[staffId]?.tasks ?? true,
         events: value
       }
 
-      if (nextFilter.tasks || nextFilter.events) {
-        newFilters[staffId] = nextFilter
-      } else {
+      if (nextFilter.tasks && nextFilter.events) {
         delete newFilters[staffId]
+      } else {
+        newFilters[staffId] = nextFilter
       }
       console.log('📊 New staff filters:', newFilters)
       return newFilters

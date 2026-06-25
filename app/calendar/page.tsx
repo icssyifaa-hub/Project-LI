@@ -843,39 +843,39 @@ export default function CalendarPage() {
 
   return (
     <div className="calendar-page-shell flex min-h-[calc(100vh-4rem)] flex-col overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100 lg:h-[calc(100vh-4rem)]">
-      <div className="calendar-header-surface border-b border-gray-200 bg-white px-3 py-2 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:px-4">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-4">
-            <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Calendar</h1>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" onClick={handlePrev} className="calendar-toolbar-button">
+      <div className="calendar-header-surface border-b border-gray-200 bg-white px-2 py-2 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:px-4">
+        <div className="flex flex-col gap-2 sm:gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="grid min-w-0 grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-2 sm:gap-4">
+            <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100 sm:text-xl">Calendar</h1>
+            <div className="flex items-center gap-1 sm:gap-2">
+              <Button variant="outline" size="icon" onClick={handlePrev} className="calendar-toolbar-button h-8 w-8 sm:h-9 sm:w-9">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="icon" onClick={handleNext} className="calendar-toolbar-button">
+              <Button variant="outline" size="icon" onClick={handleNext} className="calendar-toolbar-button h-8 w-8 sm:h-9 sm:w-9">
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
 
-            <span className="min-w-0 truncate text-base font-medium text-gray-700 dark:text-gray-200 sm:text-lg">{title}</span>
+            <span className="min-w-0 truncate text-sm font-medium text-gray-700 dark:text-gray-200 sm:text-lg">{title}</span>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
             <Button
               variant={showFilter ? "default" : "outline"}
               onClick={handleFilterToggle}
               aria-label="Filter"
-              className={`calendar-toolbar-button flex items-center space-x-2 relative ${showFilter ? 'calendar-toolbar-button-active' : ''}`}
+              className={`calendar-toolbar-button relative flex h-9 min-w-0 w-full items-center justify-center gap-2 px-2 sm:w-auto sm:px-4 ${showFilter ? 'calendar-toolbar-button-active' : ''}`}
             >
-              <Filter className="h-4 w-4" />
-              <span>Filter</span>
+              <Filter className="h-4 w-4 shrink-0" />
+              <span className="truncate">Filter</span>
             </Button>
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="calendar-toolbar-button flex items-center space-x-2 bg-white">
-                  <CalendarDays className="h-4 w-4" />
-                  <span>{viewOptions.find(v => v.value === view)?.label}</span>
-                  <ChevronDown className="h-4 w-4" />
+                <Button variant="outline" className="calendar-toolbar-button flex h-9 min-w-0 w-full items-center justify-center gap-2 bg-white px-2 sm:w-auto sm:px-4">
+                  <CalendarDays className="h-4 w-4 shrink-0" />
+                  <span className="min-w-0 truncate">{viewOptions.find(v => v.value === view)?.label}</span>
+                  <ChevronDown className="h-4 w-4 shrink-0" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-900">
@@ -897,10 +897,10 @@ export default function CalendarPage() {
               variant={showNotifications ? "default" : "outline"}
               onClick={handleNotificationsToggle}
               aria-label="Notifications"
-              className={`calendar-toolbar-button flex items-center space-x-2 relative ${showNotifications ? 'calendar-toolbar-button-active' : ''}`}
+              className={`calendar-toolbar-button relative flex h-9 min-w-0 w-full items-center justify-center gap-2 px-2 sm:w-auto sm:px-4 ${showNotifications ? 'calendar-toolbar-button-active' : ''}`}
             >
-              <Bell className="h-4 w-4" />
-              <span>Notifications</span>
+              <Bell className="h-4 w-4 shrink-0" />
+              <span className="min-w-0 truncate">Notifications</span>
               {notificationUnreadCount > 0 && !showNotifications && badgeCountsLoaded && (
                 <span className="notification-count-badge absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center px-1">
                   {notificationUnreadCount > 99 ? '99+' : notificationUnreadCount}
@@ -912,10 +912,10 @@ export default function CalendarPage() {
               variant={showTaskInbox ? "default" : "outline"}
               onClick={handleTaskInboxToggle}
               aria-label="Inbox"
-              className={`calendar-toolbar-button flex items-center space-x-2 relative ${showTaskInbox ? 'calendar-toolbar-button-active' : ''}`}
+              className={`calendar-toolbar-button relative flex h-9 min-w-0 w-full items-center justify-center gap-2 px-2 sm:w-auto sm:px-4 ${showTaskInbox ? 'calendar-toolbar-button-active' : ''}`}
             >
-              <Inbox className="h-4 w-4" />
-              <span>Inbox</span>
+              <Inbox className="h-4 w-4 shrink-0" />
+              <span className="min-w-0 truncate">Inbox</span>
               {inboxUnreadCount > 0 && !showTaskInbox && badgeCountsLoaded && (
                 <span className="notification-count-badge absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center px-1">
                   {inboxUnreadCount > 99 ? '99+' : inboxUnreadCount}

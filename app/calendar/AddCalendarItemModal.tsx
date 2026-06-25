@@ -224,7 +224,6 @@ export default function AddCalendarItemModal({
   const initialLoadDone = useRef(false)
   const [isCheckingRunningNumber, setIsCheckingRunningNumber] = useState(false)
   const [runningNumberValid, setRunningNumberValid] = useState<boolean | null>(null)
-  const [runningNumberError, setRunningNumberError] = useState<string>('')
   
   const getCurrentTaskStatus = useCallback(() => {
     return computeTaskStatus({
@@ -275,7 +274,6 @@ export default function AddCalendarItemModal({
   const validateRunningNumber = useCallback(async (runningNumber: string) => {
     if (!runningNumber || runningNumber.trim() === '') {
       setRunningNumberValid(null)
-      setRunningNumberError('')
       setErrors(prev => {
         const newErrors = { ...prev }
         delete newErrors.runningNumber
@@ -287,7 +285,6 @@ export default function AddCalendarItemModal({
     // Basic format validation
     if (runningNumber.length < 3) {
       setRunningNumberValid(false)
-      setRunningNumberError('Running number must be at least 3 characters')
       setErrors(prev => ({ ...prev, runningNumber: 'Running number must be at least 3 characters' }))
       return false
     }
@@ -302,10 +299,8 @@ export default function AddCalendarItemModal({
     
     if (exists) {
       const errorMsg = `Running number "${runningNumber}" already exists. Please use a different number.`
-      setRunningNumberError(errorMsg)
       setErrors(prev => ({ ...prev, runningNumber: errorMsg }))
     } else {
-      setRunningNumberError('')
       setErrors(prev => {
         const newErrors = { ...prev }
         delete newErrors.runningNumber
@@ -500,7 +495,6 @@ export default function AddCalendarItemModal({
     setErrors({})
     setTouched({})
     setRunningNumberValid(null)
-    setRunningNumberError('')
     setIsCheckingRunningNumber(false)
     
   }, [])
@@ -616,7 +610,6 @@ export default function AddCalendarItemModal({
     setShowJobOrderNumber(!!(item.job_order_number || item.jobOrderNumber))
     setShowFinalReport(!!(item.final_report_number))
     setRunningNumberValid(true)
-    setRunningNumberError('')
   }, [])
 
   const populateEventForm = useCallback((item: any) => {
@@ -1102,7 +1095,6 @@ export default function AddCalendarItemModal({
       if (runningExists) {
         duplicateErrors.runningNumber = `Running number "${runningNumber}" already exists. Please use a different number.`
         setRunningNumberValid(false)
-        setRunningNumberError(`Running number "${runningNumber}" already exists`)
       }
       if (jobOrderExists) {
         duplicateErrors.jobOrderNumber = `Job Order Number "${jobOrderNumber}" already exists. Please use a different number.`
@@ -1389,7 +1381,6 @@ export default function AddCalendarItemModal({
                     setErrors({})
                     setTouched({})
                     setRunningNumberValid(null)
-                    setRunningNumberError('')
                   }}
                   disabled={eventTabDisabled}
                   title={eventTabDisabled && lockedEditType === 'task' ? lockedTypeTooltip : undefined}
@@ -1472,8 +1463,12 @@ export default function AddCalendarItemModal({
                             setTouched(prev => ({ ...prev, runningNumber: true }))
                             if (runningNumberValid === false) {
                               setRunningNumberValid(null)
-                              setRunningNumberError('')
                             }
+                            setErrors(prev => {
+                              const nextErrors = { ...prev }
+                              delete nextErrors.runningNumber
+                              return nextErrors
+                            })
                           }} 
                           onBlur={() => {
                             if (!selectedItem && taskData.runningNumber) {
@@ -1516,12 +1511,6 @@ export default function AddCalendarItemModal({
                         <p className="text-xs text-green-600 flex items-center">
                           <AlertCircle className="h-3 w-3 mr-1" />
                           ✓ Running number is available
-                        </p>
-                      )}
-                      {!selectedItem && (runningNumberValid === false || runningNumberError) && (
-                        <p className="text-xs text-red-600 flex items-center">
-                          <AlertCircle className="h-3 w-3 mr-1" />
-                          {runningNumberError || 'This running number already exists! Please use a different number.'}
                         </p>
                       )}
                       <ErrorMessage field="runningNumber" />
@@ -1717,7 +1706,10 @@ export default function AddCalendarItemModal({
                           <SelectTrigger className={`${inputClass} ${touched.task_pic_id && errors.task_pic_id ? invalidInputClass : ''}`}>
                             <SelectValue placeholder="Select main PIC" />
                           </SelectTrigger>
-                          <SelectContent className="max-h-[45vh] bg-white border border-gray-200 shadow-lg">
+                          <SelectContent
+                            className="max-h-[45vh] overflow-hidden border border-gray-200 bg-white shadow-lg"
+                            viewportClassName="h-auto max-h-52 overflow-y-auto overscroll-contain"
+                          >
                             {staffList.map((staff) => (
                               <SelectItem key={staff.id} value={staff.id} className="hover:bg-gray-100 text-gray-900">
                                 <div className="flex items-center gap-2">
@@ -1960,7 +1952,10 @@ export default function AddCalendarItemModal({
                             <SelectTrigger className={`${inputClass} ${touched.event_pic_id && errors.event_pic_id ? invalidInputClass : ''}`}>
                               <SelectValue placeholder="Select main PIC" />
                             </SelectTrigger>
-                            <SelectContent className="max-h-[45vh] border border-gray-200 bg-white shadow-lg">
+                            <SelectContent
+                              className="max-h-[45vh] overflow-hidden border border-gray-200 bg-white shadow-lg"
+                              viewportClassName="h-auto max-h-52 overflow-y-auto overscroll-contain"
+                            >
                               {staffList.map((staff) => (
                                 <SelectItem key={staff.id} value={staff.id} className="text-gray-900 hover:bg-gray-100">
                                   <div className="flex items-center gap-2">

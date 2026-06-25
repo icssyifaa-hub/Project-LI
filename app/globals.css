@@ -24,6 +24,9 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 221.2 83.2% 53.3%;
     --radius: 0.5rem;
+    --scrollbar-track: 243 244 246;
+    --scrollbar-thumb: 156 163 175;
+    --scrollbar-thumb-hover: 107 114 128;
   }
 
   .dark {
@@ -46,6 +49,64 @@
     --border: 217 25% 24%;
     --input: 217 25% 24%;
     --ring: 213 94% 68%;
+    --scrollbar-track: 17 24 39;
+    --scrollbar-thumb: 100 116 139;
+    --scrollbar-thumb-hover: 148 163 184;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  * {
+    scrollbar-color: rgb(var(--scrollbar-thumb)) rgb(var(--scrollbar-track));
+    scrollbar-width: thin;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: rgb(var(--scrollbar-track));
+  }
+
+  *::-webkit-scrollbar-thumb {
+    min-height: 28px;
+    border: 2px solid rgb(var(--scrollbar-track));
+    border-radius: 999px;
+    background: rgb(var(--scrollbar-thumb));
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--scrollbar-thumb-hover));
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: rgb(var(--scrollbar-track));
+  }
+
+  [data-radix-select-viewport] {
+    -ms-overflow-style: auto !important;
+    scroll-behavior: smooth;
+    scrollbar-width: thin !important;
+  }
+
+  [data-radix-select-viewport]::-webkit-scrollbar {
+    display: block !important;
+  }
+
+  :where(
+    [class~='overflow-auto'],
+    [class~='overflow-y-auto'],
+    [class~='overflow-y-scroll'],
+    [data-radix-scroll-area-viewport],
+    [data-radix-select-viewport],
+    [cmdk-list],
+    [cmdk-group]
+  ) {
+    scroll-behavior: smooth;
   }
 
   body {

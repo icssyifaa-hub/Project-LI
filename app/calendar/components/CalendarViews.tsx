@@ -391,10 +391,18 @@ const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, position,
     : undefined
 
   return (
-    <div className={`pointer-events-none fixed inset-0 z-[110] p-3 sm:p-4 ${position ? '' : 'flex items-center justify-center'}`}>
+    <div
+      className={`fixed inset-0 z-[110] p-3 sm:p-4 ${
+        position
+          ? 'pointer-events-none'
+          : 'flex items-center justify-center bg-black/50'
+      }`}
+      onClick={position ? undefined : onClose}
+    >
       <div
         className={`pointer-events-auto max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg bg-white shadow-2xl dark:bg-gray-900 dark:text-gray-100 ${position ? 'fixed' : ''}`}
         style={detailStyle}
+        onClick={(event) => event.stopPropagation()}
       >
         <div className={`flex items-center justify-between gap-3 rounded-t-lg border-b p-4 ${getHeaderColorClass()} text-white`}>
           <h2 className="min-w-0 truncate text-lg font-semibold">

@@ -686,7 +686,10 @@ function AddTaskModal({
                   <span className="text-muted-foreground">Select PIC</span>
                 )}
               </SelectTrigger>
-              <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
+              <SelectContent
+                className="max-h-80 overflow-hidden border border-gray-200 bg-white shadow-lg"
+                viewportClassName="h-auto max-h-52 overflow-y-auto overscroll-contain"
+              >
                 {activeStaffList.map((staff) => (
                   <SelectItem key={staff.id} value={staff.id} textValue={staff.name}>
                     <div className="flex items-center gap-2">
@@ -1020,7 +1023,10 @@ function EditTaskModal({
                   <span className="text-muted-foreground">Select PIC</span>
                 )}
               </SelectTrigger>
-              <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-80">
+              <SelectContent
+                className="max-h-80 overflow-hidden border border-gray-200 bg-white shadow-lg"
+                viewportClassName="h-auto max-h-52 overflow-y-auto overscroll-contain"
+              >
                 {selectedPicValue && selectedPicLabel && !hasSelectedPicOption && (
                   <SelectItem value={selectedPicValue} textValue={selectedPicLabel}>
                     <div className="flex items-center gap-2">

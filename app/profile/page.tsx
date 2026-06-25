@@ -40,21 +40,21 @@ import {
 import { getColorClass, getDotClass, getSolidClass, getItemBgClass } from '@/lib/colors'
 
 const staffColors = [
-  { name: 'Blue', value: 'blue', bgClass: 'bg-blue-500', bgLightClass: 'bg-blue-100', textClass: 'text-blue-600', ringClass: 'ring-blue-200', borderClass: 'border-blue-200', hoverBgClass: 'hover:bg-blue-600' },
-  { name: 'Green', value: 'green', bgClass: 'bg-green-500', bgLightClass: 'bg-green-100', textClass: 'text-green-600', ringClass: 'ring-green-200', borderClass: 'border-green-200', hoverBgClass: 'hover:bg-green-600' },
-  { name: 'Purple', value: 'purple', bgClass: 'bg-purple-500', bgLightClass: 'bg-purple-100', textClass: 'text-purple-600', ringClass: 'ring-purple-200', borderClass: 'border-purple-200', hoverBgClass: 'hover:bg-purple-600' },
-  { name: 'Teal', value: 'teal', bgClass: 'bg-teal-500', bgLightClass: 'bg-teal-100', textClass: 'text-teal-600', ringClass: 'ring-teal-200', borderClass: 'border-teal-200', hoverBgClass: 'hover:bg-teal-600' },
-  { name: 'Yellow', value: 'yellow', bgClass: 'bg-yellow-500', bgLightClass: 'bg-yellow-100', textClass: 'text-yellow-600', ringClass: 'ring-yellow-200', borderClass: 'border-yellow-200', hoverBgClass: 'hover:bg-yellow-600' },
-  { name: 'Pink', value: 'pink', bgClass: 'bg-pink-500', bgLightClass: 'bg-pink-100', textClass: 'text-pink-600', ringClass: 'ring-pink-200', borderClass: 'border-pink-200', hoverBgClass: 'hover:bg-pink-600' },
-  { name: 'Indigo', value: 'indigo', bgClass: 'bg-indigo-500', bgLightClass: 'bg-indigo-100', textClass: 'text-indigo-600', ringClass: 'ring-indigo-200', borderClass: 'border-indigo-200', hoverBgClass: 'hover:bg-indigo-600' },
-  { name: 'Orange', value: 'orange', bgClass: 'bg-orange-500', bgLightClass: 'bg-orange-100', textClass: 'text-orange-600', ringClass: 'ring-orange-200', borderClass: 'border-orange-200', hoverBgClass: 'hover:bg-orange-600' },
-  { name: 'Cyan', value: 'cyan', bgClass: 'bg-cyan-500', bgLightClass: 'bg-cyan-100', textClass: 'text-cyan-600', ringClass: 'ring-cyan-200', borderClass: 'border-cyan-200', hoverBgClass: 'hover:bg-cyan-600' },
-  { name: 'Red', value: 'red', bgClass: 'bg-red-500', bgLightClass: 'bg-red-100', textClass: 'text-red-600', ringClass: 'ring-red-200', borderClass: 'border-red-200', hoverBgClass: 'hover:bg-red-600' },
-  { name: 'Rose', value: 'rose', bgClass: 'bg-rose-500', bgLightClass: 'bg-rose-100', textClass: 'text-rose-600', ringClass: 'ring-rose-200', borderClass: 'border-rose-200', hoverBgClass: 'hover:bg-rose-600' },
-  { name: 'Brown', value: 'brown', bgClass: 'bg-amber-800', bgLightClass: 'bg-amber-100', textClass: 'text-amber-800', ringClass: 'ring-amber-200', borderClass: 'border-amber-200', hoverBgClass: 'hover:bg-amber-800' },
-  { name: 'Lime', value: 'lime', bgClass: 'bg-lime-500', bgLightClass: 'bg-lime-100', textClass: 'text-lime-600', ringClass: 'ring-lime-200', borderClass: 'border-lime-200', hoverBgClass: 'hover:bg-lime-600' },
-  { name: 'Gray', value: 'gray', bgClass: 'bg-gray-500', bgLightClass: 'bg-gray-100', textClass: 'text-gray-600', ringClass: 'ring-gray-200', borderClass: 'border-gray-200', hoverBgClass: 'hover:bg-gray-600' },
-  { name: 'Peach', value: 'peach', bgClass: 'bg-orange-300', bgLightClass: 'bg-orange-100', textClass: 'text-orange-700', ringClass: 'ring-orange-200', borderClass: 'border-orange-200', hoverBgClass: 'hover:bg-orange-400' },
+  { name: 'Blue', value: 'blue', bgClass: 'bg-blue-500' },
+  { name: 'Green', value: 'green', bgClass: 'bg-green-500' },
+  { name: 'Purple', value: 'purple', bgClass: 'bg-purple-500' },
+  { name: 'Teal', value: 'teal', bgClass: 'bg-teal-500' },
+  { name: 'Yellow', value: 'yellow', bgClass: 'bg-yellow-500' },
+  { name: 'Pink', value: 'pink', bgClass: 'bg-pink-500' },
+  { name: 'Indigo', value: 'indigo', bgClass: 'bg-indigo-500' },
+  { name: 'Orange', value: 'orange', bgClass: 'bg-orange-500' },
+  { name: 'Cyan', value: 'cyan', bgClass: 'bg-cyan-500' },
+  { name: 'Red', value: 'red', bgClass: 'bg-red-500' },
+  { name: 'Rose', value: 'rose', bgClass: 'bg-rose-500' },
+  { name: 'Brown', value: 'brown', bgClass: 'bg-amber-800' },
+  { name: 'Lime', value: 'lime', bgClass: 'bg-lime-500' },
+  { name: 'Gray', value: 'gray', bgClass: 'bg-gray-500' },
+  { name: 'Peach', value: 'peach', bgClass: 'bg-orange-300' },
 ]
 
 const getColorByValue = (value: string) => {
@@ -131,7 +131,7 @@ export default function ProfilePage() {
     const currentPwd = passwordData.currentPassword
 
     setPasswordChecks({
-      length: newPwd.length >= 6,
+      length: newPwd.length >= 8,
       hasNumber: /\d/.test(newPwd),
       hasLetter: /[a-zA-Z]/.test(newPwd),
       notSameAsCurrent: newPwd !== currentPwd && currentPwd !== '',
@@ -142,8 +142,8 @@ export default function ProfilePage() {
     if (touchedFields.newPassword) {
       if (newPwd && newPwd === currentPwd) {
         newErrors.newPassword = 'New password must be different from your current password'
-      } else if (newPwd && newPwd.length < 6) {
-        newErrors.newPassword = 'Password is too short - minimum 6 characters'
+      } else if (newPwd && newPwd.length < 8) {
+        newErrors.newPassword = 'Password is too short - minimum 8 characters'
       } else if (newPwd && !/\d/.test(newPwd)) {
         newErrors.newPassword = 'Add at least one number (0-9)'
       } else if (newPwd && !/[a-zA-Z]/.test(newPwd)) {
@@ -378,7 +378,7 @@ export default function ProfilePage() {
     if (!passwordChecks.length || !passwordChecks.hasNumber || !passwordChecks.hasLetter) {
       toast({ 
         title: "Password requirements", 
-        description: "Password must be 6+ chars with letters and numbers", 
+        description: "Password must be 8+ chars with letters and numbers",
         variant: "destructive" 
       })
       return
@@ -402,29 +402,34 @@ export default function ProfilePage() {
 
     setSaving(true)
     try {
-      const { data: userData, error: verifyError } = await supabase
-        .from('users')
-        .select('password')
-        .eq('id', user.id)
-        .eq('password', passwordData.currentPassword)
-        .single()
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser()
 
-      if (verifyError || !userData) {
-        setErrors(prev => ({ ...prev, currentPassword: 'Current password is incorrect' }))
-        toast({ 
-          title: "Incorrect password", 
-          description: "The current password you entered is wrong", 
-          variant: "destructive" 
+      if (authUser?.email) {
+        const { error: verificationError } = await supabase.auth.signInWithPassword({
+          email: authUser.email,
+          password: passwordData.currentPassword,
         })
-        return
+
+        if (verificationError) {
+          setErrors(prev => ({ ...prev, currentPassword: 'Current password is incorrect' }))
+          toast({
+            title: "Current password is incorrect",
+            description: "Please check your current password and try again",
+            variant: "destructive",
+          })
+          return
+        }
+
+        const { error: authError } = await supabase.auth.updateUser({
+          password: passwordData.newPassword,
+        })
+
+        if (authError) throw authError
+      } else {
+        throw new Error('Your authentication session has expired. Please sign in again.')
       }
-
-      const { error } = await supabase
-        .from('users')
-        .update({ password: passwordData.newPassword })
-        .eq('id', user.id)
-
-      if (error) throw error
 
       toast({ 
         title: "Password changed!", 
@@ -478,7 +483,7 @@ export default function ProfilePage() {
 
   const currentColorValue = profileData.color
   const currentColor = getColorByValue(currentColorValue)
-  const avatarTextClass = ['lime', 'yellow', 'peach'].includes(currentColorValue) ? 'text-gray-900' : 'text-white'
+  const avatarTextClass = 'text-white'
 
   if (loading) {
     return (
@@ -805,7 +810,7 @@ export default function ProfilePage() {
                   <p className="font-medium text-gray-900 mb-3">Password requirements:</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {[
-                      { label: 'At least 6 characters', check: passwordChecks.length },
+                      { label: 'At least 8 characters', check: passwordChecks.length },
                       { label: 'Contains at least 1 number', check: passwordChecks.hasNumber },
                       { label: 'Contains at least 1 letter', check: passwordChecks.hasLetter },
                       { label: 'Different from current', check: passwordChecks.notSameAsCurrent }

@@ -1,9 +1,10 @@
 'use client'
 
 import Image from 'next/image'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { getCurrentAppUser, storeAppUser, type AppUser } from '@/lib/auth/client'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
 import {
@@ -75,21 +76,25 @@ export default function LoginPage() {
 
   const router = useRouter()
   const { toast } = useToast()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
-    const userData = localStorage.getItem('user')
+    const redirectAuthenticatedUser = async () => {
+      const profile = await getCurrentAppUser(supabase)
+      if (!profile) return
 
-    if (userData) {
-      const user = JSON.parse(userData)
-
-      if (user.role === 'admin') {
-        router.push('/settings')
-      } else {
-        router.push('/calendar')
-      }
+      storeAppUser(profile)
+      router.replace(
+        profile.must_change_password
+          ? '/change-password'
+          : profile.role === 'admin'
+            ? '/settings'
+            : '/calendar'
+      )
     }
-  }, [router])
+
+    redirectAuthenticatedUser()
+  }, [router, supabase])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -110,74 +115,64 @@ export default function LoginPage() {
     setLoginFeedback({ type: 'info', message: 'Checking your account...' })
 
     try {
-      const { data: user, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', cleanEmail)
-        .maybeSingle()
+      const completeLogin = async (user: AppUser) => {
+        storeAppUser(user)
+        setLoginFeedback({ type: 'success', message: 'Login successful. Redirecting...' })
 
-      if (error) {
-        setLoginFeedback({ type: 'error', message: 'Unable to check your account. Please try again.' })
         toast({
-          title: 'Login Error',
-          description: 'Unable to check your account. Please try again.',
-          variant: 'destructive',
+          title: 'Welcome!',
+          description: `Logged in as ${user.name}`,
         })
-        return
+
+        router.push(
+          user.must_change_password
+            ? '/change-password'
+            : user.role === 'admin'
+              ? '/settings'
+              : '/calendar'
+        )
+        router.refresh()
       }
 
-      if (!user) {
-        setLoginFeedback({ type: 'error', message: 'Email address not found.' })
-        toast({
-          title: 'Login Failed',
-          description: 'Email address not found.',
-          variant: 'destructive',
-        })
-        return
-      }
-
-      if (user.password !== password) {
-        setLoginFeedback({ type: 'error', message: 'Incorrect password. Please try again.' })
-        toast({
-          title: 'Login Failed',
-          description: 'Incorrect password. Please try again.',
-          variant: 'destructive',
-        })
-        return
-      }
-
-      if (!user.is_active) {
-        setLoginFeedback({ type: 'error', message: 'This account has been deactivated.' })
-        setDeactivatedUser({
-          name: user.name,
-          email: user.email,
-        })
-        setShowDeactivatedDialog(true)
-        return
-      }
-
-      const userData = {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        color: user.color || 'blue',
-        is_active: user.is_active,
-      }
-
-      localStorage.setItem('user', JSON.stringify(userData))
-      setLoginFeedback({ type: 'success', message: 'Login successful. Redirecting...' })
-
-      toast({
-        title: 'Welcome!',
-        description: `Logged in as ${user.name}`,
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password,
       })
 
-      if (user.role === 'admin') {
-        router.push('/settings')
-      } else {
-        router.push('/calendar')
+      if (!authError) {
+        const authProfile = await getCurrentAppUser(supabase)
+
+        if (authProfile) {
+          await completeLogin(authProfile)
+          return
+        }
+
+        const { data: inactiveProfile } = await supabase
+          .from('users')
+          .select('name, email, is_active')
+          .ilike('email', cleanEmail)
+          .maybeSingle()
+
+        await supabase.auth.signOut()
+
+        if (inactiveProfile && !inactiveProfile.is_active) {
+          setLoginFeedback({ type: 'error', message: 'This account has been deactivated.' })
+          setDeactivatedUser({
+            name: inactiveProfile.name,
+            email: inactiveProfile.email,
+          })
+          setShowDeactivatedDialog(true)
+          return
+        }
+
+        setLoginFeedback({
+          type: 'error',
+          message: 'Your account profile is not linked correctly. Please contact an administrator.',
+        })
+        return
       }
+
+      setLoginFeedback({ type: 'error', message: 'Incorrect email or password.' })
     } catch (error) {
       console.error('Login error:', error)
 

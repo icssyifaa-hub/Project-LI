@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
@@ -15,18 +15,10 @@ import {
   User
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { getCurrentAppUser, storeAppUser, type AppUser } from '@/lib/auth/client'
 import { getColorClass, getSolidClass, getItemBgClass } from '@/lib/colors'
 
 const SIDEBAR_STORAGE_KEY = 'ics_sidebar_open'
-
-type AppUser = {
-  id?: string
-  name?: string
-  email?: string
-  role?: string
-  color?: string
-  is_active?: boolean
-}
 
 export default function ClientLayout({
   children,
@@ -42,7 +34,8 @@ export default function ClientLayout({
   
   const router = useRouter()
   const pathname = usePathname()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
+  const isStandaloneAuthPage = ['/login', '/change-password'].includes(pathname)
 
   useEffect(() => {
     try {
@@ -52,27 +45,7 @@ export default function ClientLayout({
     }
   }, [])
 
-  useEffect(() => {
-    try {
-      const userData = localStorage.getItem('user')
-      
-      if (!userData && pathname !== '/login') {
-        router.push('/login')
-      } else {
-        const parsedUser = userData ? JSON.parse(userData) : null
-        setUser(parsedUser)
-        if (parsedUser?.id) {
-          fetchUserColor(parsedUser.id)
-        }
-      }
-    } catch (error) {
-      console.error('Error loading user:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [pathname, router])
-
-  const fetchUserColor = async (userId: string) => {
+  const fetchUserColor = useCallback(async (userId: string) => {
     try {
       const { data, error } = await supabase
         .from('users')
@@ -86,7 +59,37 @@ export default function ClientLayout({
     } catch (error) {
       console.error('Error fetching user color:', error)
     }
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const authProfile = await getCurrentAppUser(supabase)
+
+        if (authProfile) {
+          storeAppUser(authProfile)
+          setUser(authProfile)
+          setUserColor(authProfile.color || 'blue')
+          if (authProfile.must_change_password && pathname !== '/change-password') {
+            router.replace('/change-password')
+          }
+          await fetchUserColor(authProfile.id)
+          return
+        }
+
+        storeAppUser(null)
+        setUser(null)
+        if (!isStandaloneAuthPage) router.replace('/login')
+      } catch (error) {
+        console.error('Error loading user:', error)
+        if (!isStandaloneAuthPage) router.replace('/login')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadUser()
+  }, [pathname, router, isStandaloneAuthPage, supabase, fetchUserColor])
 
   useEffect(() => {
     const syncUserFromStorage = () => {
@@ -96,6 +99,8 @@ export default function ClientLayout({
         setUser(parsedUser)
         setUserColor(parsedUser.color || 'blue')
         if (parsedUser?.id) fetchUserColor(parsedUser.id)
+      } else {
+        setUser(null)
       }
     }
 
@@ -111,11 +116,14 @@ export default function ClientLayout({
       window.removeEventListener('storage', syncUserFromStorage)
       window.removeEventListener('user-profile-updated', handleProfileUpdated)
     }
-  }, [])
+  }, [fetchUserColor])
 
-  const handleLogout = () => {
-    localStorage.removeItem('user')
-    router.push('/login')
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    storeAppUser(null)
+    setUser(null)
+    router.replace('/login')
+    router.refresh()
   }
 
   const toggleDrawer = () => {
@@ -138,7 +146,7 @@ export default function ClientLayout({
   const currentLightBgClass = getItemBgClass(userColor)
   const profileAvatarClass = `profile-avatar flex shrink-0 items-center justify-center rounded-full font-semibold shadow-sm ${currentSolidClass}`
 
-  if (pathname === '/login') {
+  if (isStandaloneAuthPage) {
     return (
       <div className="min-h-screen flex flex-col bg-background text-foreground">
         <main className="flex-1">{children}</main>
@@ -158,7 +166,7 @@ export default function ClientLayout({
     return null
   }
 
-  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
+  const isAdmin = user?.role === 'admin'
   const isCalendarPage = pathname === '/calendar'
   const isSettingsPage = pathname === '/settings'
   const isListPage = pathname === '/job-orders' || pathname === '/event-lists'
@@ -257,7 +265,7 @@ export default function ClientLayout({
                       </div>
                       <div className="flex items-center mt-2">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          user.role === 'admin' || user.role === 'superadmin'
+                          user.role === 'admin'
                             ? 'bg-purple-100 text-purple-700' 
                             : `${currentLightBgClass} ${currentTextClass}`
                         }`}>

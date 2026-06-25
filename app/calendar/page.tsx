@@ -138,7 +138,6 @@ export default function CalendarPage() {
   const { 
     tasks, 
     events, 
-    holidays,
     loading, 
     user,
     saveTask, 
@@ -148,8 +147,8 @@ export default function CalendarPage() {
     refresh,
   } = useCalendarData(currentDate, view)
 
-  const { users: allUsers, loading: loadingUsers } = useUsers()
-  const { holidays: allHolidays, loading: loadingHolidays } = useHolidays()
+  const { users: allUsers } = useUsers()
+  const { holidays: allHolidays } = useHolidays()
   const searchParamString = searchParams.toString()
   const userIdByName = useMemo(() => {
     const map = new Map<string, string>()
@@ -555,18 +554,6 @@ export default function CalendarPage() {
     }
   }, [currentDate, view])
 
-  const handleDateClick = useCallback((date: Date) => {
-    const fixedDate = createStableDate(date)
-    setCurrentDate(fixedDate)
-    setSelectedDate(fixedDate)
-    setSelectedEndDate(null)
-    setSelectedTask(null)
-    setSelectedEvent(null)
-    setSelectedItemType(null)
-    setPrefilledTaskData(null)
-    setShowItemModal(true)
-  }, [])
-
   const handleAddClick = useCallback((date: Date, endDate?: Date | null) => {
     const fixedDate = createStableDate(date)
     const fixedEndDate = endDate ? createStableDate(endDate) : null
@@ -656,10 +643,6 @@ export default function CalendarPage() {
       setDraggedOverDate(null)
     }
   }, [draggedTask])
-
-  const handleDragLeave = useCallback(() => {
-    setDraggedOverDate(null)
-  }, [])
 
   // ========== FIXED handleSaveItem - NO reminders ==========
   const handleSaveItem = useCallback(async (data: any, type: 'event' | 'task') => {
@@ -823,7 +806,6 @@ export default function CalendarPage() {
       id: user.id,
       name: user.name,
       email: user.email || '',
-      password: user.password || '',
       user_id: user.id,
       role: user.role,
       color: user.color || 'blue',
@@ -970,10 +952,8 @@ export default function CalendarPage() {
                   onAddClick={handleAddClick}
                   onEditTask={handleEditTask}
                   onEditEvent={handleEditEvent}
-                  onDateClick={handleDateClick}
                   onDragOver={handleDragOver}
                   onDrop={handleDrop}
-                  onDragLeave={handleDragLeave}
                   draggedOverDate={draggedOverDate}
                   isDragging={isDragging}
                   focusedDateKey={focusedDateKey}

@@ -1,16 +1,17 @@
 
 export type User = {
   id: string
+  auth_user_id?: string | null
   name: string
   email: string
-  password: string
   role: 'admin' | 'staff'
   is_active: boolean
   created_at: string
   updated_at?: string
   phone?: string
   color?: string
-  notification_settings?: any
+  must_change_password?: boolean
+  auth_status?: 'legacy' | 'active' | 'password_change_required'
 }
 
 export type Staff = {
@@ -56,9 +57,7 @@ export type HolidayFormData = {
 export type UserFormData = {
   name: string
   email: string
-  password: string
   role: 'admin' | 'staff'
-  is_active?: boolean
 }
 
 export type StaffFormData = {

@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
-import { Plus, Edit, Eye, EyeOff, Loader2, Save, Power, PowerOff, Users as UsersIcon } from 'lucide-react'
+import { Check, Copy, Edit, KeyRound, Loader2, Plus, Power, PowerOff, Save, Users as UsersIcon } from 'lucide-react'
 import {
   settingsCardClass,
   settingsContentClass,
@@ -53,22 +53,26 @@ import {
 } from './settings-styles'
 
 export function UsersTab() {
-  const { users, loading, addUser, updateUser, toggleUserStatus, currentUserId } = useUsers()
+  const { users, loading, addUser, updateUser, resetUserPassword, toggleUserStatus, currentUserId } = useUsers({ admin: true })
   const { toast } = useToast()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [saving, setSaving] = useState(false)
-  const [showPassword, setShowPassword] = useState<{[key: string]: boolean}>({})
+  const [resettingUserId, setResettingUserId] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [temporaryCredentials, setTemporaryCredentials] = useState<{
+    email: string
+    password: string
+  } | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    password: '',
     role: 'staff' as 'admin' | 'staff'
   })
 
   const handleAdd = () => {
     setEditingUser(null)
-    setFormData({ name: '', email: '', password: '', role: 'staff' })
+    setFormData({ name: '', email: '', role: 'staff' })
     setIsDialogOpen(true)
   }
 
@@ -77,7 +81,6 @@ export function UsersTab() {
     setFormData({
       name: user.name,
       email: user.email,
-      password: '',
       role: user.role
     })
     setIsDialogOpen(true)
@@ -93,33 +96,21 @@ export function UsersTab() {
       return
     }
 
-    // For new users, password is required
-    if (!editingUser && !formData.password) {
-      toast({ 
-        title: "Error", 
-        description: "Password is required for new users", 
-        variant: "destructive" 
-      })
-      return
-    }
-
     setSaving(true)
     try {
-      const updateData: any = {
+      const updateData = {
         name: formData.name,
-        email: formData.email,
         role: formData.role
       }
-      
-      // Only include password if it's provided
-      if (formData.password && formData.password.trim() !== '') {
-        updateData.password = formData.password
-      }
-      
+
       if (editingUser) {
         await updateUser(editingUser.id, updateData)
       } else {
-        await addUser(formData)
+        const result = await addUser(formData)
+        setTemporaryCredentials({
+          email: result.user.email,
+          password: result.temporaryPassword,
+        })
       }
       setIsDialogOpen(false)
     } catch (error) {
@@ -153,8 +144,27 @@ export function UsersTab() {
     await toggleUserStatus(user.id, user.is_active)
   }
 
-  const togglePassword = (userId: string) => {
-    setShowPassword(prev => ({ ...prev, [userId]: !prev[userId] }))
+  const handleResetPassword = async (user: User) => {
+    setResettingUserId(user.id)
+    try {
+      const temporaryPassword = await resetUserPassword(user.id)
+      setTemporaryCredentials({
+        email: user.email,
+        password: temporaryPassword,
+      })
+    } finally {
+      setResettingUserId(null)
+    }
+  }
+
+  const copyTemporaryCredentials = async () => {
+    if (!temporaryCredentials) return
+
+    await navigator.clipboard.writeText(
+      `ICS CMS\nUsername: ${temporaryCredentials.email}\nTemporary password: ${temporaryCredentials.password}`
+    )
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1800)
   }
 
   if (loading) {
@@ -195,7 +205,7 @@ export function UsersTab() {
                   <th className={`${settingsHeaderCellClass} w-16`}>No</th>
                   <th className={settingsHeaderCellClass}>Name</th>
                   <th className={settingsHeaderCellClass}>Email</th>
-                  <th className={settingsHeaderCellClass}>Password</th>
+                  <th className={settingsHeaderCellClass}>Account</th>
                   <th className={settingsHeaderCellClass}>Role</th>
                   <th className={settingsHeaderCellClass}>Status</th>
                   <th className={`${settingsHeaderCellClass} w-24`}>Actions</th>
@@ -224,22 +234,19 @@ export function UsersTab() {
                         {user.email}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center space-x-2">
-                          <span className={`font-mono ${!user.is_active && user.role === 'staff' ? 'text-gray-400 dark:text-gray-500' : 'text-gray-600 dark:text-gray-300'}`}>
-                            {showPassword[user.id] ? user.password : '••••••••'}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-gray-500 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                            onClick={() => togglePassword(user.id)}
-                          >
-                            {showPassword[user.id] ? 
-                              <EyeOff className="h-3 w-3" /> : 
-                              <Eye className="h-3 w-3" />
-                            }
-                          </Button>
-                        </div>
+                        <span className={`rounded-full px-2 py-1 text-xs font-medium ${
+                          user.auth_status === 'active'
+                            ? 'bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300'
+                            : user.auth_status === 'password_change_required'
+                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300'
+                              : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                        }`}>
+                          {user.auth_status === 'active'
+                            ? 'Password set'
+                            : user.auth_status === 'password_change_required'
+                              ? 'Must change password'
+                              : 'Legacy account'}
+                        </span>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-1 rounded-full text-xs ${
@@ -271,6 +278,22 @@ export function UsersTab() {
                             title="Edit user"
                           >
                             <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-violet-600 hover:bg-violet-50 hover:text-violet-700 dark:text-violet-300 dark:hover:bg-violet-950/40"
+                            onClick={() => handleResetPassword(user)}
+                            title="Generate temporary password"
+                            disabled={
+                              resettingUserId === user.id ||
+                              user.auth_status === 'legacy' ||
+                              user.id === currentUserId
+                            }
+                          >
+                            {resettingUserId === user.id
+                              ? <Loader2 className="h-4 w-4 animate-spin" />
+                              : <KeyRound className="h-4 w-4" />}
                           </Button>
                           {/* Only show active/deactive button for staff accounts */}
                           {user.role === 'staff' && (
@@ -312,7 +335,9 @@ export function UsersTab() {
               {editingUser ? 'Edit User' : 'Add New User'}
             </DialogTitle>
             <DialogDescription className="text-gray-500 dark:text-gray-400">
-              {editingUser ? 'Edit user information below. Leave password empty to keep current password.' : 'Fill in the details to create a new user'}
+              {editingUser
+                ? 'Edit the user name and role.'
+                : 'A temporary password will be generated. Give it to the user privately.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -337,20 +362,8 @@ export function UsersTab() {
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
                 placeholder="ics.user@gmail.com"
                 className={settingsInputClass}
+                disabled={Boolean(editingUser)}
                 required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password" className={settingsLabelClass}>
-                Password {!editingUser && '*'}
-              </Label>
-              <Input
-                id="password"
-                type="text"
-                value={formData.password}
-                onChange={(e) => setFormData({...formData, password: e.target.value})}
-                placeholder={editingUser ? "Leave empty to keep current password" : "Enter password"}
-                className={settingsInputClass}
               />
             </div>
             <div className="space-y-2">
@@ -381,8 +394,60 @@ export function UsersTab() {
               disabled={saving}
             >
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              <Save className="h-4 w-4 mr-2" />
-              {editingUser ? 'Update' : 'Create'} User
+              {editingUser ? <Save className="h-4 w-4 mr-2" /> : <KeyRound className="h-4 w-4 mr-2" />}
+              {editingUser ? 'Update User' : 'Create User'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(temporaryCredentials)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setTemporaryCredentials(null)
+            setCopied(false)
+          }
+        }}
+      >
+        <DialogContent className={`sm:max-w-md ${settingsDialogContentClass}`}>
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 dark:text-gray-100">
+              Temporary password
+            </DialogTitle>
+            <DialogDescription className="text-gray-500 dark:text-gray-400">
+              This password is shown once. Send it privately through WhatsApp or give it in person.
+            </DialogDescription>
+          </DialogHeader>
+
+          {temporaryCredentials && (
+            <div className="space-y-4 py-3">
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
+                <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Username</p>
+                <p className="mt-1 break-all font-medium text-gray-900 dark:text-gray-100">
+                  {temporaryCredentials.email}
+                </p>
+                <p className="mt-4 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+                  Temporary password
+                </p>
+                <p className="mt-1 break-all font-mono text-lg font-semibold text-blue-700 dark:text-blue-300">
+                  {temporaryCredentials.password}
+                </p>
+              </div>
+
+              <p className="text-sm text-amber-700 dark:text-amber-300">
+                The user must create a new password immediately after signing in.
+              </p>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={copyTemporaryCredentials}>
+              {copied ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />}
+              {copied ? 'Copied' : 'Copy details'}
+            </Button>
+            <Button onClick={() => setTemporaryCredentials(null)}>
+              Done
             </Button>
           </DialogFooter>
         </DialogContent>

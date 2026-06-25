@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Plus, CalendarCheck, X, Edit2, PartyPopper, UserRound } from 'lucide-react'
 import type { Task, Event } from '@/app/calendar/types/calendar'
 import { MALAYSIA_STATES } from '@/app/settings/types'
-import { getItemStyleClasses, getItemBgClass, getBadgeClass, getDotClass, getSolidClass, getHeaderGradientClass } from '@/lib/colors'
+import { getItemStyleClasses, getItemBgClass, getBadgeClass, getDotClass, getSolidClass } from '@/lib/colors'
 
 interface StaffFilters {
   [staffId: string]: {
@@ -13,7 +13,7 @@ interface StaffFilters {
   }
 }
 
-export const getItemStyle = (item: any) => {
+const getItemStyle = (item: any) => {
   let colorKey
   
   if (item.type === 'task') {
@@ -27,35 +27,7 @@ export const getItemStyle = (item: any) => {
   return getItemStyleClasses(colorKey)
 }
 
-export const getItemBgColor = (item: any) => {
-  let colorKey
-  
-  if (item.type === 'task') {
-    colorKey = item.task_pic_color
-  } else if (item.type === 'event') {
-    colorKey = item.event_pic_color
-  } else {
-    colorKey = 'blue'
-  }
-  
-  return getItemBgClass(colorKey)
-}
-
-export const getItemBorderColor = (item: any) => {
-  let colorKey
-  
-  if (item.type === 'task') {
-    colorKey = item.task_pic_color
-  } else if (item.type === 'event') {
-    colorKey = item.event_pic_color
-  } else {
-    colorKey = 'blue'
-  }
-  
-  return getItemBgClass(colorKey)
-}
-
-export const holidayStyle = 'bg-emerald-600 text-black cursor-pointer hover:bg-emerald-700 transition-colors dark:bg-emerald-500 dark:text-white dark:hover:bg-emerald-400'
+const holidayStyle = 'bg-emerald-600 text-black cursor-pointer hover:bg-emerald-700 transition-colors dark:bg-emerald-500 dark:text-white dark:hover:bg-emerald-400'
 
 const getTaskDisplayText = (item: any) => {
   const jobTask = item.jobTask || 'No Job Task'
@@ -464,12 +436,10 @@ interface CalendarViewsProps {
   onAddClick: (date: Date, endDate?: Date | null) => void
   onEditTask: (task: Task) => void
   onEditEvent: (event: Event) => void
-  onDateClick?: (date: Date) => void
   onViewChange?: (view: 'day' | 'week' | 'month' | 'year' | 'schedule') => void
   onMonthSelect?: (date: Date) => void
   onDragOver?: (e: React.DragEvent, date: Date) => void
   onDrop?: (e: React.DragEvent, date: Date) => void
-  onDragLeave?: () => void
   draggedOverDate?: string | null
   isDragging?: boolean
   focusedDateKey?: string | null
@@ -486,12 +456,10 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
   onAddClick,
   onEditTask,
   onEditEvent,
-  onDateClick,
   onViewChange,
   onMonthSelect,
   onDragOver,
   onDrop,
-  onDragLeave,
   draggedOverDate,
   isDragging,
   focusedDateKey,
@@ -1630,7 +1598,7 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                             <span className="font-medium">
                               {range.start < weekStart ? '' : `${getItemIcon(item)} `}
                               {item.type === 'task'
-                                ? `${item.jobTask || 'No Job Task'} - ${item.clientName || 'No Client'}`
+                                ? `${item.jobTask || 'No Job Task'} - ${item.clientName || 'No Client'} (${item.task_pic_name || 'No PIC'})`
                                 : getEventMiniDisplay(item)
                               }
                             </span>

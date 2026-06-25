@@ -119,6 +119,11 @@ const tableCellClass = 'border-r border-black px-4 py-3'
 const paginationButtonClass = 'border-gray-300 bg-white text-gray-900 shadow-sm hover:bg-gray-100 disabled:border-gray-200 disabled:bg-gray-200 disabled:text-gray-500 disabled:opacity-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:disabled:border-gray-800 dark:disabled:bg-gray-800 dark:disabled:text-gray-500'
 const activePaginationButtonClass = 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-white dark:hover:bg-blue-400'
 
+const getSortedStaffEntries = (names?: string[], colors?: string[]) =>
+  (names || [])
+    .map((name, index) => ({ name, color: colors?.[index] }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+
 const getEventRowClass = (statusLabel: string) => {
   switch (statusLabel) {
     case 'Past':
@@ -650,7 +655,7 @@ export default function EventsPage() {
                 </th>
                 <th className={tableHeaderCellClass}>Location</th>
                 <th className={tableHeaderCellClass}>PIC</th>
-                <th className={tableHeaderCellClass}>Support Staff</th>
+                <th className={`${tableHeaderCellClass} min-w-[240px]`}>Support Staff</th>
                 <th className={tableHeaderCellClass}>Status</th>
                 {isAdmin && (
                   <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase text-gray-700 dark:text-gray-200">Actions</th>
@@ -739,11 +744,11 @@ export default function EventsPage() {
                       </td>
                       <td className={tableCellClass}>
                         {event.event_support_names && event.event_support_names.length > 0 ? (
-                          <div className="flex flex-col gap-1">
-                            {event.event_support_names.map((name, idx) => (
-                              <div key={idx} className="flex items-center">
-                                <span className={`w-3 h-3 rounded-full mr-2 flex-shrink-0 ${getDotClass(event.event_support_colors?.[idx])}`}></span>
-                                <span className="text-sm">
+                          <div className="grid min-w-[208px] grid-cols-2 gap-x-4 gap-y-2">
+                            {getSortedStaffEntries(event.event_support_names, event.event_support_colors).map(({ name, color }) => (
+                              <div key={name} className="flex min-w-0 items-center gap-2">
+                                <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${getDotClass(color)}`}></span>
+                                <span className="truncate text-sm leading-tight" title={name}>
                                   {name}
                                 </span>
                               </div>

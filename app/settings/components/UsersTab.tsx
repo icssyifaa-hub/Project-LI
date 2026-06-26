@@ -100,6 +100,7 @@ export function UsersTab() {
     try {
       const updateData = {
         name: formData.name,
+        email: formData.email,
         role: formData.role
       }
 
@@ -336,7 +337,7 @@ export function UsersTab() {
             </DialogTitle>
             <DialogDescription className="text-gray-500 dark:text-gray-400">
               {editingUser
-                ? 'Edit the user name and role.'
+                ? 'Edit the user details.'
                 : 'A temporary password will be generated. Give it to the user privately.'}
             </DialogDescription>
           </DialogHeader>
@@ -362,7 +363,6 @@ export function UsersTab() {
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
                 placeholder="ics.user@gmail.com"
                 className={settingsInputClass}
-                disabled={Boolean(editingUser)}
                 required
               />
             </div>
@@ -416,7 +416,7 @@ export function UsersTab() {
               Temporary password
             </DialogTitle>
             <DialogDescription className="text-gray-500 dark:text-gray-400">
-              This password is shown once. Send it privately through WhatsApp or give it in person.
+              This password is shown once.
             </DialogDescription>
           </DialogHeader>
 

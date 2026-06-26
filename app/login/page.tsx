@@ -47,6 +47,11 @@ type LoginFeedback = {
   message: string
 }
 
+const isBannedAuthError = (message?: string) => {
+  const normalized = message?.toLowerCase() || ''
+  return normalized.includes('ban') || normalized.includes('deactiv') || normalized.includes('disabled')
+}
+
 const portalFeatures = [
   {
     icon: CalendarDays,
@@ -77,6 +82,25 @@ export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = useMemo(() => createClient(), [])
+
+  const showInactiveAccountMessage = async (accountEmail: string) => {
+    const response = await fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: accountEmail }),
+    })
+    const result = await response.json()
+
+    if (!response.ok || !result.inactive) return false
+
+    setLoginFeedback(null)
+    setDeactivatedUser({
+      name: result.user?.name || accountEmail,
+      email: result.user?.email || accountEmail,
+    })
+    setShowDeactivatedDialog(true)
+    return true
+  }
 
   useEffect(() => {
     const redirectAuthenticatedUser = async () => {
@@ -156,7 +180,7 @@ export default function LoginPage() {
         await supabase.auth.signOut()
 
         if (inactiveProfile && !inactiveProfile.is_active) {
-          setLoginFeedback({ type: 'error', message: 'This account has been deactivated.' })
+          setLoginFeedback(null)
           setDeactivatedUser({
             name: inactiveProfile.name,
             email: inactiveProfile.email,
@@ -169,6 +193,10 @@ export default function LoginPage() {
           type: 'error',
           message: 'Your account profile is not linked correctly. Please contact an administrator.',
         })
+        return
+      }
+
+      if (isBannedAuthError(authError.message) && await showInactiveAccountMessage(cleanEmail)) {
         return
       }
 

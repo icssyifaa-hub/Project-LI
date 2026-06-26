@@ -258,7 +258,7 @@ export default function CalendarFilter({
                 </div>
 
                 {/* Staff List */}
-                <div className="max-h-[42vh] space-y-1 overflow-y-auto pr-1 sm:max-h-[52vh] lg:max-h-[400px]">
+                <div className="space-y-1 pr-1">
                   {filteredStaff.map((staff) => {
                     const colors = getUserColorClasses(staff)
                     const staffId = staff.id

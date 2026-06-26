@@ -48,15 +48,12 @@ export function useJobTasks() {
       
       // Get current user - optional
       const { data: { user } } = await supabase.auth.getUser()
-      
-      // Prepare data - only include created_by if user exists
       const insertData: any = {
         name: taskData.name,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }
       
-      // Only add created_by if user is logged in
       if (user) {
         insertData.created_by = user.id
         console.log('✅ User authenticated, using user ID:', user.id)

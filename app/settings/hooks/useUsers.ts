@@ -99,10 +99,10 @@ export function useUsers({ admin = false }: UseUsersOptions = {}) {
 
   const resetUserPassword = async (id: string) => {
     try {
-      const response = await fetch(`/api/admin/users/${id}`, {
+      const response = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'reset_password' }),
+        body: JSON.stringify({ id, action: 'reset_password' }),
       })
       const result = await response.json()
 
@@ -127,10 +127,10 @@ export function useUsers({ admin = false }: UseUsersOptions = {}) {
 
   const updateUser = async (id: string, userData: Partial<UserFormData>) => {
     try {
-      const response = await fetch(`/api/admin/users/${id}`, {
+      const response = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userData),
+        body: JSON.stringify({ id, ...userData }),
       })
       const result = await response.json()
 
@@ -151,10 +151,10 @@ export function useUsers({ admin = false }: UseUsersOptions = {}) {
 
   const toggleUserStatus = async (id: string, currentStatus: boolean) => {
     try {
-      const response = await fetch(`/api/admin/users/${id}`, {
+      const response = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_active: !currentStatus }),
+        body: JSON.stringify({ id, is_active: !currentStatus }),
       })
       const result = await response.json()
 

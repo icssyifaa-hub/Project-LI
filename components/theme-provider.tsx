@@ -24,15 +24,8 @@ const ThemeContext = React.createContext<ThemeContextValue>({
   setTheme: () => {},
 })
 
-const getSystemTheme = () => {
-  if (typeof window === 'undefined') return 'light'
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-}
-
-const getInitialTheme = (storageKey: string, defaultTheme: Theme) => {
-  if (typeof window === 'undefined') return defaultTheme
-  return (localStorage.getItem(storageKey) as Theme | null) || defaultTheme
-}
+const getSystemTheme = () =>
+  window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 
 export function ThemeProvider({
   children,
@@ -40,14 +33,15 @@ export function ThemeProvider({
   enableSystem = true,
   storageKey = 'theme',
 }: ThemeProviderProps) {
-  const [theme, setThemeState] = React.useState<Theme>(() =>
-    getInitialTheme(storageKey, defaultTheme)
-  )
-  const [systemTheme, setSystemTheme] = React.useState<'light' | 'dark'>(() =>
-    getSystemTheme()
-  )
+  const [theme, setThemeState] = React.useState<Theme>(defaultTheme)
+  const [systemTheme, setSystemTheme] = React.useState<'light' | 'dark'>('light')
 
   const resolvedTheme = theme === 'system' && enableSystem ? systemTheme : theme === 'dark' ? 'dark' : 'light'
+
+  React.useEffect(() => {
+    setThemeState((localStorage.getItem(storageKey) as Theme | null) || defaultTheme)
+    setSystemTheme(getSystemTheme())
+  }, [defaultTheme, storageKey])
 
   React.useEffect(() => {
     const root = document.documentElement

@@ -1368,7 +1368,7 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
             <div className="flex h-full w-full min-w-0 flex-col overflow-hidden md:min-w-[720px]">
             <div className="grid flex-shrink-0 grid-cols-7 border-b border-gray-200 bg-gray-50 dark:bg-gray-900 dark:border-gray-800">
               {weekDays.map(day => (
-                <div key={day} className="py-2 text-center text-[11px] font-semibold text-gray-700 sm:text-sm dark:text-gray-200 dark:text-gray-200">
+                <div key={day} className="py-2 text-center text-[10px] font-semibold text-gray-700 sm:text-xs md:text-sm dark:text-gray-200">
                   {day}
                 </div>
               ))}
@@ -1382,7 +1382,7 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
               const calendarStart = new Date(year, month, 1 - firstDay)
               const visibleCalendarItems = getVisibleItems()
               const weeks: Date[][] = []
-
+              
               for (let i = 0; i < 35; i++) {
                 const weekIndex = Math.floor(i / 7)
                 if (!weeks[weekIndex]) weeks[weekIndex] = []
@@ -1396,17 +1396,15 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                 const MAX_MONTH_RANGE_LANES = 2
                 const MONTH_RANGE_ITEM_HEIGHT = 16
                 const MONTH_RANGE_LANE_HEIGHT = 18
-                const MONTH_CELL_CONTENT_TOP = 28
+                const MONTH_CELL_CONTENT_TOP = 30
                 const weekSegments = visibleCalendarItems
                   .map(item => {
                     const range = getItemDateRange(item)
                     if (!range || range.stop < weekStart || range.start > weekEnd) return null
-
                     const segmentStart = range.start < weekStart ? weekStart : range.start
                     const segmentEnd = range.stop > weekEnd ? weekEnd : range.stop
                     const colStart = getDayDiff(weekStart, segmentStart)
                     const colEnd = getDayDiff(weekStart, segmentEnd)
-
                     return {
                       item,
                       range,
@@ -1505,7 +1503,7 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                           />
                           <div className="flex items-center justify-between">
                             <span className={`
-                              pointer-events-none relative z-20 flex h-5 w-full items-center justify-start text-xs font-medium sm:w-5 sm:justify-center
+                              pointer-events-none relative z-20 flex h-5 w-full items-center justify-start text-[11px] font-medium sm:w-5 sm:justify-center
                               ${isFocusedDate ? 'bg-blue-600 text-white rounded-full dark:bg-blue-500' : isToday ? 'bg-blue-600 text-white rounded-full dark:bg-blue-500' : isCurrentMonth ? 'text-gray-700 dark:text-gray-200' : 'text-gray-400 dark:text-gray-500'}
                             `}>
                               {date.getDate() === 1 ? `${date.getDate()} ${months[date.getMonth()].slice(0, 3)}` : date.getDate()}
@@ -1518,7 +1516,7 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                               <div
                                 key={`holiday-${holiday.id}`}
                                 data-month-cell-action
-                                className={`calendar-view-item-text absolute left-1 right-1 z-20 h-[16px] truncate rounded px-1 text-[9px] leading-[16px] sm:px-1.5 ${holidayStyle}`}
+                                className={`calendar-view-item-text absolute left-1 right-1 z-20 h-[16px] truncate rounded px-1 text-[12px] leading-[16px] sm:px-1.5 ${holidayStyle}`}
                                 style={{
                                   top: `${MONTH_CELL_CONTENT_TOP + (visibleRangeCount + visibleHolidays.indexOf(holiday)) * MONTH_RANGE_LANE_HEIGHT}px`,
                                 }}
@@ -1536,7 +1534,7 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                             <button
                               type="button"
                               data-month-cell-action
-                              className="absolute left-1 right-1 z-30 h-[16px] truncate rounded bg-blue-50 px-1 text-left text-[9px] font-medium leading-[16px] text-blue-700 hover:bg-blue-100 dark:bg-blue-950/70 dark:text-blue-200 dark:hover:bg-blue-900/80"
+                              className="absolute left-1 right-1 z-30 h-[16px] truncate rounded bg-blue-50 px-1 text-left text-[12px] font-medium leading-[16px] text-blue-700 hover:bg-blue-100 dark:bg-blue-950/70 dark:text-blue-200 dark:hover:bg-blue-900/80"
                               style={{
                                 top: `${MONTH_CELL_CONTENT_TOP + 2 * MONTH_RANGE_LANE_HEIGHT}px`,
                               }}
@@ -1581,7 +1579,7 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                             data-task-id={item.type === 'task' ? item.id : undefined}
                             data-event-id={item.type === 'event' ? item.id : undefined}
                             className={`
-                              calendar-view-item-text pointer-events-auto absolute z-30 h-[16px] cursor-pointer truncate px-1 text-[8px] leading-[16px] shadow-sm sm:px-1.5 sm:text-[9px]
+                              calendar-view-item-text pointer-events-auto absolute z-30 h-[20px] cursor-pointer truncate px-1 text-[12px] leading-[16px] shadow-sm sm:px-1.5
                               ${getItemStyle(item)}
                               ${continuesBefore ? 'rounded-l-none' : 'rounded-l'}
                               ${continuesAfter ? 'rounded-r-none' : 'rounded-r'}

@@ -328,7 +328,7 @@ export default function LoginPage() {
               </CardDescription>
             </CardHeader>
 
-            <form onSubmit={handleLogin}>
+            <form onSubmit={handleLogin} suppressHydrationWarning>
               <CardContent className="space-y-5 px-0">
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-gray-700 dark:text-gray-200">
@@ -351,6 +351,7 @@ export default function LoginPage() {
                       disabled={loading}
                       className="h-11 border-blue-100 bg-blue-50/60 pl-10 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-800 dark:bg-gray-900"
                       autoComplete="email"
+                      suppressHydrationWarning
                     />
                   </div>
                 </div>
@@ -376,6 +377,7 @@ export default function LoginPage() {
                       disabled={loading}
                       className="h-11 border-blue-100 bg-blue-50/60 pl-10 pr-10 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-800 dark:bg-gray-900"
                       autoComplete="current-password"
+                      suppressHydrationWarning
                     />
 
                     <button

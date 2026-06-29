@@ -540,7 +540,7 @@ export default function JobOrdersPage() {
   // Get count of active vs inactive staff
   const activeStaffCount = Array.from(staffStatusMap.values()).filter(isActive => isActive === true).length
   const inactiveStaffCount = staffList.length - activeStaffCount
-  const reportHeaders = ['Running Number', 'Client Name', 'Job Task', 'Start Date', 'End Date', 'Job Order Number', 'Final Report Number', 'Status', 'PIC', 'Support Staff']
+  const reportHeaders = ['Running Number', 'Client Name', 'Job Task', 'Start Date', 'End Date', 'Job Order Number', 'Final Report Number', 'Status', 'Additional Remark', 'PIC', 'Support Staff']
   const reportRows = filteredAndSortedJobs.map(job => [
     job.running_number,
     job.client_name,
@@ -550,6 +550,7 @@ export default function JobOrdersPage() {
     job.job_order_number || '',
     job.final_report_number || '',
     getStatusText(job.job_status),
+    job.additional_remark || '',
     job.task_pic_name || '',
     job.task_support_name || '',
   ])
@@ -750,13 +751,16 @@ export default function JobOrdersPage() {
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('job_status')}>
                   <div className="flex items-center space-x-1">Status <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
+                <th className={`${sortableHeaderCellClass} min-w-[220px]`} onClick={() => handleSort('additional_remark')}>
+                  <div className="flex items-center space-x-1">Additional Remark <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
                 {isAdmin && <th className={tableHeaderCellClass}>Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-black">
               {loading ? (
                 <tr>
-                  <td colSpan={isAdmin ? 13 : 12} className="border-t border-black px-4 py-12 text-center">
+                  <td colSpan={isAdmin ? 14 : 13} className="border-t border-black px-4 py-12 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Loading job orders...</p>
@@ -765,7 +769,7 @@ export default function JobOrdersPage() {
                 </tr>
               ) : paginatedJobs.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 13 : 12} className="border-t border-black px-4 py-12 text-center">
+                  <td colSpan={isAdmin ? 14 : 13} className="border-t border-black px-4 py-12 text-center">
                     <div className="text-gray-400 text-4xl mb-2">📋</div>
                     <p className="text-gray-500 dark:text-gray-300">No job orders found</p>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
@@ -847,6 +851,15 @@ export default function JobOrdersPage() {
                         <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm ${getStatusColor(job.job_status)}`}>
                           {getStatusText(job.job_status)}
                         </span>
+                      </td>
+                      <td className={tableCellClass}>
+                        {job.additional_remark ? (
+                          <span className="block max-w-[260px] truncate text-black" title={job.additional_remark}>
+                            {job.additional_remark}
+                          </span>
+                        ) : (
+                          <span className="text-black">-</span>
+                        )}
                       </td>
                       {isAdmin && (
                         <td className={tableCellClass}>

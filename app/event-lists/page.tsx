@@ -67,6 +67,8 @@ interface Event {
   updated_at?: string
 }
 
+type EventSortField = keyof Event | 'support_staff' | 'status'
+
 const formatDate = (dateString: string | null) => {
   if (!dateString) return 'N/A'
   const date = new Date(dateString)
@@ -125,6 +127,20 @@ const getSortedStaffEntries = (names?: string[], colors?: string[]) =>
     .map((name, index) => ({ name, color: colors?.[index] }))
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
 
+const getEventSortValue = (event: Event, field: EventSortField) => {
+  if (field === 'support_staff') {
+    return (event.event_support_names || []).join(', ')
+  }
+
+  if (field === 'status') {
+    return getEventStatus(event.date_start, event.date_stop).label
+  }
+
+  const value = event[field]
+  if (Array.isArray(value)) return value.join(', ')
+  return value ?? ''
+}
+
 const getEventRowClass = (statusLabel: string) => {
   switch (statusLabel) {
     case 'Past':
@@ -158,7 +174,7 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
-  const [sortField, setSortField] = useState<keyof Event>('created_at')
+  const [sortField, setSortField] = useState<EventSortField>('created_at')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [filterStaff, setFilterStaff] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
@@ -389,7 +405,7 @@ export default function EventsPage() {
     }
   }
 
-  const handleSort = (field: keyof Event) => {
+  const handleSort = (field: EventSortField) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
     } else {
@@ -434,18 +450,12 @@ export default function EventsPage() {
       return matchesSearch && matchesStaff && matchesStatus
     })
     .sort((a, b) => {
-      let aValue = a[sortField]
-      let bValue = b[sortField]
+      const aValue = String(getEventSortValue(a, sortField))
+      const bValue = String(getEventSortValue(b, sortField))
       
-      if (aValue == null) aValue = ''
-      if (bValue == null) bValue = ''
-      
-      if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return sortDirection === 'asc' 
-          ? aValue.localeCompare(bValue)
-          : bValue.localeCompare(aValue)
-      }
-      return 0
+      return sortDirection === 'asc'
+        ? aValue.localeCompare(bValue, undefined, { numeric: true, sensitivity: 'base' })
+        : bValue.localeCompare(aValue, undefined, { numeric: true, sensitivity: 'base' })
     })
 
   const itemsPerPage = rowsPerPage === 'all' ? filteredAndSortedEvents.length || 1 : Number(rowsPerPage)
@@ -663,10 +673,18 @@ export default function EventsPage() {
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('date_stop')}>
                   <div className="flex items-center space-x-1">End Date <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
-                <th className={tableHeaderCellClass}>Location</th>
-                <th className={tableHeaderCellClass}>PIC</th>
-                <th className={`${tableHeaderCellClass} min-w-[240px]`}>Support Staff</th>
-                <th className={tableHeaderCellClass}>Status</th>
+                <th className={sortableHeaderCellClass} onClick={() => handleSort('location')}>
+                  <div className="flex items-center space-x-1">Location <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
+                <th className={sortableHeaderCellClass} onClick={() => handleSort('event_pic_name')}>
+                  <div className="flex items-center space-x-1">PIC <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
+                <th className={`${sortableHeaderCellClass} min-w-[240px]`} onClick={() => handleSort('support_staff')}>
+                  <div className="flex items-center space-x-1">Support Staff <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
+                <th className={sortableHeaderCellClass} onClick={() => handleSort('status')}>
+                  <div className="flex items-center space-x-1">Status <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
                 {isAdmin && (
                   <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase text-gray-700 dark:text-gray-200">Actions</th>
                 )}

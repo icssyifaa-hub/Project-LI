@@ -68,6 +68,8 @@ interface JobOrder {
   updated_at?: string
 }
 
+type JobOrderSortField = keyof JobOrder | 'reminder' | 'support_staff'
+
 const getStatusColor = (status: string) => {
   switch(status) {
     case 'completed':
@@ -98,7 +100,6 @@ const getStatusText = (status: string) => {
   }
 }
 
-// ========== REMINDER FUNCTION (25 DAYS FROM DATE_STOP OR DATE_START) ==========
 const getReminderText = (dateStart: string | null, dateStop: string | null, hasFinalReport: boolean): string => {
   if (hasFinalReport) return 'N/A'
   
@@ -158,6 +159,26 @@ const getSortedStaffEntries = (names?: string[], colors?: string[]) =>
     .map((name, index) => ({ name, color: colors?.[index] }))
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
 
+const getReminderSortValue = (reminderText: string) => {
+  if (reminderText === 'N/A') return Number.POSITIVE_INFINITY
+  const days = Number(reminderText.replace('d', ''))
+  return Number.isFinite(days) ? days : Number.POSITIVE_INFINITY
+}
+
+const getJobOrderSortValue = (job: JobOrder, field: JobOrderSortField) => {
+  if (field === 'reminder') {
+    return getReminderSortValue(getReminderText(job.date_start, job.date_stop, !!job.final_report_number))
+  }
+
+  if (field === 'support_staff') {
+    return (job.task_support_names_array || []).join(', ')
+  }
+
+  const value = job[field]
+  if (Array.isArray(value)) return value.join(', ')
+  return value ?? ''
+}
+
 const formatListDate = (date: string | null) => {
   if (!date) return 'N/A'
   const parsedDate = new Date(date)
@@ -194,7 +215,7 @@ export default function JobOrdersPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
-  const [sortField, setSortField] = useState<keyof JobOrder>('created_at')
+  const [sortField, setSortField] = useState<JobOrderSortField>('created_at')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [filterStaff, setFilterStaff] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
@@ -229,7 +250,6 @@ export default function JobOrdersPage() {
       
       if (staffError) throw staffError
       
-      // STEP 2: Create staff mapping (by id and by name)
       const staffMap: {[key: string]: {name: string, color: string, id: string, is_active: boolean}} = {}
       const staffNamesForFilter: string[] = []
       const statusMap = new Map<string, boolean>()
@@ -408,7 +428,7 @@ export default function JobOrdersPage() {
     }
   }, [user])
 
-  const handleSort = (field: keyof JobOrder) => {
+  const handleSort = (field: JobOrderSortField) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
     } else {
@@ -485,16 +505,19 @@ export default function JobOrdersPage() {
       return matchesSearch && matchesStaff && matchesStatus
     })
     .sort((a, b) => {
-      let aValue = a[sortField]
-      let bValue = b[sortField]
-      if (aValue == null) aValue = ''
-      if (bValue == null) bValue = ''
-      if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return sortDirection === 'asc' 
-          ? aValue.localeCompare(bValue)
-          : bValue.localeCompare(aValue)
+      const aValue = getJobOrderSortValue(a, sortField)
+      const bValue = getJobOrderSortValue(b, sortField)
+
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return sortDirection === 'asc' ? aValue - bValue : bValue - aValue
       }
-      return 0
+
+      const aText = String(aValue)
+      const bText = String(bValue)
+      
+        return sortDirection === 'asc' 
+          ? aText.localeCompare(bText, undefined, { numeric: true, sensitivity: 'base' })
+          : bText.localeCompare(aText, undefined, { numeric: true, sensitivity: 'base' })
     })
 
   const itemsPerPage = rowsPerPage === 'all' ? filteredAndSortedJobs.length || 1 : Number(rowsPerPage)
@@ -700,19 +723,33 @@ export default function JobOrdersPage() {
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('client_name')}>
                   <div className="flex items-center space-x-1">Client Name <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
-                <th className={tableHeaderCellClass}>Job Task</th>
+                <th className={sortableHeaderCellClass} onClick={() => handleSort('job_task')}>
+                  <div className="flex items-center space-x-1">Job Task <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('date_start')}>
                   <div className="flex items-center space-x-1">Start Date <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('date_stop')}>
                   <div className="flex items-center space-x-1">End Date <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
-                <th className={tableHeaderCellClass}>Reminder (25d)</th>
-                <th className={tableHeaderCellClass}>PIC</th>
-                <th className={`${tableHeaderCellClass} min-w-[240px]`}>Support Staff</th>
-                <th className={tableHeaderCellClass}>Job Order</th>
-                <th className={tableHeaderCellClass}>Final Report</th>
-                <th className={tableHeaderCellClass}>Status</th>
+                <th className={sortableHeaderCellClass} onClick={() => handleSort('reminder')}>
+                  <div className="flex items-center space-x-1">Reminder (25d) <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
+                <th className={sortableHeaderCellClass} onClick={() => handleSort('task_pic_name')}>
+                  <div className="flex items-center space-x-1">PIC <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
+                <th className={`${sortableHeaderCellClass} min-w-[240px]`} onClick={() => handleSort('support_staff')}>
+                  <div className="flex items-center space-x-1">Support Staff <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
+                <th className={sortableHeaderCellClass} onClick={() => handleSort('job_order_number')}>
+                  <div className="flex items-center space-x-1">Job Order <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
+                <th className={sortableHeaderCellClass} onClick={() => handleSort('final_report_number')}>
+                  <div className="flex items-center space-x-1">Final Report <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
+                <th className={sortableHeaderCellClass} onClick={() => handleSort('job_status')}>
+                  <div className="flex items-center space-x-1">Status <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
                 {isAdmin && <th className={tableHeaderCellClass}>Actions</th>}
               </tr>
             </thead>

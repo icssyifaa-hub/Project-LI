@@ -48,6 +48,13 @@ const createStableDate = (date: Date): Date => {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0)
 }
 
+const formatDateKey = (date: Date): string => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 const isAdminUser = (user: any) => {
   const role = String(user?.role || '').toLowerCase()
   return role === 'admin' || role === 'superadmin'
@@ -596,7 +603,7 @@ export default function CalendarPage() {
 
   const handleDragOver = useCallback((e: React.DragEvent, date: Date) => {
     e.preventDefault()
-    const dateKey = date.toISOString().split('T')[0]
+    const dateKey = formatDateKey(date)
     setDraggedOverDate(dateKey)
   }, [])
 

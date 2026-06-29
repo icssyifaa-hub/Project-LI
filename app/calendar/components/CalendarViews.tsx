@@ -718,9 +718,17 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
 
   const getMonthHolidays = (year: number, month: number) => {
     return holidays.filter(h => {
-      const date = new Date(h.date)
-      return date.getFullYear() === year && date.getMonth() === month
+      const date = parseDateKey(h.date)
+      return date?.getFullYear() === year && date.getMonth() === month
     })
+  }
+
+  const isItemOnDate = (item: any, date: Date) => {
+    const range = getItemDateRange(item)
+    if (!range) return false
+
+    const fixedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+    return fixedDate >= range.start && fixedDate <= range.stop
   }
 
   const shouldShowTask = (task: Task): boolean => {
@@ -746,14 +754,12 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
   }
 
   const getItemsForDate = (date: Date) => {
-    const dateKey = formatDateKey(date)
-    
     const dateTasks = tasks
-      .filter(task => task.dateStart === dateKey && shouldShowTask(task))
+      .filter(task => isItemOnDate(task, date) && shouldShowTask(task))
       .map(task => ({ ...task, type: 'task' as const }))
     
     const dateEvents = events
-      .filter(event => event.dateStart === dateKey && shouldShowEvent(event))
+      .filter(event => isItemOnDate(event, date) && shouldShowEvent(event))
       .map(event => ({ ...event, type: 'event' as const }))
     
     const sorted = [...dateTasks, ...dateEvents].sort((a, b) => {
@@ -1380,10 +1386,12 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
               const month = currentDate.getMonth()
               const firstDay = new Date(year, month, 1).getDay()
               const calendarStart = new Date(year, month, 1 - firstDay)
+              const daysInMonth = new Date(year, month + 1, 0).getDate()
+              const totalCells = Math.max(35, Math.ceil((firstDay + daysInMonth) / 7) * 7)
               const visibleCalendarItems = getVisibleItems()
               const weeks: Date[][] = []
               
-              for (let i = 0; i < 35; i++) {
+              for (let i = 0; i < totalCells; i++) {
                 const weekIndex = Math.floor(i / 7)
                 if (!weeks[weekIndex]) weeks[weekIndex] = []
                 weeks[weekIndex].push(addDays(calendarStart, i))
@@ -1417,8 +1425,8 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                   })
                   .filter(Boolean)
                   .sort((a: any, b: any) => {
-                    if (b.rangeLength !== a.rangeLength) return b.rangeLength - a.rangeLength
                     if (a.colStart !== b.colStart) return a.colStart - b.colStart
+                    if (b.rangeLength !== a.rangeLength) return b.rangeLength - a.rangeLength
                     return a.colEnd - b.colEnd
                   })
                   .map((segment: any) => {

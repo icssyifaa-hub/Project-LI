@@ -118,6 +118,7 @@ const sortableHeaderCellClass = `${tableHeaderCellClass} cursor-pointer transiti
 const tableCellClass = 'border-r border-black px-4 py-3'
 const paginationButtonClass = 'border-gray-300 bg-white text-gray-900 shadow-sm hover:bg-gray-100 disabled:border-gray-200 disabled:bg-gray-200 disabled:text-gray-500 disabled:opacity-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:disabled:border-gray-800 dark:disabled:bg-gray-800 dark:disabled:text-gray-500'
 const activePaginationButtonClass = 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-white dark:hover:bg-blue-400'
+const rowsPerPageOptions = ['10', '25', '50', '100', 'all']
 
 const getSortedStaffEntries = (names?: string[], colors?: string[]) =>
   (names || [])
@@ -165,7 +166,7 @@ export default function EventsPage() {
   const [staffStatusMap, setStaffStatusMap] = useState<Map<string, boolean>>(new Map())
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null)
-  const itemsPerPage = 10
+  const [rowsPerPage, setRowsPerPage] = useState('10')
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClient()
@@ -447,11 +448,20 @@ export default function EventsPage() {
       return 0
     })
 
-  const totalPages = Math.ceil(filteredAndSortedEvents.length / itemsPerPage)
-  const paginatedEvents = filteredAndSortedEvents.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  )
+  const itemsPerPage = rowsPerPage === 'all' ? filteredAndSortedEvents.length || 1 : Number(rowsPerPage)
+  const totalPages = rowsPerPage === 'all'
+    ? 1
+    : Math.max(1, Math.ceil(filteredAndSortedEvents.length / itemsPerPage))
+  const paginatedEvents = rowsPerPage === 'all'
+    ? filteredAndSortedEvents
+    : filteredAndSortedEvents.slice(
+      (currentPage - 1) * itemsPerPage,
+      currentPage * itemsPerPage
+    )
+  const showingStart = filteredAndSortedEvents.length === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1
+  const showingEnd = rowsPerPage === 'all'
+    ? filteredAndSortedEvents.length
+    : Math.min(currentPage * itemsPerPage, filteredAndSortedEvents.length)
 
   if (!user) return null
 
@@ -691,7 +701,7 @@ export default function EventsPage() {
                   return (
                     <tr key={event.id} className={`group border-b border-black transition-colors ${getEventRowClass(status.label)}`}>
                       <td className={`${tableCellClass} text-black`}>
-                        {(currentPage - 1) * itemsPerPage + index + 1}
+                        {rowsPerPage === 'all' ? index + 1 : (currentPage - 1) * itemsPerPage + index + 1}
                       </td>
                       <td className={tableCellClass}>
                         <div className="flex items-center gap-2">
@@ -789,9 +799,29 @@ export default function EventsPage() {
 
         {filteredAndSortedEvents.length > 0 && !loading && (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-gray-500">
-              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredAndSortedEvents.length)} of {filteredAndSortedEvents.length} entries
-            </p>
+            <div className="flex flex-col gap-2 text-sm text-gray-500 sm:flex-row sm:items-center">
+              <span>
+                Showing {showingStart} to {showingEnd} of {filteredAndSortedEvents.length} entries
+              </span>
+              <div className="flex items-center gap-2">
+                <Select value={rowsPerPage} onValueChange={(value) => {
+                  setRowsPerPage(value)
+                  setCurrentPage(1)
+                }}>
+                  <SelectTrigger className="h-9 w-[84px] border-gray-300 bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                    {rowsPerPageOptions.map(option => (
+                      <SelectItem key={option} value={option}>
+                        {option === 'all' ? 'All' : option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span>rows per page</span>
+              </div>
+            </div>
             <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
               <Button
                 variant="outline"

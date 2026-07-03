@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
 import {
   Calendar,
-  MapPin,
   FileText,
   Users,
   Clock,
@@ -55,7 +54,6 @@ interface Event {
   date_stop: string | null
   time_start?: string
   time_stop?: string
-  location?: string
   event_pic_id?: string
   event_pic_name?: string
   event_pic_color?: string
@@ -304,7 +302,6 @@ export default function EventsPage() {
           date_stop: event.date_stop || event.date_start,
           time_start: event.time_start,
           time_stop: event.time_stop,
-          location: event.location,
           event_pic_id: picId,
           event_pic_name: actualPicName,
           event_pic_color: picColor,
@@ -439,8 +436,7 @@ export default function EventsPage() {
     .filter(event => {
       const matchesSearch = 
         (event.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-        (event.description?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-        (event.location?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+        (event.description?.toLowerCase() || '').includes(searchTerm.toLowerCase())
       
       const matchesStaff = matchesStaffFilter(event, filterStaff)
       
@@ -477,7 +473,7 @@ export default function EventsPage() {
 
   const activeStaffCount = Array.from(staffStatusMap.values()).filter(isActive => isActive === true).length
   const inactiveStaffCount = staffList.length - activeStaffCount
-  const reportHeaders = ['Title', 'Start Date', 'End Date', 'Start Time', 'End Time', 'Location', 'PIC', 'Support Staff', 'Status']
+  const reportHeaders = ['Title', 'Start Date', 'End Date', 'Start Time', 'End Time', 'PIC', 'Support Staff', 'Status']
   const reportRows = filteredAndSortedEvents.map(event => {
     const status = getEventStatus(event.date_start, event.date_stop)
 
@@ -487,7 +483,6 @@ export default function EventsPage() {
       formatDate(event.date_stop),
       event.time_start || '',
       event.time_stop || '',
-      event.location || '',
       event.event_pic_name || '',
       event.event_support_names?.join(', ') || '',
       status.label,
@@ -577,7 +572,7 @@ export default function EventsPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <Input
-            placeholder="Search by title, description, location..."
+            placeholder="Search by title, description..."
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value)
@@ -660,7 +655,7 @@ export default function EventsPage() {
 
         <div className="overflow-hidden rounded-lg border border-black bg-white shadow-sm ring-1 ring-black/10 dark:bg-gray-900">
           <div className="overflow-x-auto">
-          <table className="w-full min-w-[1080px] border-collapse text-sm">
+          <table className="w-full min-w-[960px] border-collapse text-sm">
             <thead className="bg-gray-100 dark:bg-gray-800">
               <tr className="border-b border-black">
                 <th className={`${tableHeaderCellClass} w-12`}>No</th>
@@ -672,9 +667,6 @@ export default function EventsPage() {
                 </th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('date_stop')}>
                   <div className="flex items-center space-x-1">End Date <ArrowUpDown className="h-3 w-3" /></div>
-                </th>
-                <th className={sortableHeaderCellClass} onClick={() => handleSort('location')}>
-                  <div className="flex items-center space-x-1">Location <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('event_pic_name')}>
                   <div className="flex items-center space-x-1">PIC <ArrowUpDown className="h-3 w-3" /></div>
@@ -693,7 +685,7 @@ export default function EventsPage() {
             <tbody className="divide-y divide-black">
               {loading ? (
                 <tr>
-                  <td colSpan={isAdmin ? 9 : 8} className="border-t border-black px-4 py-12 text-center">
+                  <td colSpan={isAdmin ? 8 : 7} className="border-t border-black px-4 py-12 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mb-2"></div>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Loading events...</p>
@@ -702,7 +694,7 @@ export default function EventsPage() {
                 </tr>
               ) : paginatedEvents.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 9 : 8} className="border-t border-black px-4 py-12 text-center">
+                  <td colSpan={isAdmin ? 8 : 7} className="border-t border-black px-4 py-12 text-center">
                     <div className="text-gray-400 text-4xl mb-2">📅</div>
                     <p className="text-gray-500 dark:text-gray-300">No events found</p>
                     <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
@@ -745,18 +737,6 @@ export default function EventsPage() {
                       </td>
                       <td className={`${tableCellClass} text-black`}>
                         {formatDate(event.date_stop)}
-                      </td>
-                      <td className={tableCellClass}>
-                        {event.location ? (
-                          <div className="flex items-center text-black">
-                            <MapPin className="h-3 w-3 mr-1 text-black-400" />
-                            <span className="truncate max-w-[150px]" title={event.location}>
-                              {event.location}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-black">-</span>
-                        )}
                       </td>
                       <td className={tableCellClass}>
                         {event.event_pic_name ? (

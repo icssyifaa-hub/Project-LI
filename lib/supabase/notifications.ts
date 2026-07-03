@@ -120,9 +120,9 @@ export async function notifyStaffForTask(
     if (action === 'created') {
       title = '📋 New Task Assigned'
       if (assignedBy) {
-        message = `${assignedBy} has assigned ${staff.name} as ${staff.role} for task: ${task.jobTask || task.job_task || 'Untitled Task'} for client: ${task.clientName || task.client_name || 'Unknown Client'} (Date: ${formattedDate})`
+        message = `${assignedBy} has assigned ${staff.name} as ${staff.role} for task: ${task.jobTask || task.job_task || 'Untitled Task'} and client: ${task.clientName || task.client_name || 'Unknown Client'} (Date: ${formattedDate})`
       } else {
-        message = `${staff.name} has been assigned as ${staff.role} for task: ${task.jobTask || task.job_task || 'Untitled Task'} for client: ${task.clientName || task.client_name || 'Unknown Client'} (Date: ${formattedDate})`
+        message = `${staff.name} has been assigned as ${staff.role} for task: ${task.jobTask || task.job_task || 'Untitled Task'} and client: ${task.clientName || task.client_name || 'Unknown Client'} (Date: ${formattedDate})`
       }
     } else {
       title = '✏️ Task Updated'
@@ -208,7 +208,7 @@ export async function notifyStaffForEvent(
     if (action === 'created') {
       title = '📅 New Event Assigned'
       if (assignedBy) {
-        message = `${assignedBy} has assigned ${staff.name} as ${staff.role} for event: ${event.title || 'Untitled Event'} (Date: ${formattedDate})`
+        message = `${assignedBy} has assigned ${staff.name} as ${staff.role} for event: ${event.title || 'Untitled Event'} ( Date: ${formattedDate} )`
       } else {
         message = `${staff.name} has been assigned as ${staff.role} for event: ${event.title || 'Untitled Event'} (Date: ${formattedDate})`
       }

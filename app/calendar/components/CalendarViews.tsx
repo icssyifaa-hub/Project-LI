@@ -259,9 +259,6 @@ const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, position,
             <span className="text-2xl mr-3">📅</span>
             <div>
               <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">{item.title}</h3>
-              {item.location && (
-                <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">📍 {item.location}</p>
-              )}
             </div>
           </div>
           
@@ -1455,6 +1452,7 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                       const isToday = dateKey === formatDateKey(new Date())
                       const isFocusedDate = dateKey === focusedDateKey
                       const isCurrentMonth = date.getMonth() === month
+                      const isHighlightedDate = isToday || isFocusedDate
                       const dayHolidays = getHolidaysForDate(date)
                       const rangesOnDay = weekSegments.filter((segment: any) =>
                         segment.colStart <= dayIndex &&
@@ -1491,7 +1489,7 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                           <button
                             type="button"
                             data-month-date-key={dateKey}
-                            className="absolute inset-0 z-10 cursor-pointer touch-none bg-transparent"
+                            className="absolute inset-0 z-10 cursor-pointer touch-none bg-transparent focus:outline-none focus-visible:outline-none focus-visible:ring-0"
                             aria-label={`Add item on ${dateKey}`}
                             onMouseDown={(e) => handleMonthRangeMouseDown(date, e)}
                             onMouseEnter={() => handleMonthRangeMouseEnter(date)}
@@ -1510,11 +1508,19 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                             }}
                           />
                           <div className="flex items-center justify-between">
-                            <span className={`
-                              pointer-events-none relative z-20 flex h-5 w-full items-center justify-start text-[11px] font-medium sm:w-5 sm:justify-center
-                              ${isFocusedDate ? 'bg-blue-600 text-white rounded-full dark:bg-blue-500' : isToday ? 'bg-blue-600 text-white rounded-full dark:bg-blue-500' : isCurrentMonth ? 'text-gray-700 dark:text-gray-200' : 'text-gray-400 dark:text-gray-500'}
-                            `}>
-                              {date.getDate() === 1 ? `${date.getDate()} ${months[date.getMonth()].slice(0, 3)}` : date.getDate()}
+                            <span className="pointer-events-none relative z-20 flex h-6 items-center gap-1 text-[12px] font-medium">
+                              <span
+                                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[12px]
+                                  ${isHighlightedDate ? 'bg-blue-600 text-white dark:bg-blue-500 dark:text-white' : isCurrentMonth ? 'text-gray-700 dark:text-gray-200' : 'text-gray-400 dark:text-gray-500'}
+                                `}
+                              >
+                                {date.getDate()}
+                              </span>
+                              {date.getDate() === 1 && (
+                                <span className={isCurrentMonth ? 'text-gray-700 dark:text-gray-200' : 'text-gray-400 dark:text-gray-500'}>
+                                  {months[date.getMonth()].slice(0, 3)}
+                                </span>
+                              )}
                             </span>
 
                           </div>
@@ -1855,12 +1861,6 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                                         </span>
                                       )}
                                       
-                                      {item.type === 'event' && item.location && (
-                                        <span className="flex items-center gap-1">
-                                          <span>📍</span>
-                                          <span>{item.location}</span>
-                                        </span>
-                                      )}
                                     </div>
                                   </div>
                                   {item.type === 'task' && item.jobStatus && (
@@ -2188,13 +2188,6 @@ const MoreItemsPopup: React.FC<MoreItemsPopupProps> = ({
                                 </div>
                               ))}
                             </div>
-                          </div>
-                        )}
-
-                        {item.type === 'event' && item.location && (
-                          <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300">
-                            <span className="text-gray-400">📍</span>
-                            <span>{item.location}</span>
                           </div>
                         )}
 

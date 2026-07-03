@@ -44,7 +44,6 @@ export interface Event {
   dateStop: string
   timeStart?: string
   timeStop?: string
-  location?: string   
   createdby?: string              
   createdAt?: string
   updatedAt?: string

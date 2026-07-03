@@ -12,7 +12,9 @@ import {
   Menu,
   X,
   CalendarCheck,
-  User
+  User,
+  ListChecks,
+  ChevronDown
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { getCurrentAppUser, storeAppUser, type AppUser } from '@/lib/auth/client'
@@ -31,6 +33,7 @@ export default function ClientLayout({
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [settingsSectionOpen, setSettingsSectionOpen] = useState(false)
   
   const router = useRouter()
   const pathname = usePathname()
@@ -140,6 +143,23 @@ export default function ClientLayout({
     setProfileMenuOpen(false)
   }
 
+  useEffect(() => {
+    if (pathname === '/job-tasks') {
+      setSettingsSectionOpen(true)
+    }
+  }, [pathname])
+
+  const handleToggleSettingsSection = () => {
+    if (!drawerOpen) {
+      setDrawerOpen(true)
+      localStorage.setItem(SIDEBAR_STORAGE_KEY, 'true')
+      setSettingsSectionOpen(true)
+      return
+    }
+
+    setSettingsSectionOpen((current) => !current)
+  }
+
   // Get current color styles from color.ts
   const currentSolidClass = getSolidClass(userColor)
   const currentTextClass = getColorClass(userColor, 'text')
@@ -169,7 +189,7 @@ export default function ClientLayout({
   const isAdmin = user?.role === 'admin'
   const isCalendarPage = pathname === '/calendar'
   const isSettingsPage = pathname === '/settings'
-  const isListPage = pathname === '/job-orders' || pathname === '/event-lists'
+  const isListPage = pathname === '/job-orders' || pathname === '/event-lists' || pathname === '/job-tasks' || pathname === '/profile'
   const getNavClass = (path: string) => {
     const isActive = pathname === path
     return [
@@ -187,6 +207,24 @@ export default function ClientLayout({
       isActive
         ? 'app-nav-link-active bg-blue-600 text-white shadow-sm hover:bg-blue-600'
         : 'text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white',
+    ].join(' ')
+  }
+  const getSubNavClass = (path: string) => {
+    const isActive = pathname === path
+    return [
+      'flex h-8 w-full items-center rounded-md px-3 text-left text-sm font-medium transition-colors',
+      isActive
+        ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-200'
+        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white',
+    ].join(' ')
+  }
+  const getMobileSubNavClass = (path: string) => {
+    const isActive = pathname === path
+    return [
+      'flex h-9 w-full items-center rounded-md px-3 text-left text-sm font-medium transition-colors',
+      isActive
+        ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-200'
+        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white',
     ].join(' ')
   }
   const getUserInitials = () => {
@@ -339,7 +377,7 @@ export default function ClientLayout({
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto py-6">
+              <div className="flex flex-1 flex-col overflow-y-auto py-6">
                 <div className={`${drawerOpen ? 'px-3' : 'px-2'} space-y-2`}>
                   {/* Calendar */}
                   <Button 
@@ -386,6 +424,44 @@ export default function ClientLayout({
                       {drawerOpen && <span>Settings</span>}
                     </Button>
                   )}
+
+                  {!isAdmin && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        className={[
+                          'app-nav-link h-9 w-full rounded-md text-sm font-semibold transition-colors',
+                          drawerOpen ? 'justify-start px-3' : 'justify-center px-0',
+                          settingsSectionOpen
+                            ? 'text-blue-700 hover:bg-blue-50 dark:text-blue-200 dark:hover:bg-blue-950/50'
+                            : 'text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white',
+                        ].join(' ')}
+                        onClick={handleToggleSettingsSection}
+                        title={!drawerOpen ? "Settings" : ""}
+                      >
+                        <Settings className={`h-5 w-5 ${drawerOpen ? 'mr-3' : ''}`} />
+                        {drawerOpen && (
+                          <>
+                            <span className="flex-1 text-left">Settings</span>
+                            <ChevronDown className={`h-4 w-4 transition-transform ${settingsSectionOpen ? 'rotate-180' : ''}`} />
+                          </>
+                        )}
+                      </Button>
+
+                      {drawerOpen && settingsSectionOpen && (
+                        <div className="ml-5 space-y-1 border-l border-gray-200 pl-3 dark:border-slate-800">
+                          <button
+                            type="button"
+                            className={getSubNavClass('/job-tasks')}
+                            onClick={() => handleNavigation('/job-tasks')}
+                          >
+                            <ListChecks className="mr-2 h-3.5 w-3.5" />
+                            Job Tasks
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -423,7 +499,7 @@ export default function ClientLayout({
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto py-6">
+                <div className="flex flex-1 flex-col overflow-y-auto py-6">
                   <div className="px-3 space-y-1">
                     <Button 
                       variant="ghost"
@@ -461,6 +537,38 @@ export default function ClientLayout({
                         <Settings className="mr-3 h-5 w-5" />
                         Settings
                       </Button>
+                    )}
+
+                    {!isAdmin && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          className={[
+                            'app-nav-link h-10 w-full justify-start rounded-md px-3 text-sm font-semibold transition-colors',
+                            settingsSectionOpen
+                              ? 'text-blue-700 hover:bg-blue-50 dark:text-blue-200 dark:hover:bg-blue-950/50'
+                              : 'text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white',
+                          ].join(' ')}
+                          onClick={() => setSettingsSectionOpen((current) => !current)}
+                        >
+                          <Settings className="mr-3 h-5 w-5" />
+                          <span className="flex-1 text-left">Settings</span>
+                          <ChevronDown className={`h-4 w-4 transition-transform ${settingsSectionOpen ? 'rotate-180' : ''}`} />
+                        </Button>
+
+                        {settingsSectionOpen && (
+                          <div className="ml-5 space-y-1 border-l border-gray-200 pl-3 dark:border-slate-800">
+                            <button
+                              type="button"
+                              className={getMobileSubNavClass('/job-tasks')}
+                              onClick={() => handleNavigation('/job-tasks')}
+                            >
+                              <ListChecks className="mr-2 h-3.5 w-3.5" />
+                              Job Tasks
+                            </button>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>

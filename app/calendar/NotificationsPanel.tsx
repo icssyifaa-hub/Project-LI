@@ -233,7 +233,7 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
             .order('time_start', { ascending: true, nullsFirst: false }),
           supabase
             .from('events')
-            .select('id, title, location, date_start, date_stop, time_start, event_pic_id, event_pic_name, event_support_ids, event_support_names')
+            .select('id, title, date_start, date_stop, time_start, event_pic_id, event_pic_name, event_support_ids, event_support_names')
             .eq('date_start', tomorrowKey)
             .order('time_start', { ascending: true, nullsFirst: false }),
         ])

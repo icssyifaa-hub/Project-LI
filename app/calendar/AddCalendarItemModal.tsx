@@ -44,6 +44,7 @@ import { useCallback, useEffect, useState, useRef } from 'react'
 // PDF upload/delete removed — using job order number/final report number instead
 import { Combobox } from '@/components/ui/combobox'
 import { getDotClass } from '@/lib/colors'
+import { fetchJobTaskNames } from '@/lib/job-tasks'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -152,7 +153,6 @@ const initialEventData = {
   dateStop: '',
   timeStart: '',
   timeStop: '',
-  location: '',
   event_pic_id: '',           
   event_support_ids: [] as string[],  
   event_pic_name: '',          
@@ -194,12 +194,11 @@ export default function AddCalendarItemModal({
 }: AddCalendarItemModalProps) {
   // ========== ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURN ==========
   const [activeTab, setActiveTab] = useState<'event' | 'task'>(() => {
-    return selectedType || 'event'
+    return selectedType || 'task'
   })
   
   const [showTime, setShowTime] = useState(false)
   const [showDescription, setShowDescription] = useState(false)
-  const [showLocation, setShowLocation] = useState(false)
   const [showSupport, setShowSupport] = useState(false)
   const [showJobOrderNumber, setShowJobOrderNumber] = useState(false)
   const [showFinalReport, setShowFinalReport] = useState(false)
@@ -482,11 +481,11 @@ export default function AddCalendarItemModal({
   }, [])
   
   const resetForm = useCallback(() => {
+    setActiveTab('task')
     setEventData(initialEventData)
     setTaskData(initialTaskData)
     setShowTime(false)
     setShowDescription(false)
-    setShowLocation(false)
     setShowSupport(false)
     setShowJobOrderNumber(false)
     setShowFinalReport(false)
@@ -502,12 +501,8 @@ export default function AddCalendarItemModal({
   const fetchJobTasks = useCallback(async () => {
     setLoadingTasks(true)
     try {
-      const { data, error } = await supabase
-        .from('job_tasks')
-        .select('*')
-        .order('name', { ascending: true })
-      if (error) throw error
-      setJobTasks(data || [])
+      const names = await fetchJobTaskNames(supabase)
+      setJobTasks(names.map((name) => ({ id: name, name })))
     } catch (error) {
       console.error('Error fetching job tasks:', error)
     } finally {
@@ -659,7 +654,6 @@ export default function AddCalendarItemModal({
       dateStop: item.date_stop || item.dateStop || '',
       timeStart: item.time_start || item.timeStart || '',
       timeStop: item.time_stop || item.timeStop || '',
-      location: item.location || '',
       event_pic_id: eventPicId,
       event_support_ids: normalizedEventSupportIds,
       event_pic_name: item.event_pic_name || '',
@@ -672,7 +666,6 @@ export default function AddCalendarItemModal({
     const timeStop = item.time_stop || item.timeStop || ''
     setShowTime(!!(timeStart || timeStop))
     setShowDescription(!!item.description)
-    setShowLocation(!!item.location)
     setShowEventPic(!!(item.event_pic_name || item.event_pic_id))
     setShowEventSupport(normalizedEventSupportIds.length > 0 || normalizedEventSupportNames.length > 0)
   }, [])
@@ -708,8 +701,12 @@ export default function AddCalendarItemModal({
         } else if (selectedType === 'task') {
           populateTaskForm(selectedItem)
         }
-        setActiveTab(selectedType || 'event')
-      } else if (selectedDate) {
+        setActiveTab(selectedType || 'task')
+      } else {
+        setActiveTab('task')
+      }
+
+      if (!selectedItem && selectedDate) {
         const dateStr = formatDateToString(selectedDate)
         const endDateStr = selectedEndDate ? formatDateToString(selectedEndDate) : ''
         
@@ -738,7 +735,7 @@ export default function AddCalendarItemModal({
       resetForm()
       initialLoadDone.current = false
     }
-  }, [isOpen, selectedItem, selectedDate, selectedEndDate, selectedType, activeTab, prefilledData, populateEventForm, populateTaskForm, resetForm, fetchJobTasks, fetchStaff])
+  }, [isOpen, selectedItem, selectedDate, selectedEndDate, selectedType, prefilledData, populateEventForm, populateTaskForm, resetForm, fetchJobTasks, fetchStaff])
 
   useEffect(() => {
     if (!isOpen || activeTab !== 'task') return
@@ -810,11 +807,7 @@ export default function AddCalendarItemModal({
     // New task mode - MUST have valid running number
     const hasRequiredFields = !!taskData.clientName && !!taskData.task_pic_id
     const hasValidRunningNumber = !!taskData.runningNumber && runningNumberValid === true
-    
-    // Button disabled if:
-    // 1. Missing required fields OR
-    // 2. No running number OR
-    // 3. Running number is not valid (duplicate or checking)
+  
     return !hasRequiredFields || !hasValidRunningNumber
   }
 
@@ -1134,7 +1127,6 @@ export default function AddCalendarItemModal({
             date_stop: eventData.dateStop || null,
             time_start: eventData.timeStart || '',
             time_stop: eventData.timeStop || '',
-            location: eventData.location || '',
             event_pic_id: eventData.event_pic_id || null,
             event_pic_name: eventData.event_pic_name || '',
             event_pic_color: eventData.event_pic_color || '',
@@ -1376,6 +1368,23 @@ export default function AddCalendarItemModal({
                 <button
                   type="button"
                   onClick={() => {
+                    if (taskTabDisabled) return
+                    setActiveTab('task')
+                    setErrors({})
+                    setTouched({})
+                  }}
+                  disabled={taskTabDisabled}
+                  title={taskTabDisabled && lockedEditType === 'event' ? lockedTypeTooltip : undefined}
+                  aria-disabled={taskTabDisabled}
+                  className={`${tabBaseClass} ${
+                    activeTab === 'task' ? 'border-b-2 border-blue-600 text-blue-600' : inactiveTabClass
+                  } ${taskTabDisabled ? 'cursor-not-allowed opacity-40 hover:text-gray-500' : 'cursor-pointer'}`}>
+                  <Briefcase className="h-4 w-4" />
+                  <span>Task</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
                     if (eventTabDisabled) return
                     setActiveTab('event')
                     setErrors({})
@@ -1390,23 +1399,6 @@ export default function AddCalendarItemModal({
                   } ${eventTabDisabled ? 'cursor-not-allowed opacity-40 hover:text-gray-500' : 'cursor-pointer'}`}>
                   <CalendarCheck className="h-4 w-4" />
                   <span>Event</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (taskTabDisabled) return
-                    setActiveTab('task')
-                    setErrors({})
-                    setTouched({})
-                  }}
-                  disabled={taskTabDisabled}
-                  title={taskTabDisabled && lockedEditType === 'event' ? lockedTypeTooltip : undefined}
-                  aria-disabled={taskTabDisabled}
-                  className={`${tabBaseClass} ${
-                    activeTab === 'task' ? 'border-b-2 border-blue-600 text-blue-600' : inactiveTabClass
-                  } ${taskTabDisabled ? 'cursor-not-allowed opacity-40 hover:text-gray-500' : 'cursor-pointer'}`}>
-                  <Briefcase className="h-4 w-4" />
-                  <span>Task</span>
                 </button>
               </div>
             </CardHeader>
@@ -1889,17 +1881,6 @@ export default function AddCalendarItemModal({
                           />
                           <ErrorMessage field="timeStop" />
                         </div>
-                      </div>
-                    )}
-
-                    {!showLocation ? (
-                      <button type="button" onClick={() => setShowLocation(true)} className={actionButtonClass} disabled={isSaving}>
-                        <Users className="h-4 w-4 mr-2" /> Add location
-                      </button>
-                    ) : (
-                      <div className="space-y-2">
-                        <Label className={labelClass}>Location</Label>
-                        <Input value={eventData.location} onChange={(e) => setEventData(prev => ({...prev, location: e.target.value}))} placeholder="Enter location" className={inputClass} disabled={isSaving} />
                       </div>
                     )}
 

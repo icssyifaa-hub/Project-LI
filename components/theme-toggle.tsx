@@ -14,7 +14,7 @@ export function ThemeToggle() {
       variant="ghost"
       size="icon"
       aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-      title={isDark ? 'Light mode' : 'Dark mode'}
+      title={isDark ? 'Light mode hwuaaaaa ' : 'Dark mode hehehe'}
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
       className="rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
     >

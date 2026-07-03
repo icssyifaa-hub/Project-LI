@@ -499,13 +499,13 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-3 sm:p-4 lg:p-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-gray-50 p-2 dark:bg-gray-950 sm:p-3 lg:p-4">
+      <div className="w-full max-w-none space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+        <div className="-mx-2 -mt-2 flex flex-col gap-4 border-b border-gray-200 bg-white px-2 py-4 dark:border-gray-800 dark:bg-gray-950 sm:-mx-3 sm:-mt-3 sm:flex-row sm:items-center sm:justify-between sm:px-3 lg:-mx-4 lg:-mt-4 lg:px-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">My Profile</h1>
-            <p className="text-gray-500 mt-1">Manage your account settings and preferences</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Profile</h1>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Manage your account settings and preferences</p>
           </div>
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
             {!loadingColors && (
@@ -532,7 +532,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Profile Overview Card */}
-        <Card className="mb-8 border shadow-sm dark:border-slate-800">
+        <Card className="border shadow-sm dark:border-slate-800">
           <CardContent className="px-6 py-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-end gap-6">
               <div className="relative group">

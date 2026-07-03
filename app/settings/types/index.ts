@@ -24,11 +24,13 @@ export type Staff = {
 export type JobTask = {
   id: string
   name: string
+  full_name?: string | null
   created_at: string
 }
 
 export type JobTaskFormData = {
   name: string
+  full_name?: string
 }
 
 export type PDFTemplate = {

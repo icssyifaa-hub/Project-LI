@@ -45,9 +45,8 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
   const [loadingStaff, setLoadingStaff] = useState(true)
   const { toast } = useToast()
   const supabase = createClient()
-  const lastFetchRef = useRef<number>(0)
   const lastStaffFetchRef = useRef<number>(0)
-  const isFetchingRef = useRef<boolean>(false)
+  const fetchRequestIdRef = useRef<number>(0)
   const staffMapRef = useRef<{[key: string]: StaffInfo}>({})
 
   useEffect(() => {
@@ -74,6 +73,7 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
 
   const fetchAllStaff = useCallback(async (force: boolean = false) => {
     const now = Date.now()
+
     if (!force && (now - lastStaffFetchRef.current < 300000) && Object.keys(staffMapRef.current).length > 0) {
       console.log('👥 Using cached staff data')
       return staffMapRef.current
@@ -168,26 +168,15 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
   }, [currentDate, view, formatDate])
 
   const fetchData = useCallback(async () => {
-    const now = Date.now()
-    if (now - lastFetchRef.current < 500) {
-      console.log('⏳ Fetch throttled, skipping...')
-      return
-    }
-    
-    if (isFetchingRef.current) {
-      console.log('🔄 Fetch already in progress, skipping...')
-      return
-    }
-    
-    isFetchingRef.current = true
-    
+    const requestId = fetchRequestIdRef.current + 1
+    fetchRequestIdRef.current = requestId
+    setLoading(true)
+
     try {
       const { start, end } = getDateRange()
       if (!start || !end) return
       
       console.log('🔄 Fetching data for range:', start, 'to', end)
-      lastFetchRef.current = now
-      
       const staffData = await fetchAllStaff()
       
       const { data: tasksData, error: tasksError } = await supabase
@@ -307,7 +296,6 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
           dateStop: event.date_stop,
           timeStart: event.time_start,
           timeStop: event.time_stop,
-          location: event.location,
           event_pic_id: event.event_pic_id || '',
           event_pic_name: picInfo?.name || event.event_pic_name || '',
           event_pic_color: picInfo?.color || event.event_pic_color || 'purple',
@@ -320,11 +308,18 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
         }
       }) || []
 
+      if (requestId !== fetchRequestIdRef.current) {
+        console.log('Skipping stale calendar data response')
+        return
+      }
+
       setTasks(formattedTasks)
       setEvents(formattedEvents)
       setHolidays(holidaysData || [])
       
     } catch (error: any) {
+      if (requestId !== fetchRequestIdRef.current) return
+
       console.error('Error fetching data:', error)
       toast({
         title: "Error",
@@ -332,15 +327,15 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
         variant: "destructive",
       })
     } finally {
-      setLoading(false)
-      isFetchingRef.current = false
+      if (requestId === fetchRequestIdRef.current) {
+        setLoading(false)
+      }
     }
   }, [getDateRange, toast, fetchAllStaff, supabase])
 
   useEffect(() => {
     const handleProfileUpdated = () => {
       lastStaffFetchRef.current = 0
-      lastFetchRef.current = 0
       fetchAllStaff(true).then(() => {
         fetchData()
       })
@@ -545,7 +540,6 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
         date_stop: eventData.date_stop || eventData.dateStop || startDate,
         time_start: eventData.time_start || eventData.timeStart || null,
         time_stop: eventData.time_stop || eventData.timeStop || null,
-        location: eventData.location || null,
         event_pic_id: eventData.event_pic_id || null,
         event_pic_name: eventData.event_pic_name || null,
         event_pic_color: eventData.event_pic_color || 'purple',

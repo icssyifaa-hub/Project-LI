@@ -5,6 +5,7 @@
 import { useState } from 'react'
 import { useJobTasks } from '../hooks/useJobTasks'
 import { JobTask } from '../types'
+import { getJobTaskFullName } from '@/lib/job-tasks'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -74,19 +75,21 @@ export function JobTasksTab() {
   const [pendingDeleteTask, setPendingDeleteTask] = useState<JobTask | null>(null)
   const [saving, setSaving] = useState(false)
   const [formData, setFormData] = useState({
-    name: ''
+    name: '',
+    full_name: '',
   })
 
   const handleAdd = () => {
     setEditingTask(null)
-    setFormData({ name: '' })
+    setFormData({ name: '', full_name: '' })
     setIsDialogOpen(true)
   }
 
   const handleEdit = (task: JobTask) => {
     setEditingTask(task)
     setFormData({
-      name: task.name
+      name: task.name,
+      full_name: task.full_name || getJobTaskFullName(task.name),
     })
     setIsDialogOpen(true)
   }
@@ -97,6 +100,15 @@ export function JobTasksTab() {
         title: "Error", 
         description: "Task name is required", 
         variant: "destructive" 
+      })
+      return
+    }
+
+    if (!formData.full_name) {
+      toast({
+        title: "Error",
+        description: "Full name is required",
+        variant: "destructive"
       })
       return
     }
@@ -162,14 +174,15 @@ export function JobTasksTab() {
               <thead className={settingsTableHeaderClass}>
                 <tr>
                   <th className={`${settingsHeaderCellClass} w-16`}>No</th>
-                  <th className={settingsHeaderCellClass}>Task Name</th>
+                  <th className={`${settingsHeaderCellClass} w-40`}>Job Task</th>
+                  <th className={settingsHeaderCellClass}>Full Name</th>
                   <th className={`${settingsHeaderCellClass} w-24`}>Actions</th>
                 </tr>
               </thead>
               <tbody className={settingsTableBodyClass}>
                 {jobTasks.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className={settingsEmptyCellClass}>
+                    <td colSpan={4} className={settingsEmptyCellClass}>
                       No job tasks found
                     </td>
                   </tr>
@@ -178,6 +191,9 @@ export function JobTasksTab() {
                     <tr key={task.id} className={settingsTableRowClass}>
                       <td className={settingsMutedCellClass}>{index + 1}</td>
                       <td className={settingsStrongCellClass}>{task.name}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-200">
+                        {task.full_name || getJobTaskFullName(task.name) || '-'}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center space-x-2">
                           <Button
@@ -228,12 +244,33 @@ export function JobTasksTab() {
 
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="name" className={settingsLabelClass}>Task Name *</Label>
+              <Label htmlFor="name" className={settingsLabelClass}>Job Task *</Label>
               <Input
                 id="name"
                 value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                onChange={(e) => {
+                  const name = e.target.value
+                  const suggestedFullName = getJobTaskFullName(name)
+                  setFormData((current) => ({
+                    ...current,
+                    name,
+                    full_name: !current.full_name || current.full_name === getJobTaskFullName(current.name)
+                      ? suggestedFullName
+                      : current.full_name,
+                  }))
+                }}
                 placeholder="e.g., CHRA"
+                className={settingsInputClass}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="full_name" className={settingsLabelClass}>Full Name *</Label>
+              <Input
+                id="full_name"
+                value={formData.full_name}
+                onChange={(e) => setFormData({...formData, full_name: e.target.value})}
+                placeholder="e.g., Chemical Health Risk Assessment"
                 className={settingsInputClass}
                 required
               />

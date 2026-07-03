@@ -10,13 +10,12 @@ import {
   format,
 } from 'date-fns'
 
-// ============== EXISTING CN FUNCTION ==============
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
 // ============== CALENDAR TYPES ==============
-export type ViewType = 'day' | 'week' | 'month' | 'year' | 'schedule' | '4days'
+export type ViewType = 'day' | 'week' | 'month' | 'year' | 'schedule' 
 
 export interface CalendarEvent {
   id: string
@@ -26,7 +25,6 @@ export interface CalendarEvent {
   end_time?: string
   color?: string
   description?: string
-  location?: string
 }
 
 // ============== CALENDAR UTILS ==============
@@ -41,9 +39,6 @@ export function getDaysForView(date: Date, view: ViewType): Date[] {
         end: endOfWeek(date, { weekStartsOn: 0 })
       })
     
-    case '4days':
-      return Array.from({ length: 4 }, (_, i) => addDays(date, i))
-    
     case 'month':
       return eachDayOfInterval({
         start: startOfMonth(date),
@@ -51,7 +46,6 @@ export function getDaysForView(date: Date, view: ViewType): Date[] {
       })
 
     case 'year':
-      // Untuk year view, kita return first day of each month
       return Array.from({ length: 12 }, (_, i) => new Date(date.getFullYear(), i, 1))
     
     case 'schedule':
@@ -88,7 +82,7 @@ export function getEventsForDateRange(
 
 export function formatTime(time?: string): string {
   if (!time) return ''
-  return time.substring(0, 5) // Format HH:MM
+  return time.substring(0, 5) 
 }
 
 // ============== DATE UTILS ==============

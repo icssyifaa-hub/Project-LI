@@ -137,6 +137,7 @@ export default function CalendarPage() {
   const [inboxUnreadCount, setInboxUnreadCount] = useState(0)
   const [badgeCountsLoaded, setBadgeCountsLoaded] = useState(false)
   const [focusedDateKey, setFocusedDateKey] = useState<string | null>(null)
+  const [focusedInboxTaskId, setFocusedInboxTaskId] = useState<string | null>(null)
   const [taskInboxRefreshKey, setTaskInboxRefreshKey] = useState(0)
   
   const { toast } = useToast()
@@ -223,9 +224,19 @@ export default function CalendarPage() {
     const urlParams = new URLSearchParams(searchParamString)
     const dateFromUrl = urlParams.get('date')
     const focusFromUrl = urlParams.get('focus')
+    const inboxFromUrl = urlParams.get('inbox')
+    const taskFromUrl = urlParams.get('task')
     const viewFromUrl = urlParams.get('view') as ViewType | null
 
-    if (!dateFromUrl && !focusFromUrl) return
+    if (!dateFromUrl && !focusFromUrl && inboxFromUrl !== '1' && !taskFromUrl) return
+
+    if (inboxFromUrl === '1' || taskFromUrl) {
+      setShowTaskInbox(true)
+      setShowNotifications(false)
+      if (taskFromUrl) {
+        setFocusedInboxTaskId(taskFromUrl)
+      }
+    }
 
     if (dateFromUrl) {
       const [year, month, day] = dateFromUrl.split('-').map(Number)
@@ -245,6 +256,13 @@ export default function CalendarPage() {
       setFocusedDateKey(focusFromUrl)
 
       urlParams.delete('focus')
+      const newQuery = urlParams.toString()
+      window.history.replaceState({}, '', `${window.location.pathname}${newQuery ? `?${newQuery}` : ''}`)
+    }
+
+    if (inboxFromUrl === '1' || taskFromUrl) {
+      urlParams.delete('inbox')
+      urlParams.delete('task')
       const newQuery = urlParams.toString()
       window.history.replaceState({}, '', `${window.location.pathname}${newQuery ? `?${newQuery}` : ''}`)
     }
@@ -1025,6 +1043,8 @@ export default function CalendarPage() {
                   onTaskSaved={refresh}
                   onUnreadCountChange={setInboxUnreadCount}
                   refreshKey={taskInboxRefreshKey}
+                  focusedTaskId={focusedInboxTaskId}
+                  onFocusedTaskHandled={() => setFocusedInboxTaskId(null)}
                 />
               </ResponsiveCalendarPanel>
             )}

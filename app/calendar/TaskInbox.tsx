@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -53,11 +53,12 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { useSortable } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+import { CSS as DndCSS } from '@dnd-kit/utilities'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/use-toast'
 // PDFs removed per request: use job order number/final report number instead
 import { getDotClass } from '@/lib/colors'
+import { fetchJobTaskNames } from '@/lib/job-tasks'
 import {
   JOB_ORDER_NUMBER_EXAMPLE,
   normalizeJobOrderNumber,
@@ -92,6 +93,8 @@ interface TaskInboxProps {
   onTaskSaved?: () => void
   onUnreadCountChange?: (count: number) => void
   refreshKey?: number
+  focusedTaskId?: string | null
+  onFocusedTaskHandled?: () => void
 }
 
 interface JobTask {
@@ -155,13 +158,15 @@ function SortableTaskItem({
   onTaskClick,
   onEdit,
   onRequestDelete,
-  isDeleting
+  isDeleting,
+  isFocused
 }: { 
   task: UnscheduledTask, 
   onTaskClick?: (task: UnscheduledTask) => void,
   onEdit?: (task: UnscheduledTask) => void,
   onRequestDelete?: (task: UnscheduledTask) => void,
-  isDeleting?: boolean
+  isDeleting?: boolean,
+  isFocused?: boolean
 }) {
   const {
     attributes,
@@ -173,7 +178,7 @@ function SortableTaskItem({
   } = useSortable({ id: task.id })
 
   const style = {
-    transform: CSS.Transform.toString(transform),
+    transform: DndCSS.Transform.toString(transform),
     transition,
     opacity: isSortableDragging ? 0.5 : 1,
     zIndex: isSortableDragging ? 999 : 'auto',
@@ -197,9 +202,14 @@ function SortableTaskItem({
         ref={setNodeRef}
         style={style}
         {...attributes}
-        className={`rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition-all hover:shadow-md dark:border-gray-800 dark:bg-gray-900 ${
+        data-task-inbox-id={task.id}
+        className={`rounded-lg border bg-white p-3 shadow-sm transition-all hover:shadow-md dark:bg-gray-900 ${
           isSortableDragging ? 'shadow-lg rotate-2 scale-105' : ''
-        } ${isDeleting ? 'opacity-50' : ''}`}
+        } ${isDeleting ? 'opacity-50' : ''} ${
+          isFocused
+            ? 'border-blue-500 ring-2 ring-blue-500 ring-offset-2 ring-offset-gray-50 dark:border-blue-400 dark:ring-blue-400 dark:ring-offset-gray-950'
+            : 'border-gray-200 dark:border-gray-800'
+        }`}
       >
         <div className="flex items-start gap-2">
           <div 
@@ -1080,9 +1090,10 @@ function EditTaskModal({
   )
 }
 
-export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskSaved, onUnreadCountChange, refreshKey = 0 }: TaskInboxProps) {
+export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskSaved, onUnreadCountChange, refreshKey = 0, focusedTaskId = null, onFocusedTaskHandled }: TaskInboxProps) {
   const [tasks, setTasks] = useState<UnscheduledTask[]>([])
   const [filter, setFilter] = useState('')
+  const [activeFocusedTaskId, setActiveFocusedTaskId] = useState<string | null>(focusedTaskId)
   const [showAddModal, setShowAddModal] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -1094,6 +1105,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
 
   const { toast } = useToast()
   const supabase = createClient()
+  const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fetchAllData = async () => {
     setLoadingData(true)
@@ -1114,13 +1126,8 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
       }))
       setStaffList(formattedStaff)
       
-      const { data: jobTasksData, error: jobTasksError } = await supabase
-        .from('job_tasks')
-        .select('*')
-        .order('name')
-      
-      if (jobTasksError) throw jobTasksError
-      setJobTasks(jobTasksData || [])
+      const jobTaskNames = await fetchJobTaskNames(supabase)
+      setJobTasks(jobTaskNames.map((name) => ({ id: name, name })))
       
       const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
@@ -1198,6 +1205,39 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
   useEffect(() => {
     onUnreadCountChange?.(tasks.length)
   }, [tasks.length, onUnreadCountChange])
+
+  useEffect(() => {
+    if (!focusedTaskId || loadingData) return
+
+    const focusedTask = tasks.find(task => task.id === focusedTaskId)
+    if (!focusedTask) return
+
+    setFilter('')
+    setActiveFocusedTaskId(focusedTaskId)
+
+    window.requestAnimationFrame(() => {
+      const escapedTaskId = window.CSS?.escape ? window.CSS.escape(focusedTaskId) : focusedTaskId.replace(/"/g, '\\"')
+      const element = document.querySelector(`[data-task-inbox-id="${escapedTaskId}"]`)
+      element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+
+    if (focusTimerRef.current) {
+      clearTimeout(focusTimerRef.current)
+    }
+
+    focusTimerRef.current = setTimeout(() => {
+      setActiveFocusedTaskId(null)
+      onFocusedTaskHandled?.()
+      focusTimerRef.current = null
+    }, 5000)
+
+    return () => {
+      if (focusTimerRef.current) {
+        clearTimeout(focusTimerRef.current)
+        focusTimerRef.current = null
+      }
+    }
+  }, [focusedTaskId, loadingData, tasks, onFocusedTaskHandled])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -1538,6 +1578,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
                   onEdit={handleEditTask}
                   onRequestDelete={setPendingDeleteTask}
                   isDeleting={deletingId === task.id}
+                  isFocused={activeFocusedTaskId === task.id}
                 />
               ))}
             </SortableContext>

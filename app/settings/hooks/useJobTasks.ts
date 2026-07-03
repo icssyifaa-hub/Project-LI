@@ -6,6 +6,12 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { JobTask, JobTaskFormData } from '../types'
 import { useToast } from '@/components/ui/use-toast'
+import { getJobTaskFullName } from '@/lib/job-tasks'
+
+const sortJobTasks = (tasks: JobTask[]) =>
+  [...tasks].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+  )
 
 export function useJobTasks() {
   const [jobTasks, setJobTasks] = useState<JobTask[]>([])
@@ -16,26 +22,29 @@ export function useJobTasks() {
   const fetchJobTasks = async () => {
     setLoading(true)
     try {
-      console.log('🔄 Fetching job tasks...')
-      
+      console.log('Fetching job tasks...')
+
       const { data, error } = await supabase
         .from('job_tasks')
         .select('*')
         .order('name', { ascending: true })
-      
+
       if (error) {
-        console.error('❌ Error fetching job tasks:', error)
+        console.error('Error fetching job tasks:', error)
         throw error
       }
-      
-      console.log(`✅ Job tasks fetched: ${data?.length || 0} items`)
-      setJobTasks(data || [])
+
+      console.log(`Job tasks fetched: ${data?.length || 0} items`)
+      setJobTasks(sortJobTasks((data || []).map((task) => ({
+        ...task,
+        full_name: task.full_name || getJobTaskFullName(task.name),
+      }))))
     } catch (error: any) {
-      console.error('❌ Failed to fetch job tasks:', error)
-      toast({ 
-        title: "Error", 
-        description: error?.message || "Failed to fetch job tasks", 
-        variant: "destructive" 
+      console.error('Failed to fetch job tasks:', error)
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to fetch job tasks',
+        variant: 'destructive',
       })
     } finally {
       setLoading(false)
@@ -44,23 +53,15 @@ export function useJobTasks() {
 
   const addJobTask = async (taskData: JobTaskFormData) => {
     try {
-      console.log('➕ Adding job task:', taskData)
-      
-      // Get current user - optional
-      const { data: { user } } = await supabase.auth.getUser()
+      console.log('Adding job task:', taskData)
+
       const insertData: any = {
         name: taskData.name,
+        full_name: taskData.full_name || getJobTaskFullName(taskData.name) || null,
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       }
-      
-      if (user) {
-        insertData.created_by = user.id
-        console.log('✅ User authenticated, using user ID:', user.id)
-      } else {
-        console.warn('⚠️ No authenticated user, created_by will be NULL')
-      }
-      
+
       const { data, error } = await supabase
         .from('job_tasks')
         .insert([insertData])
@@ -68,27 +69,30 @@ export function useJobTasks() {
         .single()
 
       if (error) {
-        console.error('❌ Error adding job task:', error)
+        console.error('Error adding job task:', error)
         throw error
       }
-      
-      console.log('✅ Job task added:', data)
-      
-      const updatedTasks = [...jobTasks, data].sort((a, b) => a.name.localeCompare(b.name))
+
+      console.log('Job task added:', data)
+
+      const updatedTasks = sortJobTasks([...jobTasks, {
+        ...data,
+        full_name: data.full_name || getJobTaskFullName(data.name),
+      }])
       setJobTasks(updatedTasks)
-      
-      toast({ 
-        title: "Success", 
-        description: "Job task added successfully" 
+
+      toast({
+        title: 'Success',
+        description: 'Job task added successfully',
       })
-      
+
       return data
     } catch (error: any) {
-      console.error('❌ Failed to add job task:', error)
-      toast({ 
-        title: "Error", 
-        description: error?.message || "Failed to add job task", 
-        variant: "destructive" 
+      console.error('Failed to add job task:', error)
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to add job task',
+        variant: 'destructive',
       })
       throw error
     }
@@ -96,40 +100,46 @@ export function useJobTasks() {
 
   const updateJobTask = async (id: string, taskData: JobTaskFormData) => {
     try {
-      console.log('✏️ Updating job task:', { id, taskData })
-      
+      console.log('Updating job task:', { id, taskData })
+
       const { error } = await supabase
         .from('job_tasks')
         .update({
           name: taskData.name,
-          updated_at: new Date().toISOString()
+          full_name: taskData.full_name || getJobTaskFullName(taskData.name) || null,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', id)
 
       if (error) {
-        console.error('❌ Error updating job task:', error)
+        console.error('Error updating job task:', error)
         throw error
       }
-      
-      // Update local state
-      const updatedTasks = jobTasks.map(task => 
-        task.id === id ? { ...task, name: taskData.name } : task
-      ).sort((a, b) => a.name.localeCompare(b.name))
-      
+
+      const updatedTasks = sortJobTasks(jobTasks.map(task =>
+        task.id === id
+          ? {
+              ...task,
+              name: taskData.name,
+              full_name: taskData.full_name || getJobTaskFullName(taskData.name),
+            }
+          : task
+      ))
+
       setJobTasks(updatedTasks)
-      
-      console.log('✅ Job task updated:', id)
-      
-      toast({ 
-        title: "Success", 
-        description: "Job task updated successfully" 
+
+      console.log('Job task updated:', id)
+
+      toast({
+        title: 'Success',
+        description: 'Job task updated successfully',
       })
     } catch (error: any) {
-      console.error('❌ Failed to update job task:', error)
-      toast({ 
-        title: "Error", 
-        description: error?.message || "Failed to update job task", 
-        variant: "destructive" 
+      console.error('Failed to update job task:', error)
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to update job task',
+        variant: 'destructive',
       })
       throw error
     }
@@ -137,39 +147,38 @@ export function useJobTasks() {
 
   const deleteJobTask = async (id: string) => {
     try {
-      console.log('🗑️ Deleting job task:', id)
-      
+      console.log('Deleting job task:', id)
+
       const { error } = await supabase
         .from('job_tasks')
         .delete()
         .eq('id', id)
 
       if (error) {
-        console.error('❌ Error deleting job task:', error)
+        console.error('Error deleting job task:', error)
         throw error
       }
-      
-      // Remove from local state
+
       const updatedTasks = jobTasks.filter(task => task.id !== id)
       setJobTasks(updatedTasks)
-      
-      console.log('✅ Job task deleted:', id)
-      
-      toast({ 
-        title: "Success", 
-        description: "Job task deleted successfully" 
+
+      console.log('Job task deleted:', id)
+
+      toast({
+        title: 'Success',
+        description: 'Job task deleted successfully',
       })
     } catch (error: any) {
-      console.error('❌ Failed to delete job task:', error)
-      toast({ 
-        title: "Error", 
-        description: error?.message || "Failed to delete job task", 
-        variant: "destructive" 
+      console.error('Failed to delete job task:', error)
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to delete job task',
+        variant: 'destructive',
       })
       throw error
     }
   }
-  
+
   useEffect(() => {
     fetchJobTasks()
   }, [])
@@ -180,6 +189,6 @@ export function useJobTasks() {
     addJobTask,
     updateJobTask,
     deleteJobTask,
-    refresh: fetchJobTasks
+    refresh: fetchJobTasks,
   }
 }

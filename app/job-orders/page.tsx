@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
 import {
@@ -14,7 +15,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar as CalendarIcon,
-  Trash2,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -32,7 +32,6 @@ import {
 import {
   AlertDialog,
   AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -62,6 +61,8 @@ interface JobOrder {
   task_support_names_array?: string[]
   task_support_colors_array?: string[]
   final_report_number?: string | null
+  delivery_order: boolean
+  invoice: boolean
   job_status: 'completed' | 'in-progress' | 'incomplete' | 'onhold'
   created_by?: string
   created_at?: string
@@ -222,7 +223,7 @@ export default function JobOrdersPage() {
   const [staffList, setStaffList] = useState<string[]>([])
   const [staffStatusMap, setStaffStatusMap] = useState<Map<string, boolean>>(new Map())
   const [unscheduledJob, setUnscheduledJob] = useState<JobOrder | null>(null)
-  const [jobToDelete, setJobToDelete] = useState<JobOrder | null>(null)
+  const [updatingDocumentStatus, setUpdatingDocumentStatus] = useState<Record<string, boolean>>({})
   const [rowsPerPage, setRowsPerPage] = useState('10')
   const router = useRouter()
   const { toast } = useToast()
@@ -395,6 +396,8 @@ export default function JobOrdersPage() {
           task_support_names_array: supportNamesArray,
           task_support_colors_array: supportColorsArray,
           final_report_number: task.final_report_number || task.finalReportNumber || null,
+          delivery_order: Boolean(task.delivery_order),
+          invoice: Boolean(task.invoice),
           job_status: computedStatus,
           created_by: task.created_by,
           created_at: task.created_at,
@@ -440,48 +443,13 @@ export default function JobOrdersPage() {
   const handleDateClick = (date: string | null, job?: JobOrder) => {
     if (!date) {
       if (job) {
-        setUnscheduledJob(job)
+        router.push(`/calendar?inbox=1&task=${encodeURIComponent(job.id)}`)
       }
       return
     }
 
     const formattedDate = date.split('T')[0]
     router.push(`/calendar?date=${formattedDate}&view=month&focus=${formattedDate}`)
-  }
-
-  const confirmDeleteJob = async () => {
-    if (!jobToDelete) return
-    if (!isAdmin) {
-      setJobToDelete(null)
-      toast({
-        title: "Access denied",
-        description: "Only admins can delete job orders",
-        variant: "destructive",
-      })
-      return
-    }
-
-    try {
-      const { error } = await supabase
-        .from('tasks')
-        .delete()
-        .eq('id', jobToDelete.id)
-
-      if (error) throw error
-
-      setJobOrders(jobOrders.filter(job => job.id !== jobToDelete.id))
-      setJobToDelete(null)
-      toast({
-        title: "Success",
-        description: "Job order deleted successfully",
-      })
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to delete job order",
-        variant: "destructive",
-      })
-    }
   }
 
   const matchesStaffFilter = (job: JobOrder, filterStaffValue: string): boolean => {
@@ -520,6 +488,42 @@ export default function JobOrdersPage() {
           : bText.localeCompare(aText, undefined, { numeric: true, sensitivity: 'base' })
     })
 
+  const handleDocumentStatusChange = async (job: JobOrder, field: 'delivery_order' | 'invoice', checked: boolean) => {
+    if (!isAdmin) return
+
+    setUpdatingDocumentStatus((current) => ({ ...current, [`${job.id}-${field}`]: true }))
+    setJobOrders((current) =>
+      current.map((item) => item.id === job.id ? { ...item, [field]: checked } : item)
+    )
+
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({
+          [field]: checked,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', job.id)
+
+      if (error) throw error
+    } catch (error: any) {
+      setJobOrders((current) =>
+        current.map((item) => item.id === job.id ? { ...item, [field]: job[field] } : item)
+      )
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to update document status',
+        variant: 'destructive',
+      })
+    } finally {
+      setUpdatingDocumentStatus((current) => {
+        const next = { ...current }
+        delete next[`${job.id}-${field}`]
+        return next
+      })
+    }
+  }
+
   const itemsPerPage = rowsPerPage === 'all' ? filteredAndSortedJobs.length || 1 : Number(rowsPerPage)
   const totalPages = rowsPerPage === 'all'
     ? 1
@@ -540,7 +544,7 @@ export default function JobOrdersPage() {
   // Get count of active vs inactive staff
   const activeStaffCount = Array.from(staffStatusMap.values()).filter(isActive => isActive === true).length
   const inactiveStaffCount = staffList.length - activeStaffCount
-  const reportHeaders = ['Running Number', 'Client Name', 'Job Task', 'Start Date', 'End Date', 'Job Order Number', 'Final Report Number', 'Status', 'Additional Remark', 'PIC', 'Support Staff']
+  const reportHeaders = ['Running Number', 'Client Name', 'Job Task', 'Start Date', 'End Date', 'Job Order Number', 'Final Report Number', 'Delivery Order', 'Invoice', 'Status', 'Additional Remark', 'PIC', 'Support Staff']
   const reportRows = filteredAndSortedJobs.map(job => [
     job.running_number,
     job.client_name,
@@ -549,6 +553,8 @@ export default function JobOrdersPage() {
     formatListDate(job.date_stop),
     job.job_order_number || '',
     job.final_report_number || '',
+    job.delivery_order ? 'Yes' : 'No',
+    job.invoice ? 'Yes' : 'No',
     getStatusText(job.job_status),
     job.additional_remark || '',
     job.task_pic_name || '',
@@ -589,23 +595,6 @@ export default function JobOrdersPage() {
                 className="bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-white dark:hover:bg-blue-600"
               >
                 OK
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        <AlertDialog open={isAdmin && !!jobToDelete} onOpenChange={(open) => !open && setJobToDelete(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Job Order?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to delete "{jobToDelete?.client_name}"? This action cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDeleteJob} className="bg-red-600 text-white hover:bg-red-700">
-                Delete
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -714,7 +703,7 @@ export default function JobOrdersPage() {
         {/* Table */}
         <div className="overflow-hidden rounded-lg border border-black bg-white shadow-sm ring-1 ring-black/10 dark:bg-gray-900">
           <div className="overflow-x-auto">
-          <table className="w-full min-w-[1180px] border-collapse text-sm">
+          <table className="w-full min-w-[1280px] border-collapse text-sm">
             <thead className="bg-gray-100 dark:bg-gray-800">
               <tr className="border-b border-black">
                 <th className={`${tableHeaderCellClass} w-12`}>No</th>
@@ -748,19 +737,24 @@ export default function JobOrdersPage() {
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('final_report_number')}>
                   <div className="flex items-center space-x-1">Final Report <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
+                <th className={sortableHeaderCellClass} onClick={() => handleSort('delivery_order')}>
+                  <div className="flex items-center space-x-1">Delivery Order <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
+                <th className={sortableHeaderCellClass} onClick={() => handleSort('invoice')}>
+                  <div className="flex items-center space-x-1">Invoice <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('job_status')}>
                   <div className="flex items-center space-x-1">Status <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
                 <th className={`${sortableHeaderCellClass} min-w-[220px]`} onClick={() => handleSort('additional_remark')}>
                   <div className="flex items-center space-x-1">Additional Remark <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
-                {isAdmin && <th className={tableHeaderCellClass}>Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-black">
               {loading ? (
                 <tr>
-                  <td colSpan={isAdmin ? 14 : 13} className="border-t border-black px-4 py-12 text-center">
+                  <td colSpan={15} className="border-t border-black px-4 py-12 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Loading job orders...</p>
@@ -769,7 +763,7 @@ export default function JobOrdersPage() {
                 </tr>
               ) : paginatedJobs.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 14 : 13} className="border-t border-black px-4 py-12 text-center">
+                  <td colSpan={15} className="border-t border-black px-4 py-12 text-center">
                     <div className="text-gray-400 text-4xl mb-2">📋</div>
                     <p className="text-gray-500 dark:text-gray-300">No job orders found</p>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
@@ -848,6 +842,28 @@ export default function JobOrdersPage() {
                         ) : <span className="text-black">-</span>}
                       </td>
                       <td className={tableCellClass}>
+                        <div className="flex items-center justify-center">
+                          <Checkbox
+                            checked={job.delivery_order}
+                            disabled={!isAdmin || updatingDocumentStatus[`${job.id}-delivery_order`]}
+                            onCheckedChange={(checked) => handleDocumentStatusChange(job, 'delivery_order', checked === true)}
+                            aria-label={`Delivery order for ${job.running_number}`}
+                            className="border-gray-500 data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600"
+                          />
+                        </div>
+                      </td>
+                      <td className={tableCellClass}>
+                        <div className="flex items-center justify-center">
+                          <Checkbox
+                            checked={job.invoice}
+                            disabled={!isAdmin || updatingDocumentStatus[`${job.id}-invoice`]}
+                            onCheckedChange={(checked) => handleDocumentStatusChange(job, 'invoice', checked === true)}
+                            aria-label={`Invoice for ${job.running_number}`}
+                            className="border-gray-500 data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600"
+                          />
+                        </div>
+                      </td>
+                      <td className={tableCellClass}>
                         <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm ${getStatusColor(job.job_status)}`}>
                           {getStatusText(job.job_status)}
                         </span>
@@ -861,19 +877,6 @@ export default function JobOrdersPage() {
                           <span className="text-black">-</span>
                         )}
                       </td>
-                      {isAdmin && (
-                        <td className={tableCellClass}>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
-                            onClick={() => setJobToDelete(job)}
-                            title="Delete job order"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </td>
-                      )}
                     </tr>
                   )
                 })

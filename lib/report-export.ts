@@ -35,8 +35,7 @@ const getColumnWeights = (headers: string[]) =>
 
     if (normalizedHeader.includes('client')) return 1.5
     if (normalizedHeader.includes('task')) return 1.35
-    if (normalizedHeader.includes('title')) return 1.8
-    if (normalizedHeader.includes('location')) return 1.25
+    if (normalizedHeader.includes('title')) return 1.35
     if (normalizedHeader.includes('support')) return 1.5
     if (normalizedHeader.includes('running')) return 1.05
     if (normalizedHeader.includes('final report')) return 1.05
@@ -85,7 +84,7 @@ const wrapPdfText = (value: ReportCell, maxWidth: number, fontSize: number, maxL
       current = part
     })
   })
-
+  
   if (current && lines.length < maxLines) pushLine(current)
 
   if (lines.length === maxLines && words.join(' ').length > lines.join(' ').length) {

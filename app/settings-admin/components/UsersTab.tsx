@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
-import { Check, Copy, Edit, KeyRound, Loader2, Plus, Power, PowerOff, Save, Users as UsersIcon } from 'lucide-react'
+import { Check, Copy, Edit, KeyRound, Loader2, Plus, Power, PowerOff, Save, Search, Users as UsersIcon } from 'lucide-react'
 import {
   settingsCardClass,
   settingsContentClass,
@@ -51,6 +51,7 @@ import {
   settingsTableWrapperClass,
   settingsTitleClass,
 } from './settings-styles'
+import { SettingsPagination, useSettingsPagination } from './SettingsPagination'
 
 export function UsersTab() {
   const { users, loading, addUser, updateUser, resetUserPassword, toggleUserStatus, currentUserId } = useUsers({ admin: true })
@@ -60,6 +61,7 @@ export function UsersTab() {
   const [saving, setSaving] = useState(false)
   const [resettingUserId, setResettingUserId] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
   const [temporaryCredentials, setTemporaryCredentials] = useState<{
     email: string
     password: string
@@ -168,6 +170,20 @@ export function UsersTab() {
     window.setTimeout(() => setCopied(false), 1800)
   }
 
+  const filteredUsers = users.filter((user) => {
+    const keyword = searchTerm.trim().toLowerCase()
+    if (!keyword) return true
+
+    return (
+      user.name.toLowerCase().includes(keyword) ||
+      user.email.toLowerCase().includes(keyword) ||
+      user.role.toLowerCase().includes(keyword) ||
+      (user.auth_status || '').toLowerCase().includes(keyword) ||
+      (user.is_active ? 'active' : 'inactive').includes(keyword)
+    )
+  })
+  const usersPagination = useSettingsPagination(filteredUsers)
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -198,6 +214,18 @@ export function UsersTab() {
         </CardHeader>
 
         <CardContent className={settingsContentClass}>
+          <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-950/40 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full sm:max-w-md">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
+              <Input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search users..."
+                className={`pl-9 ${settingsInputClass}`}
+              />
+            </div>
+          </div>
+
           <div className={settingsTableWrapperClass}>
             <div className="overflow-x-auto">
             <table className={settingsTableClass}>
@@ -213,16 +241,16 @@ export function UsersTab() {
                 </tr>
               </thead>
               <tbody className={settingsTableBodyClass}>
-                {users.length === 0 ? (
+                {filteredUsers.length === 0 ? (
                   <tr>
                     <td colSpan={7} className={settingsEmptyCellClass}>
-                      No users found
+                      {searchTerm ? 'No users match your search.' : 'No users found'}
                     </td>
                   </tr>
                 ) : (
-                  users.map((user, index) => (
+                  usersPagination.paginatedRows.map((user, index) => (
                     <tr key={user.id} className={`${settingsTableRowClass} ${!user.is_active && user.role === 'staff' ? 'bg-gray-100 dark:bg-gray-800/70' : ''}`}>
-                      <td className={settingsMutedCellClass}>{index + 1}</td>
+                      <td className={settingsMutedCellClass}>{usersPagination.pageStart + index + 1}</td>
                       <td className="px-4 py-3">
                         <span className={`font-medium ${!user.is_active && user.role === 'staff' ? 'text-gray-400 line-through dark:text-gray-500' : 'text-gray-900 dark:text-gray-100'}`}>
                           {user.name}
@@ -324,6 +352,16 @@ export function UsersTab() {
               </tbody>
             </table>
             </div>
+            <SettingsPagination
+              currentPage={usersPagination.currentPage}
+              rowsPerPage={usersPagination.rowsPerPage}
+              totalItems={filteredUsers.length}
+              totalPages={usersPagination.totalPages}
+              showingStart={usersPagination.showingStart}
+              showingEnd={usersPagination.showingEnd}
+              onPageChange={usersPagination.setCurrentPage}
+              onRowsPerPageChange={usersPagination.setRowsPerPage}
+            />
           </div>
         </CardContent>
       </Card>

@@ -430,6 +430,62 @@
     color: rgb(17 24 39) !important;
   }
 
+  .event-list-title-button,
+  .event-list-title-button :where(:not(svg):not(svg *)),
+  .dark .event-list-title-button,
+  .dark .event-list-title-button :where(:not(svg):not(svg *)) {
+    color: rgb(29 78 216) !important;
+  }
+
+  .event-list-title-button:hover,
+  .event-list-title-button:hover :where(:not(svg):not(svg *)),
+  .dark .event-list-title-button:hover,
+  .dark .event-list-title-button:hover :where(:not(svg):not(svg *)) {
+    color: rgb(30 64 175) !important;
+  }
+
+  .event-list-calendar-button,
+  .event-list-calendar-button svg,
+  .dark .event-list-calendar-button,
+  .dark .event-list-calendar-button svg {
+    color: rgb(59 130 246) !important;
+  }
+
+  .event-list-calendar-button:hover,
+  .event-list-calendar-button:hover svg,
+  .dark .event-list-calendar-button:hover,
+  .dark .event-list-calendar-button:hover svg {
+    color: rgb(29 78 216) !important;
+  }
+
+  .job-order-client-button,
+  .job-order-client-button :where(:not(svg):not(svg *)),
+  .dark .job-order-client-button,
+  .dark .job-order-client-button :where(:not(svg):not(svg *)) {
+    color: rgb(29 78 216) !important;
+  }
+
+  .job-order-client-button:hover,
+  .job-order-client-button:hover :where(:not(svg):not(svg *)),
+  .dark .job-order-client-button:hover,
+  .dark .job-order-client-button:hover :where(:not(svg):not(svg *)) {
+    color: rgb(30 64 175) !important;
+  }
+
+  .job-order-calendar-button,
+  .job-order-calendar-button svg,
+  .dark .job-order-calendar-button,
+  .dark .job-order-calendar-button svg {
+    color: rgb(59 130 246) !important;
+  }
+
+  .job-order-calendar-button:hover,
+  .job-order-calendar-button:hover svg,
+  .dark .job-order-calendar-button:hover,
+  .dark .job-order-calendar-button:hover svg {
+    color: rgb(29 78 216) !important;
+  }
+
   .staff-support-checkbox[data-state='checked'] {
     color: rgb(0 0 0) !important;
   }

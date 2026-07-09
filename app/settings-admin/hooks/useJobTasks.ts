@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { JobTask, JobTaskFormData } from '../types'
 import { useToast } from '@/components/ui/use-toast'
-import { getJobTaskFullName } from '@/lib/job-tasks'
+import { getJobTaskFullName } from '@/lib/settings/job-tasks'
 
 const sortJobTasks = (tasks: JobTask[]) =>
   [...tasks].sort((a, b) =>

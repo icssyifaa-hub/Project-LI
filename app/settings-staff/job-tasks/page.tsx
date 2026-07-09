@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { RefreshCw, ListChecks } from 'lucide-react'
+import { RefreshCw, ListChecks, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { createClient } from '@/lib/supabase/client'
-import { getJobTaskFullName } from '@/lib/job-tasks'
+import { getJobTaskFullName } from '@/lib/settings/job-tasks'
+import { SettingsPagination, useSettingsPagination } from '@/app/settings-admin/components/SettingsPagination'
 
 type JobTask = {
   id: string
@@ -20,6 +22,7 @@ export default function JobTasksPage() {
   const [user, setUser] = useState<any>(null)
   const [jobTasks, setJobTasks] = useState<JobTask[]>([])
   const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
 
@@ -61,6 +64,17 @@ export default function JobTasksPage() {
     fetchJobTasks()
   }, [fetchJobTasks, router])
 
+  const filteredJobTasks = jobTasks.filter((task) => {
+    const keyword = searchTerm.trim().toLowerCase()
+    if (!keyword) return true
+
+    return (
+      task.name.toLowerCase().includes(keyword) ||
+      task.full_name.toLowerCase().includes(keyword)
+    )
+  })
+  const jobTasksPagination = useSettingsPagination(filteredJobTasks)
+
   if (!user) return null
 
   return (
@@ -73,19 +87,30 @@ export default function JobTasksPage() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Job Tasks</h1>
             </div>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Total: {jobTasks.length} job tasks
+              {jobTasks.length} job tasks
             </p>
           </div>
 
-          <Button
-            variant="outline"
-            onClick={fetchJobTasks}
-            disabled={loading}
-            className="w-full border-gray-300 text-gray-900 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800 sm:w-auto"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <Input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search job tasks..."
+                className="w-full border-gray-300 bg-white pl-8 text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 sm:w-64"
+              />
+            </div>
+            <Button
+              variant="outline"
+              onClick={fetchJobTasks}
+              disabled={loading}
+              className="w-full border-gray-300 text-gray-900 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800 sm:w-auto"
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         <div className="overflow-hidden rounded-lg border border-black bg-white shadow-sm ring-1 ring-black/10 dark:bg-gray-900">
@@ -108,16 +133,18 @@ export default function JobTasksPage() {
                       </div>
                     </td>
                   </tr>
-                ) : jobTasks.length === 0 ? (
+                ) : filteredJobTasks.length === 0 ? (
                   <tr>
                     <td colSpan={3} className="border-t border-black px-4 py-12 text-center">
-                      <p className="text-gray-500 dark:text-gray-300">No job tasks found</p>
+                      <p className="text-gray-500 dark:text-gray-300">
+                        {searchTerm ? 'No job tasks match your search' : 'No job tasks found'}
+                      </p>
                     </td>
                   </tr>
                 ) : (
-                  jobTasks.map((task, index) => (
+                  jobTasksPagination.paginatedRows.map((task, index) => (
                     <tr key={task.id} className="border-b border-black bg-white transition-colors hover:bg-gray-50 dark:bg-gray-900 dark:hover:bg-gray-800">
-                      <td className={tableCellClass}>{index + 1}</td>
+                      <td className={tableCellClass}>{jobTasksPagination.pageStart + index + 1}</td>
                       <td className={`${tableCellClass} font-semibold`}>{task.name}</td>
                       <td className={tableCellClass}>{task.full_name}</td>
                     </tr>
@@ -126,6 +153,16 @@ export default function JobTasksPage() {
               </tbody>
             </table>
           </div>
+          <SettingsPagination
+            currentPage={jobTasksPagination.currentPage}
+            rowsPerPage={jobTasksPagination.rowsPerPage}
+            totalItems={filteredJobTasks.length}
+            totalPages={jobTasksPagination.totalPages}
+            showingStart={jobTasksPagination.showingStart}
+            showingEnd={jobTasksPagination.showingEnd}
+            onPageChange={jobTasksPagination.setCurrentPage}
+            onRowsPerPageChange={jobTasksPagination.setRowsPerPage}
+          />
         </div>
       </div>
     </div>

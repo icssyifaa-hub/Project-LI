@@ -33,6 +33,21 @@ export type JobTaskFormData = {
   full_name?: string
 }
 
+export type Client = {
+  id: string
+  client_name: string
+  location: string
+  address?: string | null
+  created_at: string
+  updated_at?: string
+}
+
+export type ClientFormData = {
+  client_name: string
+  location: string
+  address?: string
+}
+
 export type PDFTemplate = {
   id: string
   name: string

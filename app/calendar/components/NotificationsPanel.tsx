@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/use-toast'
 import { formatDistanceToNow } from 'date-fns'
 import { useRouter } from 'next/navigation'
+import { getTaskClient } from '@/lib/settings/task-client'
 
 interface Notification {
   id: string
@@ -225,18 +226,25 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
       const tomorrowKey = getTomorrowDateKey()
 
       try {
-        const [tasksResult, eventsResult] = await Promise.all([
-          supabase
+        let tasksResult: any = await supabase
             .from('tasks')
-            .select('id, client_name, job_task, date_start, date_stop, time_start, task_pic_id, task_pic_name, task_support_ids, task_support_names, job_status')
+            .select('id, client_name, client_id, job_task, date_start, date_stop, time_start, task_pic_id, task_pic_name, task_support_ids, task_support_names, job_status, client:client!tasks_client_id_fkey(id, client_name, location, address)')
             .eq('date_start', tomorrowKey)
-            .order('time_start', { ascending: true, nullsFirst: false }),
-          supabase
+            .order('time_start', { ascending: true, nullsFirst: false })
+
+        const eventsResult = await supabase
             .from('events')
             .select('id, title, date_start, date_stop, time_start, event_pic_id, event_pic_name, event_support_ids, event_support_names')
             .eq('date_start', tomorrowKey)
-            .order('time_start', { ascending: true, nullsFirst: false }),
-        ])
+            .order('time_start', { ascending: true, nullsFirst: false })
+
+        if (tasksResult.error) {
+          tasksResult = await supabase
+            .from('tasks')
+            .select('id, client_name, job_task, date_start, date_stop, time_start, task_pic_id, task_pic_name, task_support_ids, task_support_names, job_status')
+            .eq('date_start', tomorrowKey)
+            .order('time_start', { ascending: true, nullsFirst: false })
+        }
 
         if (tasksResult.error) throw tasksResult.error
         if (eventsResult.error) throw eventsResult.error
@@ -246,13 +254,14 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
           .filter((task: any) => isAssignedToCurrentUser(task, 'task'))
           .map((task: any) => {
             const picName = task.task_pic_name || 'Unassigned'
+            const client = getTaskClient(task)
 
             return {
               id: `task-${task.id}`,
               sourceId: task.id,
               type: 'task',
               title: `Reminder: ${task.job_task || 'Untitled Task'}`,
-              message: `${task.client_name || 'No client'}\n${formatDateLabel(task.date_start)} (${picName})`,
+              message: `${client.client_name || 'No client'}\n${formatDateLabel(task.date_start)} (${picName})`,
               dateStart: task.date_start,
               dateStop: task.date_stop,
               timeStart: task.time_start,

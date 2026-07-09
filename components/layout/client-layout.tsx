@@ -12,8 +12,10 @@ import {
   Menu,
   X,
   CalendarCheck,
+  CalendarDays,
   User,
   ListChecks,
+  Building2,
   ChevronDown
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -144,7 +146,7 @@ export default function ClientLayout({
   }
 
   useEffect(() => {
-    if (pathname === '/job-tasks') {
+    if (pathname === '/settings-staff/job-tasks' || pathname === '/settings-staff/client' || pathname === '/settings-staff/holidays' || pathname === '/settings-admin') {
       setSettingsSectionOpen(true)
     }
   }, [pathname])
@@ -188,8 +190,8 @@ export default function ClientLayout({
 
   const isAdmin = user?.role === 'admin'
   const isCalendarPage = pathname === '/calendar'
-  const isSettingsPage = pathname === '/settings'
-  const isListPage = pathname === '/job-orders' || pathname === '/event-lists' || pathname === '/job-tasks' || pathname === '/profile'
+  const isSettingsPage = pathname === '/settings-admin'
+  const isListPage = pathname === '/job-orders' || pathname === '/event-lists' || pathname === '/settings-staff/job-tasks' || pathname === '/settings-staff/client' || pathname === '/settings-staff/holidays' || pathname === '/profile'
   const getNavClass = (path: string) => {
     const isActive = pathname === path
     return [
@@ -323,7 +325,7 @@ export default function ClientLayout({
 
                       {isAdmin && (
                         <button
-                          onClick={() => handleNavigation('/settings')}
+                          onClick={() => handleNavigation('/settings-admin')}
                           className="flex w-full items-center px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-slate-200 dark:hover:bg-slate-800"
                         >
                           <Settings className="h-4 w-4 mr-3" />
@@ -416,8 +418,8 @@ export default function ClientLayout({
                   {isAdmin && (
                     <Button 
                       variant="ghost"
-                      className={getNavClass('/settings')}
-                      onClick={() => handleNavigation('/settings')}
+                      className={getNavClass('/settings-admin')}
+                      onClick={() => handleNavigation('/settings-admin')}
                       title={!drawerOpen ? "Settings" : ""}
                     >
                       <Settings className={`h-5 w-5 ${drawerOpen ? 'mr-3' : ''}`} />
@@ -452,11 +454,27 @@ export default function ClientLayout({
                         <div className="ml-5 space-y-1 border-l border-gray-200 pl-3 dark:border-slate-800">
                           <button
                             type="button"
-                            className={getSubNavClass('/job-tasks')}
-                            onClick={() => handleNavigation('/job-tasks')}
+                            className={getSubNavClass('/settings-staff/job-tasks')}
+                            onClick={() => handleNavigation('/settings-staff/job-tasks')}
                           >
                             <ListChecks className="mr-2 h-3.5 w-3.5" />
                             Job Tasks
+                          </button>
+                          <button
+                            type="button"
+                            className={getSubNavClass('/settings-staff/client')}
+                            onClick={() => handleNavigation('/settings-staff/client')}
+                          >
+                            <Building2 className="mr-2 h-3.5 w-3.5" />
+                            Client
+                          </button>
+                          <button
+                            type="button"
+                            className={getSubNavClass('/settings-staff/holidays')}
+                            onClick={() => handleNavigation('/settings-staff/holidays')}
+                          >
+                            <CalendarDays className="mr-2 h-3.5 w-3.5" />
+                            Holidays
                           </button>
                         </div>
                       )}
@@ -531,8 +549,8 @@ export default function ClientLayout({
                     {isAdmin && (
                       <Button 
                         variant="ghost"
-                        className={getMobileNavClass('/settings')}
-                        onClick={() => handleNavigation('/settings')}
+                        className={getMobileNavClass('/settings-admin')}
+                        onClick={() => handleNavigation('/settings-admin')}
                       >
                         <Settings className="mr-3 h-5 w-5" />
                         Settings
@@ -560,11 +578,27 @@ export default function ClientLayout({
                           <div className="ml-5 space-y-1 border-l border-gray-200 pl-3 dark:border-slate-800">
                             <button
                               type="button"
-                              className={getMobileSubNavClass('/job-tasks')}
-                              onClick={() => handleNavigation('/job-tasks')}
+                              className={getMobileSubNavClass('/settings-staff/job-tasks')}
+                              onClick={() => handleNavigation('/settings-staff/job-tasks')}
                             >
                               <ListChecks className="mr-2 h-3.5 w-3.5" />
                               Job Tasks
+                            </button>
+                            <button
+                              type="button"
+                              className={getMobileSubNavClass('/settings-staff/client')}
+                              onClick={() => handleNavigation('/settings-staff/client')}
+                            >
+                              <Building2 className="mr-2 h-3.5 w-3.5" />
+                              Client
+                            </button>
+                            <button
+                              type="button"
+                              className={getMobileSubNavClass('/settings-staff/holidays')}
+                              onClick={() => handleNavigation('/settings-staff/holidays')}
+                            >
+                              <CalendarDays className="mr-2 h-3.5 w-3.5" />
+                              Holidays
                             </button>
                           </div>
                         )}

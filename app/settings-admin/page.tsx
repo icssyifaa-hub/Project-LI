@@ -1,21 +1,23 @@
-// app/settings/page.tsx
+// app/settings-admin/page.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Users, Calendar, Hash, Briefcase, UserCog, Settings as SettingsIcon } from 'lucide-react'
+import { Users, Calendar, Hash, Briefcase, UserCog, Settings as SettingsIcon, Building2 } from 'lucide-react'
 import { UsersTab } from './components/UsersTab'
 import { HolidaysTab } from './components/HolidaysTab'
-import { NumberFieldsTab } from './components/NumberFieldsTab'
+import { NumberFileTab } from './components/NumberFileTab'
 import { JobTasksTab } from './components/JobTasksTab'
 import { StaffTab } from './components/StaffTab'
+import { ClientsTab } from './components/ClientsTab'
+import type { AppUser } from '@/lib/auth/client'
 
 const tabTriggerClass =
   'settings-tab-trigger flex items-center rounded-md px-3 py-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-sm dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100 dark:data-[state=active]:bg-blue-500 dark:data-[state=active]:text-white'
 
 export default function SettingsPage() {
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<AppUser | null>(null)
   const [activeTab, setActiveTab] = useState('users')
   const [loading, setLoading] = useState(true)
   const router = useRouter()
@@ -52,8 +54,8 @@ export default function SettingsPage() {
   // Get tab from URL hash or default to users
   useEffect(() => {
     const hash = window.location.hash.replace('#', '')
-    if (hash && ['users', 'holidays', 'number-fields', 'job-tasks', 'staff'].includes(hash)) {
-      setActiveTab(hash)
+    if (hash && ['users', 'client-lists', 'holidays', 'number-file', 'number-fields', 'job-tasks', 'staff'].includes(hash)) {
+      setActiveTab(hash === 'number-fields' ? 'number-file' : hash)
     }
   }, [])
 
@@ -120,6 +122,13 @@ export default function SettingsPage() {
               Users
             </TabsTrigger>
             <TabsTrigger 
+              value="client-lists"
+              className={tabTriggerClass}
+            >
+              <Building2 className="h-4 w-4 mr-2" />
+              Client 
+            </TabsTrigger>
+            <TabsTrigger 
               value="holidays" 
               className={tabTriggerClass}
             >
@@ -127,11 +136,11 @@ export default function SettingsPage() {
               Holidays
             </TabsTrigger>
             <TabsTrigger 
-              value="number-fields" 
+              value="number-file" 
               className={tabTriggerClass}
             >
               <Hash className="h-4 w-4 mr-2" />
-              Number Fields
+              Number File
             </TabsTrigger>
             <TabsTrigger 
               value="job-tasks" 
@@ -154,12 +163,16 @@ export default function SettingsPage() {
             <UsersTab />
           </TabsContent>
 
+          <TabsContent value="client-lists" className="mt-6">
+            <ClientsTab />
+          </TabsContent>
+
           <TabsContent value="holidays" className="mt-6">
             <HolidaysTab />
           </TabsContent>
 
-          <TabsContent value="number-fields" className="mt-6">
-            <NumberFieldsTab />
+          <TabsContent value="number-file" className="mt-6">
+            <NumberFileTab />
           </TabsContent>
 
           <TabsContent value="job-tasks" className="mt-6">

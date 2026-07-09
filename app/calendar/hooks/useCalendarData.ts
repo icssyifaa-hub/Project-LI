@@ -7,9 +7,15 @@ import {
 } from '@/lib/supabase/calendar'
 import { useToast } from '@/components/ui/use-toast'
 import { createClient } from '@/lib/supabase/client'
-// PDF upload/delete removed — using job order number/final report number instead
+import { getSupabaseSchemaErrorMessage } from '@/lib/supabase/schema-errors'
+// PDF upload/delete removed - using job order number/final report number instead
 import { notifyStaffForTask, notifyStaffForEvent } from '@/lib/supabase/notifications'
 import type { Task, Event, Holiday, ViewType, StaffInfo } from '@/app/calendar/types/calendar'
+import { getTaskClient, TASK_CLIENT_SELECT } from '@/lib/settings/task-client'
+
+type FetchDataOptions = {
+  silent?: boolean
+}
 
 const computeTaskStatus = (data: {
   dateStart: string | null
@@ -26,12 +32,16 @@ const computeTaskStatus = (data: {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
+  const startDate = new Date(data.dateStart)
+  startDate.setHours(0, 0, 0, 0)
   const dueDate = data.dateStop ? new Date(data.dateStop) : new Date(data.dateStart)
   dueDate.setHours(0, 0, 0, 0)
 
   const isDueDatePassed = dueDate < today
   if (isDueDatePassed && (!hasJobOrder || !hasFinalReport)) return 'incomplete'
-  
+  if (startDate > today) return 'upcoming'
+  if (startDate <= today && dueDate >= today) return 'ongoing'
+
   return 'in-progress'
 }
 
@@ -47,6 +57,7 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
   const supabase = createClient()
   const lastStaffFetchRef = useRef<number>(0)
   const fetchRequestIdRef = useRef<number>(0)
+  const loadingRequestIdRef = useRef<number | null>(null)
   const staffMapRef = useRef<{[key: string]: StaffInfo}>({})
 
   useEffect(() => {
@@ -167,10 +178,15 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
     }
   }, [currentDate, view, formatDate])
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (options: FetchDataOptions = {}) => {
     const requestId = fetchRequestIdRef.current + 1
     fetchRequestIdRef.current = requestId
-    setLoading(true)
+    const shouldShowLoading = !options.silent
+
+    if (shouldShowLoading) {
+      loadingRequestIdRef.current = requestId
+      setLoading(true)
+    }
 
     try {
       const { start, end } = getDateRange()
@@ -179,10 +195,20 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
       console.log('🔄 Fetching data for range:', start, 'to', end)
       const staffData = await fetchAllStaff()
       
-      const { data: tasksData, error: tasksError } = await supabase
+      let { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
-        .select('*')
+        .select(TASK_CLIENT_SELECT)
         .order('created_at', { ascending: false })
+
+      if (tasksError) {
+        const fallback = await supabase
+          .from('tasks')
+          .select('*')
+          .order('created_at', { ascending: false })
+
+        tasksData = fallback.data
+        tasksError = fallback.error
+      }
       
       if (tasksError) throw tasksError
       
@@ -209,6 +235,7 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
       })
 
       const formattedTasks: Task[] = tasksData?.map((task: any) => {
+        const client = getTaskClient(task)
         const supportIds = task.task_support_ids 
           ? (typeof task.task_support_ids === 'string' ? task.task_support_ids.split(',') : task.task_support_ids)
           : []
@@ -241,8 +268,10 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
         
         return {
           id: task.id,
-          clientName: task.client_name,
-          runningNumber: task.running_number,
+          clientName: client.client_name || '',
+          clientId: client.id || '',
+          location: client.location || '',
+          address: client.address || '',
           jobTask: task.job_task,
           dateStart: task.date_start,
           dateStop: task.date_stop,
@@ -320,15 +349,20 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
     } catch (error: any) {
       if (requestId !== fetchRequestIdRef.current) return
 
-      console.error('Error fetching data:', error)
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to fetch calendar data",
-        variant: "destructive",
-      })
+      if (options.silent) {
+        console.warn('Auto-refresh calendar data failed:', error)
+      } else {
+        console.error('Error fetching data:', error)
+        toast({
+          title: "Error",
+          description: error?.message || "Failed to fetch calendar data",
+          variant: "destructive",
+        })
+      }
     } finally {
-      if (requestId === fetchRequestIdRef.current) {
+      if (shouldShowLoading && loadingRequestIdRef.current === requestId) {
         setLoading(false)
+        loadingRequestIdRef.current = null
       }
     }
   }, [getDateRange, toast, fetchAllStaff, supabase])
@@ -349,59 +383,11 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
     fetchData()
   }, [fetchData])
 
-  // Function to check if running number exists
-  const checkRunningNumberExists = useCallback(async (runningNumber: string, excludeTaskId?: string): Promise<boolean> => {
-    if (!runningNumber || runningNumber.trim() === '') return false
-    
-    try {
-      let query = supabase
-        .from('tasks')
-        .select('running_number, id')
-        .eq('running_number', runningNumber.trim())
-      
-      if (excludeTaskId) {
-        query = query.neq('id', excludeTaskId)
-      }
-      
-      const { data, error } = await query.maybeSingle()
-      
-      if (error) throw error
-      return !!data
-    } catch (error) {
-      console.error('Error checking running number:', error)
-      return false
-    }
-  }, [supabase])
-
   const saveTask = useCallback(async (taskData: any, selectedTask: Task | null, pdfFile?: File | null) => {
     try {
       console.log('💾 Saving task:', taskData)
       
       const startDate = taskData.date_start || taskData.dateStart || null
-
-      // Get running number from user input - NO AUTO-GENERATION
-      let runningNumber = taskData.running_number || taskData.runningNumber
-      
-      // Validate running number is provided
-      if (!runningNumber || runningNumber.trim() === '') {
-        throw new Error('Running number is required')
-      }
-      
-      // Validate running number is unique (for new tasks)
-      if (!selectedTask) {
-        const exists = await checkRunningNumberExists(runningNumber)
-        if (exists) {
-          throw new Error(`Running number "${runningNumber}" already exists. Please use a different number.`)
-        }
-      } else {
-        // For edit, check if different from original
-        if (runningNumber !== selectedTask.runningNumber) {
-          const exists = await checkRunningNumberExists(runningNumber, selectedTask.id)
-          if (exists) {
-            throw new Error(`Running number "${runningNumber}" already exists. Please use a different number.`)
-          }
-        }
-      }
 
       const jobOrderNumber = taskData.job_order_number || taskData.jobOrderNumber || null
       const finalReportNumber = taskData.final_report_number || taskData.finalReportNumber || null
@@ -425,7 +411,9 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
 
       const data = {
         client_name: taskData.client_name || taskData.clientName,
-        running_number: runningNumber,
+        client_id: taskData.client_id || taskData.clientId || null,
+        location: taskData.location || null,
+        address: taskData.address || null,
         job_task: taskData.job_task || taskData.jobTask || 'General Task',
         date_start: startDate,
         date_stop: taskData.date_stop || taskData.dateStop || null,
@@ -493,12 +481,12 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
       }
       toast({ 
         title: "Error", 
-        description: error?.message || "Failed to save task", 
+        description: getSupabaseSchemaErrorMessage(error) || error?.message || "Failed to save task",
         variant: "destructive" 
       })
       throw error
     }
-  }, [user, fetchData, toast, checkRunningNumberExists])
+  }, [user, fetchData, toast])
 
   const deleteTask = useCallback(async (id: string) => {
     try {
@@ -636,6 +624,8 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
     return { name: staff.name, color: staff.color }
   }, [staffMap])
 
+  const refreshSilently = useCallback(() => fetchData({ silent: true }), [fetchData])
+
   return {
     tasks,
     events,
@@ -652,6 +642,6 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
     deleteTask,
     deleteEvent,
     refresh: fetchData,
-    checkRunningNumberExists
+    refreshSilently
   }
 }

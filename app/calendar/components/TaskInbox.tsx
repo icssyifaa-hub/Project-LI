@@ -34,7 +34,8 @@ import {
   FileText,
   Calendar,
   Eye,
-  AlertCircle
+  AlertCircle,
+  MapPin
 } from 'lucide-react'
 import {
   DndContext,
@@ -58,22 +59,33 @@ import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/use-toast'
 // PDFs removed per request: use job order number/final report number instead
 import { getDotClass } from '@/lib/colors'
-import { fetchJobTaskNames } from '@/lib/job-tasks'
+import {
+  Client,
+  fetchClients,
+  findClient,
+  getLocationsForClient,
+  getUniqueClientNames,
+} from '@/lib/settings/clients'
+import { fetchJobTaskNames } from '@/lib/settings/job-tasks'
 import {
   JOB_ORDER_NUMBER_EXAMPLE,
   normalizeJobOrderNumber,
   validateJobOrderNumberFormat,
-} from '@/lib/number-formats'
+} from '@/lib/reports/number-formats'
+import { getMissingSchemaColumn, getSupabaseSchemaErrorMessage } from '@/lib/supabase/schema-errors'
+import { getTaskClient, TASK_CLIENT_SELECT, type TaskClientRecord } from '@/lib/settings/task-client'
 
 export interface UnscheduledTask {
   id: string
   clientName: string
+  clientId?: string
+  location?: string
+  address?: string
   jobTask: string
   task_pic_id: string
   task_pic_name?: string
   task_pic_color?: string
   jobOrderNumber?: string
-  runningNumber?: string
   createdAt: Date
   notes?: string
   timeStart?: string
@@ -83,7 +95,7 @@ export interface UnscheduledTask {
   task_support_names?: string[]
   task_support_colors?: string[]
   finalReportNumber?: string
-  jobStatus?: 'onhold' | 'in-progress' | 'completed' | 'incomplete'
+  jobStatus?: 'onhold' | 'in-progress' | 'completed' | 'incomplete' | 'ongoing' | 'upcoming'
 }
 
 interface TaskInboxProps {
@@ -223,17 +235,20 @@ function SortableTaskItem({
           <div className="min-w-0 flex-1 cursor-pointer" onClick={() => onTaskClick?.(task)}>
             <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-2">
               <h4 className="break-words text-sm font-medium text-gray-900 dark:text-gray-100">{task.clientName}</h4>
-              {task.runningNumber && (
-                <span className="w-fit flex-shrink-0 rounded bg-gray-50 px-1 font-mono text-[10px] text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                  {task.runningNumber}
-                </span>
-              )}
             </div>
+            {task.location && (
+              <div
+                className="mt-1 flex min-w-0 items-start gap-1 text-xs text-gray-500 dark:text-gray-400"
+                title={task.address ? `${task.location} - ${task.address}` : task.location}
+              >
+                <MapPin className="mt-0.5 h-3 w-3 flex-shrink-0" />
+                <span className="min-w-0 break-words">{task.location}</span>
+              </div>
+            )}
             
             <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
               {task.jobTask && <span className="mr-1 inline-block max-w-full break-words rounded bg-gray-100 px-1 font-mono dark:bg-gray-800 dark:text-gray-200">{task.jobTask}</span>}
             </p>
-            
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
               <span className="flex min-w-0 items-center">
                 <div className={`mr-1 h-2 w-2 flex-shrink-0 rounded-full ${getDotClass(task.task_pic_color)}`}></div>
@@ -282,17 +297,21 @@ function AddTaskModal({
   onClose, 
   onAdd,
   staffList,
-  jobTasks
+  jobTasks,
+  clients
 }: { 
   isOpen: boolean, 
   onClose: () => void, 
   onAdd: (task: UnscheduledTask) => Promise<void>,
   staffList: Staff[],
-  jobTasks: JobTask[]
+  jobTasks: JobTask[],
+  clients: Client[]
 }) {
   const [formData, setFormData] = useState({
     clientName: '',
-    runningNumber: '',
+    clientId: '',
+    location: '',
+    address: '',
     jobTask: '',
     task_pic_id: '',
     jobOrderNumber: '',
@@ -300,15 +319,12 @@ function AddTaskModal({
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<{[key: string]: string}>({})
   const [touched, setTouched] = useState<{[key: string]: boolean}>({})
-  const [isCheckingRunningNumber, setIsCheckingRunningNumber] = useState(false)
-  const [runningNumberValid, setRunningNumberValid] = useState<boolean | null>(null)
-  
   const { toast } = useToast()
   const supabase = createClient()
   const activeStaffList = staffList.filter((staff) => staff.is_active !== false)
 
   const checkTaskNumberExists = async (
-    column: 'running_number' | 'job_order_number',
+    column: 'job_order_number',
     value: string
   ): Promise<boolean> => {
     if (!value || value.trim() === '') return false
@@ -328,68 +344,21 @@ function AddTaskModal({
     }
   }
 
-  // Function to check if running number exists
-  const checkRunningNumberExists = async (runningNumber: string): Promise<boolean> => {
-    return checkTaskNumberExists('running_number', runningNumber.trim().toUpperCase())
-  }
-
-  // Function to validate running number
-  const validateRunningNumber = async (runningNumber: string) => {
-    if (!runningNumber || runningNumber.trim() === '') {
-      setRunningNumberValid(null)
-      setErrors(prev => {
-        const newErrors = { ...prev }
-        delete newErrors.runningNumber
-        return newErrors
-      })
-      return
-    }
-    
-    setIsCheckingRunningNumber(true)
-    const exists = await checkRunningNumberExists(runningNumber)
-    setIsCheckingRunningNumber(false)
-    
-    setRunningNumberValid(!exists)
-    
-    if (exists) {
-      setErrors(prev => ({ 
-        ...prev, 
-        runningNumber: `Running number "${runningNumber}" already exists. Please use a different number.` 
-      }))
-    } else {
-      setErrors(prev => {
-        const newErrors = { ...prev }
-        delete newErrors.runningNumber
-        return newErrors
-      })
-    }
-  }
-
   useEffect(() => {
     if (isOpen) {
       setFormData({
         clientName: '',
-        runningNumber: '',
+        clientId: '',
+        location: '',
+        address: '',
         jobTask: '',
         task_pic_id: '',
         jobOrderNumber: '',
       })
       setErrors({})
       setTouched({})
-      setRunningNumberValid(null)
-      setIsCheckingRunningNumber(false)
     }
   }, [isOpen])
-
-  // Auto-validate running number when user types (with debounce)
-  useEffect(() => {
-    if (formData.runningNumber && !isCheckingRunningNumber) {
-      const timer = setTimeout(() => {
-        validateRunningNumber(formData.runningNumber)
-      }, 800)
-      return () => clearTimeout(timer)
-    }
-  }, [formData.runningNumber])
 
   useEffect(() => {
     const jobOrderNumber = normalizeJobOrderNumber(formData.jobOrderNumber)
@@ -428,9 +397,8 @@ function AddTaskModal({
         if (!value.trim()) return 'Client Name is required'
         if (value.length < 2) return 'Client name must be at least 2 characters'
         return ''
-      case 'runningNumber':
-        if (!value.trim()) return 'Running Number is required'
-        if (value.length < 3) return 'Running number must be at least 3 characters'
+      case 'location':
+        if (getLocationsForClient(clients, formData.clientName).length > 0 && !value.trim()) return 'Location is required'
         return ''
       case 'jobTask':
         if (!value.trim()) return 'Job Task is required'
@@ -452,10 +420,6 @@ function AddTaskModal({
     setTouched(prev => ({ ...prev, [field]: true }))
     const error = validateField(field, formData[field as keyof typeof formData] as string)
     setErrors(prev => ({ ...prev, [field]: error }))
-    
-    if (field === 'runningNumber' && formData.runningNumber) {
-      validateRunningNumber(formData.runningNumber)
-    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -465,8 +429,8 @@ function AddTaskModal({
     const newErrors: {[key: string]: string} = {}
     const clientNameError = validateField('clientName', formData.clientName)
     if (clientNameError) newErrors.clientName = clientNameError
-    const runningNumberError = validateField('runningNumber', formData.runningNumber)
-    if (runningNumberError) newErrors.runningNumber = runningNumberError
+    const locationError = validateField('location', formData.location)
+    if (locationError) newErrors.location = locationError
     const jobTaskError = validateField('jobTask', formData.jobTask)
     if (jobTaskError) newErrors.jobTask = jobTaskError
     const picError = validateField('task_pic_id', formData.task_pic_id)
@@ -474,18 +438,6 @@ function AddTaskModal({
     const jobOrderNumberError = validateField('jobOrderNumber', formData.jobOrderNumber)
     if (jobOrderNumberError) newErrors.jobOrderNumber = jobOrderNumberError
     
-    // Check if running number already exists
-    if (formData.runningNumber && !runningNumberError) {
-      const normalizedRunningNumber = formData.runningNumber.trim().toUpperCase()
-      const exists = await checkRunningNumberExists(normalizedRunningNumber)
-      if (exists) {
-        newErrors.runningNumber = `Running number "${normalizedRunningNumber}" already exists. Please use a different number.`
-        setRunningNumberValid(false)
-      } else {
-        setRunningNumberValid(true)
-      }
-    }
-
     const normalizedJobOrderNumber = normalizeJobOrderNumber(formData.jobOrderNumber)
     if (normalizedJobOrderNumber && !jobOrderNumberError) {
       const exists = await checkTaskNumberExists('job_order_number', normalizedJobOrderNumber)
@@ -512,7 +464,9 @@ function AddTaskModal({
       const newTask: UnscheduledTask = {
         id: `temp-${Date.now()}`,
         clientName: formData.clientName,
-        runningNumber: formData.runningNumber.trim().toUpperCase(),
+        clientId: formData.clientId,
+        location: formData.location,
+        address: formData.address,
         jobTask: formData.jobTask,
         task_pic_id: selectedStaff?.id || formData.task_pic_id,
         task_pic_name: selectedStaff?.name,
@@ -552,6 +506,61 @@ function AddTaskModal({
 
   if (!isOpen) return null
 
+  const clientNameOptions = getUniqueClientNames(clients).map((name) => ({ value: name, label: name }))
+  if (formData.clientName && !clientNameOptions.some((option) => option.value === formData.clientName)) {
+    clientNameOptions.push({ value: formData.clientName, label: `${formData.clientName} (current)` })
+  }
+  const availableLocations = getLocationsForClient(clients, formData.clientName)
+  const selectedClient = findClient(clients, {
+    id: formData.clientId,
+    clientName: formData.clientName,
+    location: formData.location,
+  })
+  const hasLegacyLocation =
+    formData.location &&
+    !availableLocations.some((item) => item.id === (selectedClient?.id || formData.clientId) || item.location === formData.location)
+  const legacyClientValue = hasLegacyLocation ? `legacy-${formData.location}` : ''
+  const selectedClientValue = selectedClient?.id || formData.clientId || legacyClientValue
+
+  const handleClientNameSelect = (clientName: string) => {
+    const locations = getLocationsForClient(clients, clientName)
+    const nextLocation = locations.length === 1 ? locations[0] : undefined
+    setFormData({
+      ...formData,
+      clientName,
+      clientId: nextLocation?.id || '',
+      location: nextLocation?.location || '',
+      address: nextLocation?.address || '',
+    })
+    if (touched.clientName) {
+      setErrors(prev => ({ ...prev, clientName: validateField('clientName', clientName) }))
+    }
+  }
+
+  const handleClientSelect = (clientId: string) => {
+    if (clientId.startsWith('legacy-')) {
+      setFormData({
+        ...formData,
+        clientId: '',
+        location: clientId.replace(/^legacy-/, ''),
+        address: '',
+      })
+      return
+    }
+
+    const selectedLocation = clients.find((item) => item.id === clientId)
+    setFormData({
+      ...formData,
+      clientId,
+      clientName: selectedLocation?.client_name || formData.clientName,
+      location: selectedLocation?.location || '',
+      address: selectedLocation?.address || '',
+    })
+    if (touched.location) {
+      setErrors(prev => ({ ...prev, location: validateField('location', selectedLocation?.location || '') }))
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4">
       <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-lg bg-white">
@@ -564,88 +573,73 @@ function AddTaskModal({
 
         <form onSubmit={handleSubmit} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
           <div className="space-y-2">
+            <Label className="font-medium text-gray-900">Job Order Number</Label>
+            <Input
+              value={formData.jobOrderNumber}
+              onChange={(e) => {
+                const value = normalizeJobOrderNumber(e.target.value)
+                setFormData({...formData, jobOrderNumber: value})
+                if (touched.jobOrderNumber) {
+                  const error = validateField('jobOrderNumber', value)
+                  setErrors(prev => ({ ...prev, jobOrderNumber: error }))
+                }
+              }}
+              onBlur={() => handleBlur('jobOrderNumber')}
+              placeholder={JOB_ORDER_NUMBER_EXAMPLE}
+              className={`border-gray-300 bg-white ${touched.jobOrderNumber && errors.jobOrderNumber ? 'border-red-500' : ''}`}
+            />
+            <ErrorMessage field="jobOrderNumber" />
+          </div>
+
+          <div className="space-y-2">
             <Label className="text-gray-700 font-medium">
               Client Name <span className="text-red-500">*</span>
             </Label>
-            <Input
+            <Combobox
+              options={clientNameOptions}
               value={formData.clientName}
-              onChange={(e) => {
-                setFormData({...formData, clientName: e.target.value})
-                if (touched.clientName) {
-                  const error = validateField('clientName', e.target.value)
-                  setErrors(prev => ({ ...prev, clientName: error }))
-                }
-              }}
+              onValueChange={handleClientNameSelect}
               onBlur={() => handleBlur('clientName')}
-              placeholder="Enter client name"
-              className={`border-gray-300 bg-white ${touched.clientName && errors.clientName ? 'border-red-500' : ''}`}
-              required
-              autoFocus
+              placeholder="Select client"
+              emptyMessage="No clients found."
+              disabled={saving}
+              className={touched.clientName && errors.clientName ? 'border-red-500' : ''}
             />
             <ErrorMessage field="clientName" />
           </div>
 
-          {/* RUNNING NUMBER - USER INPUT WITH VALIDATION */}
           <div className="space-y-2">
             <Label className="text-gray-700 font-medium">
-              Running Number <span className="text-red-500">*</span>
+              Location <span className={availableLocations.length > 0 ? 'text-red-500' : 'text-gray-400'}>{availableLocations.length > 0 ? '*' : '(Optional)'}</span>
             </Label>
-            <div className="relative">
-              <Input
-                value={formData.runningNumber}
-                onChange={(e) => {
-                  const value = e.target.value.toUpperCase()
-                  setFormData({...formData, runningNumber: value})
-                  if (touched.runningNumber) {
-                    const error = validateField('runningNumber', value)
-                    setErrors(prev => ({ ...prev, runningNumber: error }))
-                  }
-                }}
-                onBlur={() => handleBlur('runningNumber')}
-                placeholder="e.g., JOB2401001, INV-001, TASK-001"
-                className={`border-gray-300 bg-white font-mono text-sm pr-10 ${
-                  formData.runningNumber && runningNumberValid === true 
-                    ? 'border-green-500 border-2 bg-green-50' 
-                    : formData.runningNumber && runningNumberValid === false
-                    ? 'border-red-500 border-2 bg-red-50'
-                    : touched.runningNumber && errors.runningNumber
-                    ? 'border-red-500'
-                    : ''
-                }`}
-              />
-              {isCheckingRunningNumber && (
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-                </div>
-              )}
-              {runningNumberValid === true && !isCheckingRunningNumber && formData.runningNumber && (
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                  <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
-                    <span className="text-white text-[10px]">✓</span>
-                  </div>
-                </div>
-              )}
-              {runningNumberValid === false && !isCheckingRunningNumber && formData.runningNumber && (
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                  <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center">
-                    <span className="text-white text-[10px]">✗</span>
-                  </div>
-                </div>
-              )}
-            </div>
-            {runningNumberValid === true && formData.runningNumber && (
-              <p className="text-xs text-green-600 flex items-center">
-                <AlertCircle className="h-3 w-3 mr-1" />
-                ✓ Running number is available
-              </p>
-            )}
-            {runningNumberValid === false && formData.runningNumber && (
-              <p className="text-xs text-red-600 flex items-center">
-                <AlertCircle className="h-3 w-3 mr-1" />
-                ✗ This running number already exists! Please use a different number.
-              </p>
-            )}
-            <ErrorMessage field="runningNumber" />
+            <Select
+              value={selectedClientValue}
+              onValueChange={handleClientSelect}
+              onOpenChange={() => handleBlur('location')}
+              disabled={saving || !formData.clientName || availableLocations.length === 0}
+            >
+              <SelectTrigger className={`border-gray-300 bg-white ${touched.location && errors.location ? 'border-red-500' : ''}`}>
+                {formData.location ? (
+                  <span className="truncate">{formData.location}</span>
+                ) : (
+                  <span className="text-muted-foreground">{formData.clientName ? 'Select location' : 'Select client first'}</span>
+                )}
+              </SelectTrigger>
+              <SelectContent
+                className="max-h-80 overflow-hidden border border-gray-200 bg-white text-gray-900 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                viewportClassName="h-auto max-h-52 overflow-y-auto overscroll-contain"
+              >
+                {hasLegacyLocation && (
+                  <SelectItem value={legacyClientValue}>{formData.location} (current)</SelectItem>
+                )}
+                {availableLocations.map((location) => (
+                  <SelectItem key={location.id} value={location.id}>
+                    {location.location}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <ErrorMessage field="location" />
           </div>
 
           {/* Job Task - SEARCHABLE COMBOBOX */}
@@ -713,29 +707,10 @@ function AddTaskModal({
             <ErrorMessage field="task_pic_id" />
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-gray-700 font-medium">Job Order Number (Optional)</Label>
-            <Input
-              value={formData.jobOrderNumber}
-              onChange={(e) => {
-                const value = normalizeJobOrderNumber(e.target.value)
-                setFormData({...formData, jobOrderNumber: value})
-                if (touched.jobOrderNumber) {
-                  const error = validateField('jobOrderNumber', value)
-                  setErrors(prev => ({ ...prev, jobOrderNumber: error }))
-                }
-              }}
-              onBlur={() => handleBlur('jobOrderNumber')}
-              placeholder={JOB_ORDER_NUMBER_EXAMPLE}
-              className={`border-gray-300 bg-white ${touched.jobOrderNumber && errors.jobOrderNumber ? 'border-red-500' : ''}`}
-            />
-            <ErrorMessage field="jobOrderNumber" />
-          </div>
-
           <div className="flex flex-col gap-2 pt-2 sm:flex-row">
             <Button 
               type="submit" 
-              disabled={saving || runningNumberValid === false || (!formData.runningNumber && touched.runningNumber)} 
+              disabled={saving}
               className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
@@ -755,17 +730,22 @@ function EditTaskModal({
   onClose, 
   onSave,
   staffList,
-  jobTasks
+  jobTasks,
+  clients
 }: { 
   task: UnscheduledTask | null, 
   isOpen: boolean, 
   onClose: () => void, 
   onSave: (task: UnscheduledTask) => Promise<void>,
   staffList: Staff[],
-  jobTasks: JobTask[]
+  jobTasks: JobTask[],
+  clients: Client[]
 }) {
   const [formData, setFormData] = useState({
     clientName: '',
+    clientId: '',
+    location: '',
+    address: '',
     jobTask: '',
     task_pic_id: '',
     jobOrderNumber: '',
@@ -785,10 +765,23 @@ function EditTaskModal({
         picId = currentStaff.id
       }
       
-      let jobTaskValue = task.jobTask || ''
+      const jobTaskValue = task.jobTask || ''
+      const clientName = task.clientName || ''
+      const taskLocation = task.location || ''
+      const clientLocations = getLocationsForClient(clients, clientName)
+      const matchingClient = findClient(clients, {
+        id: task.clientId,
+        clientName,
+        location: taskLocation,
+      })
+      const onlyClientLocation = !taskLocation && clientLocations.length === 1 ? clientLocations[0] : undefined
+      const resolvedClient = matchingClient || onlyClientLocation
       
       setFormData({
-        clientName: task.clientName || '',
+        clientName: clientName || resolvedClient?.client_name || '',
+        clientId: resolvedClient?.id || task.clientId || '',
+        location: taskLocation || resolvedClient?.location || '',
+        address: task.address || resolvedClient?.address || '',
         jobTask: jobTaskValue,
         task_pic_id: picId,
         jobOrderNumber: task.jobOrderNumber || '',
@@ -796,13 +789,16 @@ function EditTaskModal({
       setErrors({})
       setTouched({})
     }
-  }, [task, isOpen, staffList])
+  }, [task, isOpen, staffList, clients])
 
   const validateField = (field: string, value: string): string => {
     switch (field) {
       case 'clientName':
         if (!value.trim()) return 'Client Name is required'
         if (value.length < 2) return 'Client name must be at least 2 characters'
+        return ''
+      case 'location':
+        if (getLocationsForClient(clients, formData.clientName).length > 0 && !value.trim()) return 'Location is required'
         return ''
       case 'jobTask':
         if (!value.trim()) return 'Job Task is required'
@@ -882,6 +878,8 @@ function EditTaskModal({
     const newErrors: {[key: string]: string} = {}
     const clientNameError = validateField('clientName', formData.clientName)
     if (clientNameError) newErrors.clientName = clientNameError
+    const locationError = validateField('location', formData.location || task?.location || '')
+    if (locationError) newErrors.location = locationError
     const jobTaskError = validateField('jobTask', formData.jobTask)
     if (jobTaskError) newErrors.jobTask = jobTaskError
     const picError = validateField('task_pic_id', formData.task_pic_id)
@@ -911,10 +909,21 @@ function EditTaskModal({
     setSaving(true)
     try {
       const selectedStaff = findStaffForPic(staffList, formData.task_pic_id, task!.task_pic_name)
+      const selectedClient = findClient(clients, {
+        id: formData.clientId,
+        clientName: formData.clientName,
+        location: formData.location || task!.location,
+      })
+      const resolvedClientId = selectedClient?.id || formData.clientId
+      const resolvedLocation = selectedClient?.location || formData.location || task!.location
+      const resolvedAddress = selectedClient?.address || formData.address || task!.address
 
       const updatedTask: UnscheduledTask = {
         ...task!,
         clientName: formData.clientName,
+        clientId: resolvedClientId,
+        location: resolvedLocation,
+        address: resolvedAddress,
         jobTask: formData.jobTask,
         task_pic_id: selectedStaff?.id || formData.task_pic_id,
         task_pic_name: selectedStaff?.name,
@@ -933,7 +942,7 @@ function EditTaskModal({
       console.error('Error saving task:', error)
       toast({
         title: "Error",
-        description: error.message || "Failed to save task",
+        description: getSupabaseSchemaErrorMessage(error) || error.message || "Failed to save task",
         variant: "destructive",
       })
     } finally {
@@ -957,6 +966,70 @@ function EditTaskModal({
   const selectedPicValue = selectedPic?.id || formData.task_pic_id || ''
   const selectedPicColor = selectedPic?.color || task.task_pic_color || 'blue'
   const hasSelectedPicOption = staffList.some(staff => staff.id === selectedPicValue)
+  const clientNameOptions = getUniqueClientNames(clients).map((name) => ({ value: name, label: name }))
+  if (formData.clientName && !clientNameOptions.some((option) => option.value === formData.clientName)) {
+    clientNameOptions.push({ value: formData.clientName, label: `${formData.clientName} (current)` })
+  }
+  const availableLocations = getLocationsForClient(clients, formData.clientName)
+  const selectedClient = findClient(clients, {
+    id: formData.clientId,
+    clientName: formData.clientName,
+    location: formData.location || task.location,
+  })
+  const effectiveLocation = selectedClient?.location || formData.location || task.location || ''
+  const effectiveAddress = selectedClient?.address || formData.address || task.address || ''
+  const hasLegacyLocation =
+    effectiveLocation &&
+    !availableLocations.some((item) => item.id === (selectedClient?.id || formData.clientId) || item.location === effectiveLocation)
+  const legacyClientValue = hasLegacyLocation ? `legacy-${effectiveLocation}` : ''
+  const selectedClientValue = selectedClient?.id || formData.clientId || legacyClientValue
+  const selectedLocationLabel = effectiveLocation
+
+  const handleClientNameSelect = (clientName: string) => {
+    const locations = getLocationsForClient(clients, clientName)
+    const currentLocationStillValid = locations.some((item) => item.location === formData.location)
+    const nextLocation = locations.length === 1
+      ? locations[0]
+      : currentLocationStillValid
+        ? findClient(locations, { clientName, location: formData.location })
+        : undefined
+
+    setFormData({
+      ...formData,
+      clientName,
+      clientId: nextLocation?.id || '',
+      location: nextLocation?.location || '',
+      address: nextLocation?.address || '',
+    })
+    if (touched.clientName) {
+      setErrors(prev => ({ ...prev, clientName: validateField('clientName', clientName) }))
+    }
+  }
+
+  const handleClientSelect = (clientId: string) => {
+    if (clientId.startsWith('legacy-')) {
+      const location = clientId.replace(/^legacy-/, '')
+      setFormData({
+        ...formData,
+        clientId: '',
+        location,
+        address: location === effectiveLocation ? effectiveAddress : '',
+      })
+      return
+    }
+
+    const selectedLocation = clients.find((item) => item.id === clientId)
+    setFormData({
+      ...formData,
+      clientId,
+      clientName: selectedLocation?.client_name || formData.clientName,
+      location: selectedLocation?.location || '',
+      address: selectedLocation?.address || '',
+    })
+    if (touched.location) {
+      setErrors(prev => ({ ...prev, location: validateField('location', selectedLocation?.location || '') }))
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4">
@@ -970,22 +1043,71 @@ function EditTaskModal({
 
         <form onSubmit={handleSubmit} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
           <div className="space-y-2">
-            <Label className="text-gray-700 font-medium">Client Name <span className="text-red-500">*</span></Label>
+            <Label className="font-medium text-gray-900">Job Order Number</Label>
             <Input
-              value={formData.clientName}
+              value={formData.jobOrderNumber}
               onChange={(e) => {
-                setFormData({...formData, clientName: e.target.value})
-                if (touched.clientName) {
-                  const error = validateField('clientName', e.target.value)
-                  setErrors(prev => ({ ...prev, clientName: error }))
+                const value = normalizeJobOrderNumber(e.target.value)
+                setFormData({...formData, jobOrderNumber: value})
+                if (touched.jobOrderNumber) {
+                  const error = validateField('jobOrderNumber', value)
+                  setErrors(prev => ({ ...prev, jobOrderNumber: error }))
                 }
               }}
+              onBlur={() => handleBlur('jobOrderNumber')}
+              placeholder={JOB_ORDER_NUMBER_EXAMPLE}
+              className={`border-gray-300 bg-white ${touched.jobOrderNumber && errors.jobOrderNumber ? 'border-red-500' : ''}`}
+            />
+            <ErrorMessage field="jobOrderNumber" />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-gray-700 font-medium">Client Name <span className="text-red-500">*</span></Label>
+            <Combobox
+              options={clientNameOptions}
+              value={formData.clientName}
+              onValueChange={handleClientNameSelect}
               onBlur={() => handleBlur('clientName')}
-              placeholder="Enter client name"
-              className={`border-gray-300 bg-white ${touched.clientName && errors.clientName ? 'border-red-500' : ''}`}
-              required
+              placeholder="Select client"
+              emptyMessage="No clients found."
+              disabled={saving}
+              className={touched.clientName && errors.clientName ? 'border-red-500' : ''}
             />
             <ErrorMessage field="clientName" />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-gray-700 font-medium">
+              Location <span className={availableLocations.length > 0 ? 'text-red-500' : 'text-gray-400'}>{availableLocations.length > 0 ? '*' : '(Optional)'}</span>
+            </Label>
+            <Select
+              value={selectedClientValue}
+              onValueChange={handleClientSelect}
+              onOpenChange={() => handleBlur('location')}
+              disabled={saving || !formData.clientName || availableLocations.length === 0}
+            >
+              <SelectTrigger className={`bg-white border-gray-300 ${touched.location && errors.location ? 'border-red-500' : ''}`}>
+                {selectedLocationLabel ? (
+                  <span className="truncate">{selectedLocationLabel}</span>
+                ) : (
+                  <span className="text-muted-foreground">{formData.clientName ? 'Select location' : 'Select client first'}</span>
+                )}
+              </SelectTrigger>
+              <SelectContent
+                className="max-h-80 overflow-hidden border border-gray-200 bg-white text-gray-900 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                viewportClassName="h-auto max-h-52 overflow-y-auto overscroll-contain"
+              >
+                {hasLegacyLocation && (
+                  <SelectItem value={legacyClientValue}>{effectiveLocation} (current)</SelectItem>
+                )}
+                {availableLocations.map((location) => (
+                  <SelectItem key={location.id} value={location.id}>
+                    {location.location}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <ErrorMessage field="location" />
           </div>
 
           <div className="space-y-2">
@@ -1058,25 +1180,6 @@ function EditTaskModal({
             <ErrorMessage field="task_pic_id" />
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-gray-700 font-medium">Job Order Number (Optional)</Label>
-            <Input
-              value={formData.jobOrderNumber}
-              onChange={(e) => {
-                const value = normalizeJobOrderNumber(e.target.value)
-                setFormData({...formData, jobOrderNumber: value})
-                if (touched.jobOrderNumber) {
-                  const error = validateField('jobOrderNumber', value)
-                  setErrors(prev => ({ ...prev, jobOrderNumber: error }))
-                }
-              }}
-              onBlur={() => handleBlur('jobOrderNumber')}
-              placeholder={JOB_ORDER_NUMBER_EXAMPLE}
-              className={`border-gray-300 bg-white ${touched.jobOrderNumber && errors.jobOrderNumber ? 'border-red-500' : ''}`}
-            />
-            <ErrorMessage field="jobOrderNumber" />
-          </div>
-
           <div className="flex flex-col gap-2 pt-2 sm:flex-row">
             <Button type="submit" disabled={saving} className="flex-1 bg-blue-600 text-white hover:bg-blue-700">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
@@ -1101,6 +1204,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
   const [pendingDeleteTask, setPendingDeleteTask] = useState<UnscheduledTask | null>(null)
   const [staffList, setStaffList] = useState<Staff[]>([])
   const [jobTasks, setJobTasks] = useState<JobTask[]>([])
+  const [clients, setClients] = useState<Client[]>([])
   const [loadingData, setLoadingData] = useState(true)
 
   const { toast } = useToast()
@@ -1128,25 +1232,46 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
       
       const jobTaskNames = await fetchJobTaskNames(supabase)
       setJobTasks(jobTaskNames.map((name) => ({ id: name, name })))
+
+      try {
+        const clientData = await fetchClients(supabase)
+        setClients(clientData)
+      } catch {
+        setClients([])
+      }
       
-      const { data: tasksData, error: tasksError } = await supabase
+      let { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
-        .select('*')
+        .select(TASK_CLIENT_SELECT)
         .is('date_start', null)
         .order('created_at', { ascending: false })
+
+      if (tasksError) {
+        const fallback = await supabase
+          .from('tasks')
+          .select('*')
+          .is('date_start', null)
+          .order('created_at', { ascending: false })
+
+        tasksData = fallback.data
+        tasksError = fallback.error
+      }
       
       if (tasksError) throw tasksError
       
       const formattedTasks: UnscheduledTask[] = (tasksData || []).map((task: {
         id: string;
+        client?: TaskClientRecord | TaskClientRecord[] | null;
         client_name: string;
+        client_id: string | null;
+        location: string | null;
+        address: string | null;
         job_task: string;
         task_pic_id: string | null;
         task_pic_name: string | null;
         task_pic_color: string | null;
         job_order_number: string | null;
         final_report_number: string | null;
-        running_number: string;
         created_at: string;
         additional_remark: string | null;
         time_start: string | null;
@@ -1154,8 +1279,9 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
         task_support_ids: string | string[] | null;
         task_support_names: string | string[] | null;
         task_support_colors: string | string[] | null;
-        job_status: 'onhold' | 'in-progress' | 'completed' | 'incomplete' | null;
+        job_status: 'onhold' | 'in-progress' | 'completed' | 'incomplete' | 'ongoing' | 'upcoming' | null;
       }) => {
+        const client = getTaskClient(task)
         const staffInfo = findStaffForPic(formattedStaff, task.task_pic_id, task.task_pic_name)
         const supportIds = toTextList(task.task_support_ids)
         const supportNames = toTextList(task.task_support_names)
@@ -1163,13 +1289,15 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
         
         return {
           id: task.id,
-          clientName: task.client_name || 'Unknown Client',
+          clientName: client.client_name || 'Unknown Client',
+          clientId: client.id || undefined,
+          location: client.location || undefined,
+          address: client.address || undefined,
           jobTask: task.job_task || '',
           task_pic_id: staffInfo?.id || task.task_pic_id || '',
           task_pic_name: staffInfo?.name || task.task_pic_name || undefined,
           task_pic_color: staffInfo?.color || task.task_pic_color || 'blue',
           jobOrderNumber: task.job_order_number || undefined,
-          runningNumber: task.running_number,
           createdAt: new Date(task.created_at),
           notes: task.additional_remark || undefined,
           additionalRemark: task.additional_remark || undefined,
@@ -1273,12 +1401,24 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
   const saveTaskToDatabase = async (taskData: UnscheduledTask, isNew: boolean = true) => {
     const userData = localStorage.getItem('user')
     const currentUser = userData ? JSON.parse(userData) : null
+    const updatedAt = new Date().toISOString()
     
     const selectedStaff = findStaffForPic(staffList, taskData.task_pic_id, taskData.task_pic_name)
+    const selectedClient = findClient(clients, {
+      id: taskData.clientId,
+      clientName: taskData.clientName,
+      location: taskData.location,
+    })
+    const resolvedClientName = selectedClient?.client_name || taskData.clientName
+    const resolvedClientId = selectedClient?.id || taskData.clientId || null
+    const resolvedLocation = selectedClient?.location || taskData.location || null
+    const resolvedAddress = selectedClient?.address || taskData.address || null
 
     const baseData = {
-      client_name: taskData.clientName,
-      running_number: taskData.runningNumber,
+      client_name: resolvedClientName,
+      client_id: resolvedClientId,
+      location: resolvedLocation,
+      address: resolvedAddress,
       job_task: taskData.jobTask,
       task_pic_id: selectedStaff?.id || taskData.task_pic_id,
       task_pic_name: selectedStaff?.name || taskData.task_pic_name,
@@ -1288,34 +1428,66 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
       date_start: null,
       date_stop: null,
       created_by: currentUser?.id || null,
-      updated_at: new Date().toISOString()
+      updated_at: updatedAt
     }
 
-    const dataToSave = isNew 
+    const dataToSave = isNew
       ? { ...baseData, created_at: new Date().toISOString() }
       : baseData
 
     try {
       let savedTask
+      const safeDataToSave = { ...dataToSave }
       
-      if (isNew) {
-        const { data, error } = await supabase
-          .from('tasks')
-          .insert(dataToSave)
-          .select()
-          .single()
-        if (error) throw error
-        savedTask = data
-      } else {
-        const { data, error } = await supabase
-          .from('tasks')
-          .update(dataToSave)
-          .eq('id', taskData.id)
-          .select()
-          .single()
-        if (error) throw error
-        savedTask = data
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const result = isNew
+          ? await supabase
+              .from('tasks')
+              .insert(safeDataToSave)
+              .select()
+              .single()
+          : await supabase
+              .from('tasks')
+              .update(safeDataToSave)
+              .eq('id', taskData.id)
+              .select()
+              .maybeSingle()
+
+        if (!result.error) {
+          savedTask = result.data
+          break
+        }
+
+        const missingColumn = getMissingSchemaColumn(result.error)
+        if (
+          missingColumn?.table === 'tasks' &&
+          Object.prototype.hasOwnProperty.call(safeDataToSave, missingColumn.column)
+        ) {
+          console.warn(`Retrying tasks save without missing database column: ${missingColumn.column}`)
+          delete safeDataToSave[missingColumn.column as keyof typeof safeDataToSave]
+          continue
+        }
+
+        throw result.error
       }
+
+      if (!isNew && !savedTask) {
+        const { data: refreshedTask, error: refreshError } = await supabase
+          .from('tasks')
+          .select('*')
+          .eq('id', taskData.id)
+          .maybeSingle()
+
+        if (refreshError) throw refreshError
+
+        if (refreshedTask?.updated_at === updatedAt) {
+          savedTask = refreshedTask
+        } else {
+          throw new Error('Task update did not return an updated row. Please refresh and try again.')
+        }
+      }
+
+      if (!savedTask) throw new Error('Failed to save task')
 
       // No PDF upload handling
 
@@ -1330,21 +1502,6 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
     setSaving(true)
     
     try {
-      if (!newTask.runningNumber) {
-        throw new Error('Running number is required')
-      }
-
-      // Double-check running number uniqueness before saving
-      const { data: existingTask } = await supabase
-        .from('tasks')
-        .select('running_number')
-        .eq('running_number', newTask.runningNumber)
-        .maybeSingle()
-      
-      if (existingTask) {
-        throw new Error(`Running number "${newTask.runningNumber}" already exists. Please use a different number.`)
-      }
-
       const normalizedJobOrderNumber = normalizeJobOrderNumber(newTask.jobOrderNumber || '')
       if (normalizedJobOrderNumber) {
         const { data: existingJobOrder } = await supabase
@@ -1370,7 +1527,9 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
       const finalTask: UnscheduledTask = {
         ...newTask,
         id: savedTask.id,
-        runningNumber: savedTask.running_number,
+        clientId: savedTask.client_id || newTask.clientId,
+        location: savedTask.location || newTask.location,
+        address: savedTask.address || newTask.address,
         jobOrderNumber: savedTask.job_order_number,
         task_pic_id: savedPic.id,
         task_pic_name: savedPic.name,
@@ -1389,7 +1548,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
       console.error('Error in handleAddTask:', error)
       toast({
         title: "Error",
-        description: error.message || "Failed to create task",
+        description: getSupabaseSchemaErrorMessage(error) || error.message || "Failed to create task",
         variant: "destructive",
       })
       throw error
@@ -1424,6 +1583,9 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
       
       const finalTask: UnscheduledTask = {
         ...updatedTask,
+        clientId: savedTask.client_id || updatedTask.clientId,
+        location: savedTask.location || updatedTask.location,
+        address: savedTask.address || updatedTask.address,
         jobOrderNumber: savedTask.job_order_number,
         task_pic_id: savedPic.id,
         task_pic_name: savedPic.name,
@@ -1442,7 +1604,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
       console.error('Error updating task:', error)
       toast({
         title: "Error",
-        description: error.message || "Failed to update task",
+        description: getSupabaseSchemaErrorMessage(error) || error.message || "Failed to update task",
         variant: "destructive",
       })
       throw error
@@ -1451,11 +1613,22 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
 
   const handleEditTask = async (task: UnscheduledTask) => {
     try {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('tasks')
-        .select('task_pic_id, task_pic_name, task_pic_color, job_order_number')
+        .select(TASK_CLIENT_SELECT)
         .eq('id', task.id)
         .maybeSingle()
+
+      if (error) {
+        const fallback = await supabase
+          .from('tasks')
+          .select('*')
+          .eq('id', task.id)
+          .maybeSingle()
+
+        data = fallback.data
+        error = fallback.error
+      }
 
       if (error) throw error
 
@@ -1464,6 +1637,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
         task_pic_name: data?.task_pic_name || task.task_pic_name,
         task_pic_color: data?.task_pic_color || task.task_pic_color,
       })
+      const client = data ? getTaskClient(data) : null
 
       setEditingTask({
         ...task,
@@ -1471,6 +1645,9 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
         task_pic_name: savedPic.name || task.task_pic_name,
         task_pic_color: savedPic.color,
         jobOrderNumber: data?.job_order_number || task.jobOrderNumber,
+        clientId: client?.id || task.clientId,
+        location: client?.location || task.location,
+        address: client?.address || task.address,
       })
     } catch (error: any) {
       console.error('Error loading task for edit:', error)
@@ -1518,7 +1695,8 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
   const filteredTasks = tasks.filter(task => {
     const matchesSearch = task.clientName.toLowerCase().includes(filter.toLowerCase()) ||
                          task.jobTask.toLowerCase().includes(filter.toLowerCase()) ||
-                         (task.runningNumber && task.runningNumber.toLowerCase().includes(filter.toLowerCase()))
+                         (task.location || '').toLowerCase().includes(filter.toLowerCase()) ||
+                         (task.address || '').toLowerCase().includes(filter.toLowerCase())
     return matchesSearch
   })
 
@@ -1551,7 +1729,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
           <div className="relative">
             <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
-              placeholder="Search by client, running number, or job task..."
+              placeholder="Search by client, location, contact, or job task..."
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               className="border-gray-200 bg-white pl-8 text-sm dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
@@ -1588,7 +1766,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
             <div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
               <Briefcase className="h-12 w-12 mx-auto mb-3 text-gray-300 dark:text-gray-700" />
               <p>No unscheduled tasks found</p>
-              <p className="text-xs mt-1">Click "New Task" to create one</p>
+              <p className="text-xs mt-1">Click &quot;New Task&quot; to create one</p>
             </div>
           )}
         </div>
@@ -1612,7 +1790,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Task?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete task for "{pendingDeleteTask?.clientName}"? This action cannot be undone.
+              Are you sure you want to delete task for &quot;{pendingDeleteTask?.clientName}&quot;? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1637,15 +1815,18 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
         onAdd={handleAddTask}
         staffList={staffList}
         jobTasks={jobTasks}
+        clients={clients}
       />
 
       <EditTaskModal
+        key={editingTask?.id || 'edit-task-modal'}
         task={editingTask}
         isOpen={!!editingTask}
         onClose={() => setEditingTask(null)}
         onSave={handleUpdateTask}
         staffList={staffList}
         jobTasks={jobTasks}
+        clients={clients}
       />
     </>
   )

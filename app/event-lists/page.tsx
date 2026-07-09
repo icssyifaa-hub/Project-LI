@@ -44,7 +44,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { getDotClass } from '@/lib/colors'
-import { downloadExcelReport, downloadPdfReport } from '@/lib/report-export'
+import { downloadExcelReport, downloadPdfReport } from '@/lib/reports/report-export'
 
 interface Event {
   id: string
@@ -717,13 +717,13 @@ export default function EventsPage() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleViewInCalendar(event.date_start)}
-                            className="max-w-xs truncate text-left font-medium text-blue-700 hover:text-blue-900 hover:underline"
+                            className="event-list-title-button max-w-xs truncate text-left font-bold text-blue-900 hover:text-blue-900 hover:underline"
                           >
                             {event.title}
                           </button>
                           <button
                             onClick={() => handleViewInCalendar(event.date_start)}
-                            className="text-blue-500 opacity-0 transition-opacity hover:text-blue-700 group-hover:opacity-100"
+                            className="event-list-calendar-button text-blue-500 opacity-0 transition-opacity hover:text-blue-700 group-hover:opacity-100"
                             title="View in Calendar"
                           >
                             <CalendarIcon className="h-3 w-3" />

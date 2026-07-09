@@ -1,4 +1,6 @@
 import { createClient } from './client'
+import { getMissingSchemaColumn } from './schema-errors'
+import { getTaskClient, TASK_CLIENT_SELECT } from '@/lib/settings/task-client'
 
 const getCurrentUserId = (): string | null => {
   try {
@@ -13,22 +15,61 @@ const getCurrentUserId = (): string | null => {
   return null
 }
 
+const runTasksMutationWithSchemaFallback = async (
+  payload: Record<string, any>,
+  mutate: (safePayload: Record<string, any>) => any
+) => {
+  const safePayload = { ...payload }
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const { data, error } = await mutate(safePayload)
+    if (!error) return data
+
+    const missingColumn = getMissingSchemaColumn(error)
+    if (
+      missingColumn?.table === 'tasks' &&
+      Object.prototype.hasOwnProperty.call(safePayload, missingColumn.column)
+    ) {
+      console.warn(`Retrying tasks save without missing database column: ${missingColumn.column}`)
+      delete safePayload[missingColumn.column]
+      continue
+    }
+
+    throw error
+  }
+
+  throw new Error('Failed to save task after removing missing database columns')
+}
+
 // ==================== TASKS ====================
 
 export async function getTasks(startDate: string, endDate: string) {
   const supabase = createClient()
   
   try {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('tasks')
-      .select('*')
+      .select(TASK_CLIENT_SELECT)
       .gte('date_start', startDate)
       .lte('date_start', endDate)
       .order('date_start', { ascending: true })
+
+    if (error) {
+      const fallback = await supabase
+        .from('tasks')
+        .select('*')
+        .gte('date_start', startDate)
+        .lte('date_start', endDate)
+        .order('date_start', { ascending: true })
+
+      data = fallback.data
+      error = fallback.error
+    }
     
     if (error) throw error
     
     const formattedTasks = data?.map((task: any) => {
+      const client = getTaskClient(task)
       const supportIds = task.task_support_ids 
         ? (typeof task.task_support_ids === 'string' ? task.task_support_ids.split(',') : task.task_support_ids)
         : []
@@ -41,8 +82,10 @@ export async function getTasks(startDate: string, endDate: string) {
       
       return {
         id: task.id,
-        clientName: task.client_name,
-        runningNumber: task.running_number,
+        clientName: client.client_name || '',
+        clientId: client.id || '',
+        location: client.location || '',
+        address: client.address || '',
         jobTask: task.job_task,
         dateStart: task.date_start,
         dateStop: task.date_stop,
@@ -98,7 +141,9 @@ export async function createTask(taskData: any) {
     
     const dataToInsert = {
       client_name: taskData.client_name || taskData.clientName,
-      running_number: taskData.running_number || taskData.runningNumber,
+      client_id: taskData.client_id || taskData.clientId || null,
+      location: taskData.location || null,
+      address: taskData.address || null,
       job_task: taskData.job_task || taskData.jobTask || 'General Task',
       date_start: taskData.date_start || taskData.dateStart || null,
       date_stop: taskData.date_stop || taskData.dateStop || null,
@@ -119,13 +164,13 @@ export async function createTask(taskData: any) {
       updated_at: new Date().toISOString()
     }
     
-    const { data, error } = await supabase
-      .from('tasks')
-      .insert([dataToInsert])
-      .select()
-      .single()
-    
-    if (error) throw error
+    const data = await runTasksMutationWithSchemaFallback(dataToInsert, (safePayload) =>
+      supabase
+        .from('tasks')
+        .insert([safePayload])
+        .select()
+        .single()
+    )
     
     console.log('✅ Task created successfully:', data.id)
     return data
@@ -157,11 +202,11 @@ export async function updateTask(id: string, taskData: any) {
       ? (Array.isArray(taskData.task_support_colors) ? taskData.task_support_colors.join(',') : taskData.task_support_colors)
       : null
     
-    const { data, error } = await supabase
-      .from('tasks')
-      .update({
+    const dataToUpdate = {
         client_name: pickValue('client_name', 'clientName'),
-        running_number: pickValue('running_number', 'runningNumber'),
+        client_id: pickValue('client_id', 'clientId'),
+        location: pickValue('location', 'location'),
+        address: pickValue('address', 'address'),
         job_task: pickValue('job_task', 'jobTask'),
         date_start: pickValue('date_start', 'dateStart'),
         date_stop: pickValue('date_stop', 'dateStop'),
@@ -178,12 +223,16 @@ export async function updateTask(id: string, taskData: any) {
         final_report_number: pickValue('final_report_number', 'finalReportNumber'),
         job_status: pickValue('job_status', 'jobStatus'),
         updated_at: new Date().toISOString()
-      })
-      .eq('id', id)
-      .select()
-      .single()
-    
-    if (error) throw error
+      }
+
+    const data = await runTasksMutationWithSchemaFallback(dataToUpdate, (safePayload) =>
+      supabase
+        .from('tasks')
+        .update(safePayload)
+        .eq('id', id)
+        .select()
+        .single()
+    )
     
     console.log('✅ Task updated successfully:', data.id)
     return data
@@ -386,7 +435,6 @@ export async function deleteEvent(id: string) {
   }
 }
 
-// ==================== HOLIDAYS ====================
 
 export async function getHolidays(startDate: string, endDate: string) {
   const supabase = createClient()

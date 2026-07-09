@@ -1,5 +1,5 @@
 import { ThemeProvider } from '@/components/theme-provider'
-import ClientLayout from './client-layout'
+import ClientLayout from '@/components/layout/client-layout'
 import './globals.css'
 
 export default function RootLayout({

@@ -9,9 +9,9 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ChevronLeft, ChevronRight, Hash, Loader2, Search, X } from 'lucide-react'
+import { Hash, Loader2, Search } from 'lucide-react'
+import { getTaskClient, type TaskClientRecord } from '@/lib/settings/task-client'
 import {
   settingsCardClass,
   settingsContentClass,
@@ -29,9 +29,12 @@ import {
   settingsTitleClass,
   settingsInputClass,
 } from './settings-styles'
+import { SettingsPagination, useSettingsPagination } from './SettingsPagination'
 
 type TaskNumberRow = {
   id: string
+  client?: TaskClientRecord | TaskClientRecord[] | null
+  client_id?: string | null
   client_name: string | null
   job_task: string | null
   job_order_number: string | null
@@ -44,15 +47,12 @@ function formatDate(date: string | null) {
   return new Date(date).toLocaleDateString('en-GB')
 }
 
-export function NumberFieldsTab() {
+export function NumberFileTab() {
   const supabase = useMemo(() => createClient(), [])
   const [rows, setRows] = useState<TaskNumberRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [searchInput, setSearchInput] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
-  const [currentPage, setCurrentPage] = useState(1)
-  const rowsPerPage = 10
 
   const filteredRows = useMemo(() => {
     const query = searchTerm.trim().toLowerCase()
@@ -71,22 +71,7 @@ export function NumberFieldsTab() {
     })
   }, [rows, searchTerm])
 
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / rowsPerPage))
-  const pageStart = (currentPage - 1) * rowsPerPage
-  const visibleRows = filteredRows.slice(pageStart, pageStart + rowsPerPage)
-  const showingStart = filteredRows.length === 0 ? 0 : pageStart + 1
-  const showingEnd = Math.min(pageStart + rowsPerPage, filteredRows.length)
-
-  const handleSearch = () => {
-    setSearchTerm(searchInput)
-    setCurrentPage(1)
-  }
-
-  const handleClearSearch = () => {
-    setSearchInput('')
-    setSearchTerm('')
-    setCurrentPage(1)
-  }
+  const numberPagination = useSettingsPagination(filteredRows)
 
   useEffect(() => {
     let isMounted = true
@@ -95,12 +80,27 @@ export function NumberFieldsTab() {
       setLoading(true)
       setError(null)
 
-      const { data, error } = await supabase
+      const relationResult: any = await supabase
         .from('tasks')
-        .select('id, client_name, job_task, job_order_number, final_report_number, date_start')
+        .select('id, client_name, client_id, job_task, job_order_number, final_report_number, date_start, client:client!tasks_client_id_fkey(id, client_name, location, address)')
         .or('job_order_number.not.is.null,final_report_number.not.is.null')
         .order('date_start', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false })
+
+      let data: TaskNumberRow[] | null = relationResult.data
+      let error = relationResult.error
+
+      if (error) {
+        const fallback: any = await supabase
+          .from('tasks')
+          .select('id, client_name, job_task, job_order_number, final_report_number, date_start')
+          .or('job_order_number.not.is.null,final_report_number.not.is.null')
+          .order('date_start', { ascending: false, nullsFirst: false })
+          .order('created_at', { ascending: false })
+
+        data = fallback.data
+        error = fallback.error
+      }
 
       if (!isMounted) return
 
@@ -108,7 +108,10 @@ export function NumberFieldsTab() {
         setError(error.message)
         setRows([])
       } else {
-        setRows(data || [])
+        setRows((data || []).map((row) => ({
+          ...row,
+          client_name: getTaskClient(row).client_name || null,
+        })))
       }
 
       setLoading(false)
@@ -136,7 +139,7 @@ export function NumberFieldsTab() {
           <div>
             <CardTitle className={settingsTitleClass}>
               <Hash className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              Number Fields
+              Number File
             </CardTitle>
             <CardDescription className={settingsDescriptionClass}>
               Job Order Number and Final Report Number
@@ -159,35 +162,13 @@ export function NumberFieldsTab() {
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
               <Input
-                value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') handleSearch()
-                }}
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Search client, task, JO number, FR number..."
                 className={`pl-9 ${settingsInputClass}`}
               />
             </div>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                onClick={handleSearch}
-                className="w-full bg-blue-600 text-white shadow-sm hover:bg-blue-700 focus-visible:ring-blue-500 dark:bg-blue-500 dark:text-white dark:hover:bg-blue-600 sm:w-auto"
-              >
-                <Search className="h-4 w-4" />
-                Search
-              </Button>
-              {searchTerm && (
-                <Button type="button" variant="outline" onClick={handleClearSearch} className="w-full sm:w-auto">
-                  <X className="h-4 w-4" />
-                  Clear
-                </Button>
-              )}
-            </div>
           </div>
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            Showing {showingStart}-{showingEnd} of {filteredRows.length}
-          </span>
         </div>
 
         <div className={settingsTableWrapperClass}>
@@ -204,16 +185,16 @@ export function NumberFieldsTab() {
                 </tr>
               </thead>
               <tbody className={settingsTableBodyClass}>
-                {visibleRows.length === 0 ? (
+                {numberPagination.paginatedRows.length === 0 ? (
                   <tr>
                     <td className={settingsEmptyCellClass} colSpan={6}>
                       {searchTerm ? 'No numbers match your search.' : 'No numbers found.'}
                     </td>
                   </tr>
                 ) : (
-                  visibleRows.map((row, index) => (
+                  numberPagination.paginatedRows.map((row, index) => (
                     <tr key={row.id} className={settingsTableRowClass}>
-                      <td className={settingsMutedCellClass}>{pageStart + index + 1}</td>
+                      <td className={settingsMutedCellClass}>{numberPagination.pageStart + index + 1}</td>
                       <td className={settingsStrongCellClass}>
                         {row.client_name || 'Unknown Client'}
                       </td>
@@ -243,33 +224,16 @@ export function NumberFieldsTab() {
               </tbody>
             </table>
           </div>
-          <div className="flex flex-col gap-3 border-t border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Page {currentPage} of {totalPages}
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                disabled={currentPage === totalPages}
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+          <SettingsPagination
+            currentPage={numberPagination.currentPage}
+            rowsPerPage={numberPagination.rowsPerPage}
+            totalItems={filteredRows.length}
+            totalPages={numberPagination.totalPages}
+            showingStart={numberPagination.showingStart}
+            showingEnd={numberPagination.showingEnd}
+            onPageChange={numberPagination.setCurrentPage}
+            onRowsPerPageChange={numberPagination.setRowsPerPage}
+          />
         </div>
       </CardContent>
     </Card>

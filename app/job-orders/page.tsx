@@ -39,13 +39,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { getDotClass } from '@/lib/colors'
-import { downloadExcelReport, downloadPdfReport } from '@/lib/report-export'
-import { FINAL_REPORT_NUMBER_EXAMPLE, JOB_ORDER_NUMBER_EXAMPLE } from '@/lib/number-formats'
+import { downloadExcelReport, downloadPdfReport } from '@/lib/reports/report-export'
+import { FINAL_REPORT_NUMBER_EXAMPLE, JOB_ORDER_NUMBER_EXAMPLE } from '@/lib/reports/number-formats'
+import { getTaskClient, TASK_CLIENT_SELECT } from '@/lib/settings/task-client'
 
 interface JobOrder {
   id: string
   client_name: string
-  running_number: string
+  location?: string | null
+  address?: string | null
   job_task: string
   date_start: string | null
   date_stop: string | null
@@ -63,7 +65,7 @@ interface JobOrder {
   final_report_number?: string | null
   delivery_order: boolean
   invoice: boolean
-  job_status: 'completed' | 'in-progress' | 'incomplete' | 'onhold'
+  job_status: 'completed' | 'in-progress' | 'incomplete' | 'onhold' | 'ongoing' | 'upcoming'
   created_by?: string
   created_at?: string
   updated_at?: string
@@ -75,10 +77,14 @@ const getStatusColor = (status: string) => {
   switch(status) {
     case 'completed':
       return 'border [border-color:#16a34a] [background-color:#f0fdf4] [color:#15803d]'
+    case 'ongoing':
+      return 'border [border-color:#16a34a] [background-color:#dcfce7] [color:#15803d]'
+    case 'upcoming':
+      return 'border [border-color:#2563eb] [background-color:#dbeafe] [color:#1d4ed8]'
     case 'in-progress':
-      return 'border [border-color:#ca8a04] [background-color:#fefce8] [color:#a16207]'
+      return 'border [border-color:#eab308] [background-color:#fef08a] [color:#854d0e]'
     case 'incomplete':
-      return 'border [border-color:#dc2626] [background-color:#fef2f2] [color:#b91c1c]'
+      return 'border [border-color:#ef4444] [background-color:#fecaca] [color:#b91c1c]'
     case 'onhold':
       return 'border [border-color:#4b5563] [background-color:#f9fafb] [color:#374151]'
     default:
@@ -90,6 +96,10 @@ const getStatusText = (status: string) => {
   switch(status) {
     case 'completed':
       return 'Completed'
+    case 'ongoing':
+      return 'Ongoing'
+    case 'upcoming':
+      return 'Upcoming'
     case 'in-progress':
       return 'In Progress'
     case 'incomplete':
@@ -134,15 +144,23 @@ const getReminderUrgency = (reminderText: string): 'overdue' | 'soon' | 'none' =
   return 'none'
 }
 
-const getReminderRowClass = (reminderText: string) => {
+const getReminderRowClass = (reminderText: string, status?: string) => {
   const urgency = getReminderUrgency(reminderText)
 
   if (urgency === 'overdue') {
-    return 'bg-red-500 text-black hover:bg-red-600 [&_td]:border-black [&_td]:text-black [&_button]:text-black'
+    return 'bg-red-400 text-black hover:bg-red-500 [&_td]:border-black [&_td]:text-black [&_button]:text-black'
   }
 
   if (urgency === 'soon') {
-    return 'bg-yellow-200 text-black hover:bg-yellow-300 [&_td]:border-black [&_td]:text-black [&_button]:text-black'
+    return 'bg-yellow-300 text-black hover:bg-yellow-400 [&_td]:border-black [&_td]:text-black [&_button]:text-black'
+  }
+
+  if (status === 'ongoing') {
+    return 'bg-green-200 text-black hover:bg-green-300 [&_td]:border-black [&_td]:text-black [&_button]:text-black'
+  }
+
+  if (status === 'upcoming') {
+    return 'bg-blue-200 text-black hover:bg-blue-300 [&_td]:border-black [&_td]:text-black [&_button]:text-black'
   }
 
   return '[background-color:white] text-black hover:[background-color:#f9fafb] [&_td]:border-black [&_td]:text-black [&_button]:text-black'
@@ -164,6 +182,11 @@ const getReminderSortValue = (reminderText: string) => {
   if (reminderText === 'N/A') return Number.POSITIVE_INFINITY
   const days = Number(reminderText.replace('d', ''))
   return Number.isFinite(days) ? days : Number.POSITIVE_INFINITY
+}
+
+const isAdminRole = (role?: string | null) => {
+  const normalizedRole = String(role || '').trim().toLowerCase().replace(/[\s-]+/g, '_')
+  return normalizedRole === 'admin' || normalizedRole === 'superadmin' || normalizedRole === 'super_admin'
 }
 
 const getJobOrderSortValue = (job: JobOrder, field: JobOrderSortField) => {
@@ -202,11 +225,15 @@ const computeTaskStatus = (data: {
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
+  const startDate = new Date(data.date_start)
+  startDate.setHours(0, 0, 0, 0)
   const dueDate = data.date_stop ? new Date(data.date_stop) : new Date(data.date_start)
   dueDate.setHours(0, 0, 0, 0)
 
   const isDueDatePassed = dueDate < today
   if (isDueDatePassed && (!hasJobOrder || !hasFinalReport)) return 'incomplete'
+  if (startDate > today) return 'upcoming'
+  if (startDate <= today && dueDate >= today) return 'ongoing'
   return 'in-progress'
 }
 
@@ -228,7 +255,7 @@ export default function JobOrdersPage() {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClient()
-  const isAdmin = ['admin', 'superadmin'].includes(String(user?.role || '').toLowerCase())
+  const isAdmin = isAdminRole(user?.role)
 
   useEffect(() => {
     const userData = localStorage.getItem('user')
@@ -288,15 +315,26 @@ export default function JobOrdersPage() {
       
       console.log(`📋 Found ${staffNamesForFilter.length} staff members for filter (including inactive)`)
       
-      const { data: tasksData, error: tasksError } = await supabase
+      let { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
-        .select('*')
+        .select(TASK_CLIENT_SELECT)
         .order('created_at', { ascending: false })
+
+      if (tasksError) {
+        const fallback = await supabase
+          .from('tasks')
+          .select('*')
+          .order('created_at', { ascending: false })
+
+        tasksData = fallback.data
+        tasksError = fallback.error
+      }
       
       if (tasksError) throw tasksError
       
       // STEP 4: Format tasks with staff information
       const formattedTasks: JobOrder[] = (tasksData || []).map((task: any) => {
+        const client = getTaskClient(task)
         let picInfo = null
         const picId = task.task_pic_id
         const picName = task.task_pic_name
@@ -307,8 +345,8 @@ export default function JobOrdersPage() {
           picInfo = staffMap[picName]
         }
         
-        let supportNamesArray: string[] = []
-        let supportColorsArray: string[] = []
+        const supportNamesArray: string[] = []
+        const supportColorsArray: string[] = []
         let supportDisplayName = ''
         let supportDisplayColor = 'gray'
         
@@ -379,8 +417,9 @@ export default function JobOrdersPage() {
         
         return {
           id: task.id,
-          client_name: task.client_name || 'No Client',
-          running_number: task.running_number || 'No Running Num',
+          client_name: client.client_name || 'No Client',
+          location: client.location || null,
+          address: client.address || null,
           job_task: task.job_task || 'General Task',
           date_start: task.date_start,
           date_stop: task.date_stop || task.date_start,
@@ -464,7 +503,8 @@ export default function JobOrdersPage() {
     .filter(job => {
       const matchesSearch = 
         (job.client_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-        (job.running_number?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (job.location?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (job.address?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (job.job_task?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (job.job_order_number?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (job.final_report_number?.toLowerCase() || '').includes(searchTerm.toLowerCase())
@@ -544,10 +584,10 @@ export default function JobOrdersPage() {
   // Get count of active vs inactive staff
   const activeStaffCount = Array.from(staffStatusMap.values()).filter(isActive => isActive === true).length
   const inactiveStaffCount = staffList.length - activeStaffCount
-  const reportHeaders = ['Running Number', 'Client Name', 'Job Task', 'Start Date', 'End Date', 'Job Order Number', 'Final Report Number', 'Delivery Order', 'Invoice', 'Status', 'Additional Remark', 'PIC', 'Support Staff']
+  const reportHeaders = ['Client Name', 'Location', 'Job Task', 'Start Date', 'End Date', 'Job Order Number', 'Final Report Number', 'Delivery Order', 'Invoice', 'Status', 'Additional Remark', 'PIC', 'Support Staff']
   const reportRows = filteredAndSortedJobs.map(job => [
-    job.running_number,
     job.client_name,
+    job.location || '',
     job.job_task,
     formatListDate(job.date_start),
     formatListDate(job.date_stop),
@@ -642,7 +682,7 @@ export default function JobOrdersPage() {
         {/* Filters */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Input
-            placeholder="Search by client, running num, task, or report..."
+            placeholder="Search by client, location, contact, task, or report..."
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1) }}
             className="border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-900"
@@ -673,6 +713,8 @@ export default function JobOrdersPage() {
             <SelectContent className="max-h-80 border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
               <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="ongoing">Ongoing</SelectItem>
+              <SelectItem value="upcoming">Upcoming</SelectItem>
               <SelectItem value="in-progress">In Progress</SelectItem>
               <SelectItem value="incomplete">Incomplete</SelectItem>
               <SelectItem value="onhold">On Hold</SelectItem>
@@ -703,15 +745,15 @@ export default function JobOrdersPage() {
         {/* Table */}
         <div className="overflow-hidden rounded-lg border border-black bg-white shadow-sm ring-1 ring-black/10 dark:bg-gray-900">
           <div className="overflow-x-auto">
-          <table className="w-full min-w-[1280px] border-collapse text-sm">
+          <table className="w-full min-w-[1380px] border-collapse text-sm">
             <thead className="bg-gray-100 dark:bg-gray-800">
               <tr className="border-b border-black">
                 <th className={`${tableHeaderCellClass} w-12`}>No</th>
-                <th className={sortableHeaderCellClass} onClick={() => handleSort('running_number')}>
-                  <div className="flex items-center space-x-1">Running Num <ArrowUpDown className="h-3 w-3" /></div>
-                </th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('client_name')}>
                   <div className="flex items-center space-x-1">Client Name <ArrowUpDown className="h-3 w-3" /></div>
+                </th>
+                <th className={sortableHeaderCellClass} onClick={() => handleSort('location')}>
+                  <div className="flex items-center space-x-1">Location <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('job_task')}>
                   <div className="flex items-center space-x-1">Job Task <ArrowUpDown className="h-3 w-3" /></div>
@@ -754,7 +796,7 @@ export default function JobOrdersPage() {
             <tbody className="divide-y divide-black">
               {loading ? (
                 <tr>
-                  <td colSpan={15} className="border-t border-black px-4 py-12 text-center">
+                  <td colSpan={16} className="border-t border-black px-4 py-12 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Loading job orders...</p>
@@ -763,7 +805,7 @@ export default function JobOrdersPage() {
                 </tr>
               ) : paginatedJobs.length === 0 ? (
                 <tr>
-                  <td colSpan={15} className="border-t border-black px-4 py-12 text-center">
+                  <td colSpan={16} className="border-t border-black px-4 py-12 text-center">
                     <div className="text-gray-400 text-4xl mb-2">📋</div>
                     <p className="text-gray-500 dark:text-gray-300">No job orders found</p>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
@@ -778,18 +820,20 @@ export default function JobOrdersPage() {
                   const reminderText = getReminderText(job.date_start, job.date_stop, !!job.final_report_number)
                   
                   return (
-                    <tr key={job.id} className={`group border-b border-black transition-colors ${getReminderRowClass(reminderText)}`}>
+                    <tr key={job.id} className={`group border-b border-black transition-colors ${getReminderRowClass(reminderText, job.job_status)}`}>
                       <td className={`${tableCellClass} text-black`}>{rowsPerPage === 'all' ? index + 1 : (currentPage - 1) * itemsPerPage + index + 1}</td>
-                      <td className={`${tableCellClass} font-medium text-black`}>{job.running_number}</td>
                       <td className={tableCellClass}>
                         <div className="flex items-center gap-2">
-                          <button onClick={() => handleDateClick(job.date_start, job)} className="max-w-xs truncate text-left font-medium text-blue-700 hover:text-blue-900 hover:underline">
+                          <button onClick={() => handleDateClick(job.date_start, job)} className="job-order-client-button max-w-xs truncate text-left font-bold text-blue-900 hover:text-blue-900 hover:underline">
                             {job.client_name}
                           </button>
-                          <button onClick={() => handleDateClick(job.date_start, job)} className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 hover:text-blue-700">
+                          <button onClick={() => handleDateClick(job.date_start, job)} className="job-order-calendar-button opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 hover:text-blue-700">
                             <CalendarIcon className="h-3 w-3" />
                           </button>
                         </div>
+                      </td>
+                      <td className={tableCellClass}>
+                        <span className="text-black">{job.location || '-'}</span>
                       </td>
                       <td className={tableCellClass}>
                         <span className="text-black">{job.job_task}</span>
@@ -847,8 +891,8 @@ export default function JobOrdersPage() {
                             checked={job.delivery_order}
                             disabled={!isAdmin || updatingDocumentStatus[`${job.id}-delivery_order`]}
                             onCheckedChange={(checked) => handleDocumentStatusChange(job, 'delivery_order', checked === true)}
-                            aria-label={`Delivery order for ${job.running_number}`}
-                            className="border-gray-500 data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600"
+                            aria-label={`Delivery order for ${job.client_name}`}
+                            className="border-gray-500 bg-white dark:border-gray-300 dark:bg-white/20 data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600 dark:data-[state=checked]:border-blue-500 dark:data-[state=checked]:bg-blue-500"
                           />
                         </div>
                       </td>
@@ -858,8 +902,8 @@ export default function JobOrdersPage() {
                             checked={job.invoice}
                             disabled={!isAdmin || updatingDocumentStatus[`${job.id}-invoice`]}
                             onCheckedChange={(checked) => handleDocumentStatusChange(job, 'invoice', checked === true)}
-                            aria-label={`Invoice for ${job.running_number}`}
-                            className="border-gray-500 data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600"
+                            aria-label={`Invoice for ${job.client_name}`}
+                            className="border-gray-500 bg-white dark:border-gray-300 dark:bg-white/20 data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600 dark:data-[state=checked]:border-blue-500 dark:data-[state=checked]:bg-blue-500"
                           />
                         </div>
                       </td>
@@ -955,9 +999,11 @@ export default function JobOrdersPage() {
           <div>
             <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Status Legend:</h4>
             <div className="space-y-1 text-xs">
-              <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full bg-green-500"></span><span className="text-gray-600 dark:text-gray-400">Completed</span></div>
-              <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full bg-yellow-500"></span><span className="text-gray-600 dark:text-gray-400">In Progress</span></div>
-              <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full bg-red-500"></span><span className="text-gray-600 dark:text-gray-400">Incomplete</span></div>
+              <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full bg-green-300"></span><span className="text-gray-600 dark:text-gray-400">Ongoing</span></div>
+              <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full bg-blue-300"></span><span className="text-gray-600 dark:text-gray-400">Upcoming</span></div>
+              <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full bg-yellow-200"></span><span className="text-gray-600 dark:text-gray-400">Due soon / In Progress</span></div>
+              <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full bg-red-200"></span><span className="text-gray-600 dark:text-gray-400">Incomplete / Overdue</span></div>
+              <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full border border-gray-300 bg-white"></span><span className="text-gray-600 dark:text-gray-400">Completed / Normal</span></div>
               <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full bg-gray-400"></span><span className="text-gray-600 dark:text-gray-400">On Hold (Inbox)</span></div>
             </div>
           </div>

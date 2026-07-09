@@ -5,7 +5,7 @@
 import { useState } from 'react'
 import { useJobTasks } from '../hooks/useJobTasks'
 import { JobTask } from '../types'
-import { getJobTaskFullName } from '@/lib/job-tasks'
+import { getJobTaskFullName } from '@/lib/settings/job-tasks'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -41,7 +41,8 @@ import {
   Trash2, 
   Loader2, 
   Save,
-  Briefcase
+  Briefcase,
+  Search
 } from 'lucide-react'
 import {
   settingsCardClass,
@@ -49,7 +50,6 @@ import {
   settingsDescriptionClass,
   settingsDialogContentClass,
   settingsEmptyCellClass,
-  settingsFooterNoteClass,
   settingsHeaderCellClass,
   settingsHeaderClass,
   settingsHeaderRowClass,
@@ -65,6 +65,7 @@ import {
   settingsTableWrapperClass,
   settingsTitleClass,
 } from './settings-styles'
+import { SettingsPagination, useSettingsPagination } from './SettingsPagination'
 
 export function JobTasksTab() {
   const { jobTasks, loading, addJobTask, updateJobTask, deleteJobTask } = useJobTasks()
@@ -74,6 +75,7 @@ export function JobTasksTab() {
   const [editingTask, setEditingTask] = useState<JobTask | null>(null)
   const [pendingDeleteTask, setPendingDeleteTask] = useState<JobTask | null>(null)
   const [saving, setSaving] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
   const [formData, setFormData] = useState({
     name: '',
     full_name: '',
@@ -121,7 +123,7 @@ export function JobTasksTab() {
         await addJobTask(formData)
       }
       setIsDialogOpen(false)
-    } catch (error) {
+    } catch {
       // Error dah handle dalam hook
     } finally {
       setSaving(false)
@@ -133,10 +135,21 @@ export function JobTasksTab() {
     try {
       await deleteJobTask(pendingDeleteTask.id)
       setPendingDeleteTask(null)
-    } catch (error) {
+    } catch {
       // Error dah handle dalam hook
     }
   }
+
+  const filteredJobTasks = jobTasks.filter((task) => {
+    const keyword = searchTerm.trim().toLowerCase()
+    if (!keyword) return true
+
+    return (
+      task.name.toLowerCase().includes(keyword) ||
+      (task.full_name || getJobTaskFullName(task.name) || '').toLowerCase().includes(keyword)
+    )
+  })
+  const jobTasksPagination = useSettingsPagination(filteredJobTasks)
 
   if (loading) {
     return (
@@ -168,6 +181,18 @@ export function JobTasksTab() {
           </div>
         </CardHeader>
         <CardContent className={settingsContentClass}>
+          <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-950/40 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full sm:max-w-md">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
+              <Input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search job tasks..."
+                className={`pl-9 ${settingsInputClass}`}
+              />
+            </div>
+          </div>
+
           <div className={settingsTableWrapperClass}>
             <div className="overflow-x-auto">
             <table className={settingsTableClass}>
@@ -180,16 +205,16 @@ export function JobTasksTab() {
                 </tr>
               </thead>
               <tbody className={settingsTableBodyClass}>
-                {jobTasks.length === 0 ? (
+                {filteredJobTasks.length === 0 ? (
                   <tr>
                     <td colSpan={4} className={settingsEmptyCellClass}>
-                      No job tasks found
+                      {searchTerm ? 'No job tasks match your search.' : 'No job tasks found'}
                     </td>
                   </tr>
                 ) : (
-                  jobTasks.map((task, index) => (
+                  jobTasksPagination.paginatedRows.map((task, index) => (
                     <tr key={task.id} className={settingsTableRowClass}>
-                      <td className={settingsMutedCellClass}>{index + 1}</td>
+                      <td className={settingsMutedCellClass}>{jobTasksPagination.pageStart + index + 1}</td>
                       <td className={settingsStrongCellClass}>{task.name}</td>
                       <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-200">
                         {task.full_name || getJobTaskFullName(task.name) || '-'}
@@ -222,11 +247,17 @@ export function JobTasksTab() {
               </tbody>
             </table>
             </div>
+            <SettingsPagination
+              currentPage={jobTasksPagination.currentPage}
+              rowsPerPage={jobTasksPagination.rowsPerPage}
+              totalItems={filteredJobTasks.length}
+              totalPages={jobTasksPagination.totalPages}
+              showingStart={jobTasksPagination.showingStart}
+              showingEnd={jobTasksPagination.showingEnd}
+              onPageChange={jobTasksPagination.setCurrentPage}
+              onRowsPerPageChange={jobTasksPagination.setRowsPerPage}
+            />
           </div>
-          <p className={settingsFooterNoteClass}>
-            <Briefcase className="h-3 w-3 mr-1" />
-            Tasks added here will appear in the dropdown when adding/editing calendar events.
-          </p>
         </CardContent>
       </Card>
 
@@ -300,7 +331,7 @@ export function JobTasksTab() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Job Task?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{pendingDeleteTask?.name}"? This action cannot be undone.
+              Are you sure you want to delete &quot;{pendingDeleteTask?.name}&quot;? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

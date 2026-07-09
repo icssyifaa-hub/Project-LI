@@ -15,7 +15,9 @@ export interface User {
 export interface Task {
   id: string
   clientName: string
-  runningNumber: string
+  clientId?: string
+  location?: string
+  address?: string
   jobTask: string
   dateStart: string
   dateStop: string
@@ -24,7 +26,7 @@ export interface Task {
   additionalRemark?: string
   jobOrderNumber?: string
   finalReportNumber?: string
-  jobStatus: 'onhold' | 'in-progress' | 'completed' | 'incomplete'
+  jobStatus: 'onhold' | 'in-progress' | 'completed' | 'incomplete' | 'ongoing' | 'upcoming'
   createdby?: string              
   createdAt?: string
   updatedAt?: string
@@ -80,13 +82,15 @@ export interface StaffColor {
 export interface UnscheduledTask {
   id: string
   clientName: string
+  clientId?: string
+  location?: string
+  address?: string
   jobTask: string 
   task_pic_id?: string          
   task_pic_name?: string         
   task_pic_color?: string        
   jobOrderNumber?: string
   finalReportNumber?: string
-  runningNumber?: string
   createdAt: Date
 }
  

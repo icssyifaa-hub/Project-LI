@@ -50,7 +50,7 @@ export const settingsInputClass =
   'border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100'
 
 export const settingsSelectContentClass =
-  'border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-900'
+  'border border-gray-200 bg-white text-gray-900 shadow-lg dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100'
 
 export const settingsFooterNoteClass =
   'mt-4 flex items-center text-xs text-gray-500 dark:text-gray-400'

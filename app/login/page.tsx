@@ -112,7 +112,7 @@ export default function LoginPage() {
         profile.must_change_password
           ? '/change-password'
           : profile.role === 'admin'
-            ? '/settings'
+            ? '/settings-admin'
             : '/calendar'
       )
     }
@@ -152,7 +152,7 @@ export default function LoginPage() {
           user.must_change_password
             ? '/change-password'
             : user.role === 'admin'
-              ? '/settings'
+              ? '/settings-admin'
               : '/calendar'
         )
         router.refresh()

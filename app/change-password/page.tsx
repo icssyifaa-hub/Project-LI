@@ -31,7 +31,7 @@ export default function ChangePasswordPage() {
       }
 
       if (!profile.must_change_password) {
-        router.replace(profile.role === 'admin' ? '/settings' : '/calendar')
+        router.replace(profile.role === 'admin' ? '/settings-admin' : '/calendar')
         return
       }
 
@@ -96,7 +96,7 @@ export default function ChangePasswordPage() {
     setLoading(false)
 
     window.setTimeout(() => {
-      router.replace(updatedProfile.role === 'admin' ? '/settings' : '/calendar')
+      router.replace(updatedProfile.role === 'admin' ? '/settings-admin' : '/calendar')
       router.refresh()
     }, 1200)
   }

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Plus, CalendarCheck, X, Edit2, PartyPopper, UserRound } from 'lucide-react'
 import type { Task, Event } from '@/app/calendar/types/calendar'
-import { MALAYSIA_STATES } from '@/app/settings/types'
+import { MALAYSIA_STATES } from '@/app/settings-admin/types'
 import { getItemStyleClasses, getItemBgClass, getBadgeClass, getDotClass, getSolidClass } from '@/lib/colors'
 
 interface StaffFilters {
@@ -1867,11 +1867,16 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                                     <div className={`
                                       text-xs px-2 py-1 rounded-full whitespace-nowrap
                                       ${item.jobStatus === 'completed' ? 'bg-green-100 text-green-800' : ''}
-                                      ${item.jobStatus === 'in-progress' ? 'bg-yellow-100 text-yellow-800' : ''}
-                                      ${item.jobStatus === 'incomplete' ? 'bg-red-100 text-red-800' : ''}
+                                      ${item.jobStatus === 'ongoing' ? 'bg-green-100 text-green-800' : ''}
+                                      ${item.jobStatus === 'upcoming' ? 'bg-blue-100 text-blue-800' : ''}
+                                      ${item.jobStatus === 'in-progress' ? 'bg-yellow-200 text-yellow-900' : ''}
+                                      ${item.jobStatus === 'incomplete' ? 'bg-red-200 text-red-900' : ''}
                                     `}>
-                                      {item.jobStatus === 'in-progress' ? 'In Progress' : 
-                                       item.jobStatus === 'completed' ? 'Completed' : 'Incomplete'}
+                                      {item.jobStatus === 'in-progress' ? 'In Progress' :
+                                       item.jobStatus === 'ongoing' ? 'Ongoing' :
+                                       item.jobStatus === 'upcoming' ? 'Upcoming' :
+                                       item.jobStatus === 'completed' ? 'Completed' :
+                                       item.jobStatus === 'onhold' ? 'On Hold' : 'Incomplete'}
                                     </div>
                                   )}
                                 </div>
@@ -2219,11 +2224,16 @@ const MoreItemsPopup: React.FC<MoreItemsPopupProps> = ({
                             <span className={`
                               px-2 py-0.5 rounded-full text-[10px] font-medium
                               ${item.jobStatus === 'completed' ? 'bg-green-100 text-green-700' : ''}
-                              ${item.jobStatus === 'in-progress' ? 'bg-yellow-100 text-yellow-700' : ''}
-                              ${item.jobStatus === 'incomplete' ? 'bg-red-100 text-red-700' : ''}
+                              ${item.jobStatus === 'ongoing' ? 'bg-green-100 text-green-700' : ''}
+                              ${item.jobStatus === 'upcoming' ? 'bg-blue-100 text-blue-700' : ''}
+                              ${item.jobStatus === 'in-progress' ? 'bg-yellow-200 text-yellow-900' : ''}
+                              ${item.jobStatus === 'incomplete' ? 'bg-red-200 text-red-900' : ''}
                             `}>
-                              {item.jobStatus === 'in-progress' ? 'In Progress' : 
-                               item.jobStatus === 'completed' ? 'Completed' : 'Incomplete'}
+                              {item.jobStatus === 'in-progress' ? 'In Progress' :
+                               item.jobStatus === 'ongoing' ? 'Ongoing' :
+                               item.jobStatus === 'upcoming' ? 'Upcoming' :
+                               item.jobStatus === 'completed' ? 'Completed' :
+                               item.jobStatus === 'onhold' ? 'On Hold' : 'Incomplete'}
                             </span>
                           </div>
                         )}

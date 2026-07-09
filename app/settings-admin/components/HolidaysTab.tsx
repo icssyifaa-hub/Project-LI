@@ -46,14 +46,13 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
-import { Plus, Edit, Trash2, Loader2, Save, Calendar, ChevronDown } from 'lucide-react'
+import { Plus, Edit, Trash2, Loader2, Save, Calendar, ChevronDown, Search } from 'lucide-react'
 import {
   settingsCardClass,
   settingsContentClass,
   settingsDescriptionClass,
   settingsDialogContentClass,
   settingsEmptyCellClass,
-  settingsFooterNoteClass,
   settingsHeaderCellClass,
   settingsHeaderClass,
   settingsHeaderRowClass,
@@ -70,6 +69,16 @@ import {
   settingsTableWrapperClass,
   settingsTitleClass,
 } from './settings-styles'
+import { SettingsPagination, useSettingsPagination } from './SettingsPagination'
+
+const HOLIDAY_YEAR_START = 2022
+const HOLIDAY_YEAR_END = 2035
+const holidayYears = Array.from(
+  { length: HOLIDAY_YEAR_END - HOLIDAY_YEAR_START + 1 },
+  (_, index) => HOLIDAY_YEAR_START + index
+)
+const holidaySelectItemClass =
+  'text-gray-900 focus:bg-gray-100 focus:text-gray-900 dark:text-gray-100 dark:focus:bg-gray-800 dark:focus:text-gray-100'
 
 export function HolidaysTab() {
   const { holidays, loading, addHoliday, updateHoliday, deleteHoliday } = useHolidays()
@@ -81,6 +90,7 @@ export function HolidaysTab() {
   const [saving, setSaving] = useState(false)
   const [filterYear, setFilterYear] = useState(new Date().getFullYear())
   const [filterState, setFilterState] = useState('all')
+  const [searchTerm, setSearchTerm] = useState('')
   const [formData, setFormData] = useState({
     name: '',
     date: '',
@@ -88,11 +98,9 @@ export function HolidaysTab() {
   })
   const [isStatePopoverOpen, setIsStatePopoverOpen] = useState(false)
 
-  // Generate year options (current year -2 to +2)
-  const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i)
-
   // Filter holidays
   const filteredHolidays = holidays.filter(holiday => {
+    const keyword = searchTerm.trim().toLowerCase()
     const holidayYear = new Date(holiday.date).getFullYear()
     const matchesYear = holidayYear === filterYear
     const isAllStatesHoliday = !holiday.states || holiday.states.length === 0 || holiday.states.length === MALAYSIA_STATES.length
@@ -106,8 +114,23 @@ export function HolidaysTab() {
       }
     }
     
-    return matchesYear && matchesState
+    const stateLabel =
+      !holiday.states || holiday.states.length === 0 || holiday.states.length === MALAYSIA_STATES.length
+        ? 'all states'
+        : holiday.states
+            .map((stateCode) => MALAYSIA_STATES.find((state) => state.value === stateCode)?.label || stateCode)
+            .join(' ')
+            .toLowerCase()
+    const matchesSearch =
+      !keyword ||
+      holiday.name.toLowerCase().includes(keyword) ||
+      holiday.date.includes(keyword) ||
+      new Date(holiday.date).toLocaleDateString('en-GB').includes(keyword) ||
+      stateLabel.includes(keyword)
+
+    return matchesYear && matchesState && matchesSearch
   })
+  const holidaysPagination = useSettingsPagination(filteredHolidays)
 
   const handleAdd = () => {
     setEditingHoliday(null)
@@ -152,7 +175,7 @@ export function HolidaysTab() {
         await addHoliday(normalizedFormData)
       }
       setIsDialogOpen(false)
-    } catch (error) {
+    } catch {
     } finally {
       setSaving(false)
     }
@@ -163,7 +186,7 @@ export function HolidaysTab() {
     try {
       await deleteHoliday(pendingDeleteHoliday.id)
       setPendingDeleteHoliday(null)
-    } catch (error) {
+    } catch {
     }
   }
 
@@ -222,41 +245,55 @@ export function HolidaysTab() {
 
         <CardContent className={settingsContentClass}>
           {/* Filters */}
-          <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50/70 p-3 sm:flex-row dark:border-gray-800 dark:bg-gray-950/40">
-            <div className="flex gap-2">
-              <Select
-                value={filterYear.toString()}
-                onValueChange={(value) => setFilterYear(parseInt(value))}
-              >
-                <SelectTrigger className={`w-32 ${settingsInputClass}`}>
-                  <SelectValue placeholder="Year" />
-                </SelectTrigger>
-                <SelectContent className={settingsSelectContentClass}>
-                  {years.map(year => (
-                    <SelectItem key={year} value={year.toString()}>
-                      {year}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-950/40">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                <div className="flex gap-2">
+                  <Select
+                    value={filterYear.toString()}
+                    onValueChange={(value) => setFilterYear(parseInt(value))}
+                  >
+                    <SelectTrigger className={`w-32 ${settingsInputClass}`}>
+                      <SelectValue placeholder="Year" />
+                    </SelectTrigger>
+                    <SelectContent className={settingsSelectContentClass}>
+                      {holidayYears.map(year => (
+                        <SelectItem key={year} value={year.toString()} className={holidaySelectItemClass}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
 
-              <Select
-                value={filterState}
-                onValueChange={setFilterState}
-              >
-                <SelectTrigger className={`w-40 ${settingsInputClass}`}>
-                  <SelectValue placeholder="State" />
-                </SelectTrigger>
-                <SelectContent className={settingsSelectContentClass}>
-                  <SelectItem value="all">All States</SelectItem>
-                  <SelectItem value="national">All States Only</SelectItem>
-                  {MALAYSIA_STATES.map(state => (
-                    <SelectItem key={state.value} value={state.value}>
-                      {state.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  <Select
+                    value={filterState}
+                    onValueChange={setFilterState}
+                  >
+                    <SelectTrigger className={`w-40 ${settingsInputClass}`}>
+                      <SelectValue placeholder="State" />
+                    </SelectTrigger>
+                    <SelectContent className={settingsSelectContentClass}>
+                      <SelectItem value="all" className={holidaySelectItemClass}>All States</SelectItem>
+                      <SelectItem value="national" className={holidaySelectItemClass}>All States Only</SelectItem>
+                      {MALAYSIA_STATES.map(state => (
+                        <SelectItem key={state.value} value={state.value} className={holidaySelectItemClass}>
+                          {state.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="relative w-full lg:w-96">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
+                  <Input
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    placeholder="Search holidays..."
+                    className={`pl-9 ${settingsInputClass}`}
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -277,13 +314,13 @@ export function HolidaysTab() {
                 {filteredHolidays.length === 0 ? (
                   <tr>
                     <td colSpan={5} className={settingsEmptyCellClass}>
-                      No holidays found for this filter
+                      {searchTerm ? 'No holidays match your search.' : 'No holidays found for this filter'}
                     </td>
                   </tr>
                 ) : (
-                  filteredHolidays.map((holiday, index) => (
+                  holidaysPagination.paginatedRows.map((holiday, index) => (
                     <tr key={holiday.id} className={settingsTableRowClass}>
-                      <td className={settingsMutedCellClass}>{index + 1}</td>
+                      <td className={settingsMutedCellClass}>{holidaysPagination.pageStart + index + 1}</td>
                       <td className={settingsStrongCellClass}>
                         {new Date(holiday.date).toLocaleDateString('en-GB', {
                           day: '2-digit',
@@ -338,74 +375,79 @@ export function HolidaysTab() {
               </tbody>
             </table>
             </div>
+            <SettingsPagination
+              currentPage={holidaysPagination.currentPage}
+              rowsPerPage={holidaysPagination.rowsPerPage}
+              totalItems={filteredHolidays.length}
+              totalPages={holidaysPagination.totalPages}
+              showingStart={holidaysPagination.showingStart}
+              showingEnd={holidaysPagination.showingEnd}
+              onPageChange={holidaysPagination.setCurrentPage}
+              onRowsPerPageChange={holidaysPagination.setRowsPerPage}
+            />
           </div>
-
-          <p className={settingsFooterNoteClass}>
-            <Calendar className="h-3 w-3 mr-1" />
-            Holidays added here will automatically appear in the calendar with a green background.
-          </p>
         </CardContent>
       </Card>
 
       {/* Add/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-md bg-white">
+        <DialogContent className={`sm:max-w-md ${settingsDialogContentClass}`}>
           <DialogHeader>
-            <DialogTitle className="text-gray-900">
+            <DialogTitle className="text-gray-900 dark:text-gray-100">
               {editingHoliday ? 'Edit Holiday' : 'Add New Holiday'}
             </DialogTitle>
-            <DialogDescription className="text-gray-500">
+            <DialogDescription className="text-gray-500 dark:text-gray-400">
               Fill in the holiday details below
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="holidayName" className="text-gray-700">Holiday Name *</Label>
+              <Label htmlFor="holidayName" className={settingsLabelClass}>Holiday Name *</Label>
               <Input
                 id="holidayName"
                 value={formData.name}
                 onChange={(e) => setFormData({...formData, name: e.target.value})}
                 placeholder="e.g., Hari Merdeka"
-                className="border-gray-300"
+                className={settingsInputClass}
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="holidayDate" className="text-gray-700">Date *</Label>
+              <Label htmlFor="holidayDate" className={settingsLabelClass}>Date *</Label>
               <Input
                 id="holidayDate"
                 type="date"
                 value={formData.date}
                 onChange={(e) => setFormData({...formData, date: e.target.value})}
-                className="border-gray-300"
+                className={settingsInputClass}
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <Label className="text-gray-700">States</Label>
+              <Label className={settingsLabelClass}>States</Label>
               <Popover open={isStatePopoverOpen} onOpenChange={setIsStatePopoverOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     role="combobox"
-                    className="w-full justify-between border-gray-300 bg-white hover:bg-gray-50"
+                    className="w-full justify-between border-gray-300 bg-white text-gray-900 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-900"
                   >
                     {formData.states.length === 0 ? (
-                      <span className="text-gray-500">All States</span>
+                      <span className="text-gray-500 dark:text-gray-400">All States</span>
                     ) : (
-                      <span className="text-gray-900">
+                      <span className="text-gray-900 dark:text-gray-100">
                         {getStatesLabel(formData.states)}
                       </span>
                     )}
                     <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-full p-4 bg-white" align="start">
+                <PopoverContent className="w-full border border-gray-200 bg-white p-4 text-gray-900 shadow-lg dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100" align="start">
                   <div className="space-y-4">
-                    <div className="flex items-center space-x-2 border-b pb-2">
+                    <div className="flex items-center space-x-2 border-b border-gray-200 pb-2 dark:border-gray-800">
                       <Checkbox
                         id="select-all"
                         checked={formData.states.length === 0}
@@ -420,7 +462,7 @@ export function HolidaysTab() {
                       />
                       <label
                         htmlFor="select-all"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        className="text-sm font-medium leading-none text-gray-900 peer-disabled:cursor-not-allowed peer-disabled:opacity-70 dark:text-gray-100"
                       >
                         All States
                       </label>
@@ -436,7 +478,7 @@ export function HolidaysTab() {
                           />
                           <label
                             htmlFor={state.value}
-                            className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                            className="text-sm leading-none text-gray-800 peer-disabled:cursor-not-allowed peer-disabled:opacity-70 dark:text-gray-200"
                           >
                             {state.label}
                           </label>
@@ -444,7 +486,7 @@ export function HolidaysTab() {
                       ))}
                     </div>
                     
-                    <div className="border-t pt-2 flex justify-between">
+                    <div className="flex justify-between border-t border-gray-200 pt-2 dark:border-gray-800">
                       <Button
                         type="button"
                         variant="outline"
@@ -456,6 +498,7 @@ export function HolidaysTab() {
                       <Button
                         type="button"
                         size="sm"
+                        className="border border-blue-700 bg-blue-600 text-white shadow-sm hover:bg-blue-700 hover:text-white dark:border-blue-500 dark:bg-blue-500 dark:hover:bg-blue-600"
                         onClick={() => setIsStatePopoverOpen(false)}
                       >
                         Done
@@ -464,7 +507,7 @@ export function HolidaysTab() {
                   </div>
                 </PopoverContent>
               </Popover>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
                 Choose All States, or select specific states only.
               </p>
             </div>
@@ -476,7 +519,7 @@ export function HolidaysTab() {
             </Button>
             <Button 
               type="button" 
-              className="bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-400" 
+              className={settingsPrimaryButtonClass}
               onClick={handleSave}
               disabled={saving}
             >
@@ -493,7 +536,7 @@ export function HolidaysTab() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Holiday?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{pendingDeleteHoliday?.name}"? This action cannot be undone.
+              Are you sure you want to delete &quot;{pendingDeleteHoliday?.name}&quot;? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

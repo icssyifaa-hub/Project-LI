@@ -41,10 +41,17 @@ import {
     Eye
 } from 'lucide-react'
 import { useCallback, useEffect, useState, useRef } from 'react'
-// PDF upload/delete removed — using job order number/final report number instead
+// PDF upload/delete removed - using job order number/final report number instead
 import { Combobox } from '@/components/ui/combobox'
 import { getDotClass } from '@/lib/colors'
-import { fetchJobTaskNames } from '@/lib/job-tasks'
+import {
+  Client,
+  fetchClients,
+  findClient,
+  getLocationsForClient,
+  getUniqueClientNames,
+} from '@/lib/settings/clients'
+import { fetchJobTaskNames } from '@/lib/settings/job-tasks'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,7 +69,8 @@ import {
   normalizeJobOrderNumber,
   validateFinalReportNumberForJobTask,
   validateJobOrderNumberFormat,
-} from '@/lib/number-formats'
+} from '@/lib/reports/number-formats'
+import { getSupabaseSchemaErrorMessage } from '@/lib/supabase/schema-errors'
 
 interface AddCalendarItemModalProps {
   isOpen: boolean
@@ -73,12 +81,14 @@ interface AddCalendarItemModalProps {
   selectedType?: 'event' | 'task' | null
   prefilledData?: {
     clientName?: string
+    clientId?: string
+    location?: string
+    address?: string
     jobTask?: string
     task_pic_id?: string
     task_pic_name?: string
     task_pic_color?: string
     jobOrderNumber?: string
-    runningNumber?: string
   } | null
   onSuccess?: () => void
   onSave?: (data: any, type: 'event' | 'task') => Promise<any>
@@ -113,19 +123,25 @@ const computeTaskStatus = (data: {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
+  const startDate = new Date(data.dateStart)
+  startDate.setHours(0, 0, 0, 0)
   const dueDate = data.dateStop ? new Date(data.dateStop) : new Date(data.dateStart)
   dueDate.setHours(0, 0, 0, 0)
 
   const isDueDatePassed = dueDate < today
   if (isDueDatePassed && (!hasJobOrder || !hasFinalReport)) return 'incomplete'
+  if (startDate > today) return 'upcoming'
+  if (startDate <= today && dueDate >= today) return 'ongoing'
   return 'in-progress'
 }
 
 const getStatusColor = (status: string) => {
   switch(status) {
     case 'completed': return 'bg-green-100 text-green-800'
-    case 'in-progress': return 'bg-yellow-100 text-yellow-800'
-    case 'incomplete': return 'bg-red-100 text-red-800'
+    case 'ongoing': return 'bg-green-100 text-green-800'
+    case 'upcoming': return 'bg-blue-100 text-blue-800'
+    case 'in-progress': return 'bg-yellow-200 text-yellow-900'
+    case 'incomplete': return 'bg-red-200 text-red-900'
     case 'onhold': return 'bg-gray-100 text-gray-600'
     default: return 'bg-gray-100 text-gray-800'
   }
@@ -134,6 +150,8 @@ const getStatusColor = (status: string) => {
 const getStatusText = (status: string) => {
   switch(status) {
     case 'completed': return 'Completed'
+    case 'ongoing': return 'Ongoing'
+    case 'upcoming': return 'Upcoming'
     case 'in-progress': return 'In Progress'
     case 'incomplete': return 'Incomplete'
     case 'onhold': return 'On Hold'
@@ -163,7 +181,9 @@ const initialEventData = {
 
 const initialTaskData = {
   clientName: '',
-  runningNumber: '',
+  clientId: '',
+  location: '',
+  address: '',
   jobTask: '',
   dateStart: '',
   dateStop: '',
@@ -192,7 +212,6 @@ export default function AddCalendarItemModal({
   onSave,
   onDelete
 }: AddCalendarItemModalProps) {
-  // ========== ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURN ==========
   const [activeTab, setActiveTab] = useState<'event' | 'task'>(() => {
     return selectedType || 'task'
   })
@@ -200,7 +219,6 @@ export default function AddCalendarItemModal({
   const [showTime, setShowTime] = useState(false)
   const [showDescription, setShowDescription] = useState(false)
   const [showSupport, setShowSupport] = useState(false)
-  const [showJobOrderNumber, setShowJobOrderNumber] = useState(false)
   const [showFinalReport, setShowFinalReport] = useState(false)
   const [showEventPic, setShowEventPic] = useState(false)
   const [showEventSupport, setShowEventSupport] = useState(false)
@@ -209,6 +227,8 @@ export default function AddCalendarItemModal({
   const [touched, setTouched] = useState<{[key: string]: boolean}>({})
   const [jobTasks, setJobTasks] = useState<JobTask[]>([])
   const [loadingTasks, setLoadingTasks] = useState(false)
+  const [clients, setClients] = useState<Client[]>([])
+  const [loadingClients, setLoadingClients] = useState(false)
   const [staffList, setStaffList] = useState<Staff[]>([])
   const [loadingStaff, setLoadingStaff] = useState(false)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
@@ -221,8 +241,6 @@ export default function AddCalendarItemModal({
   const [currentUser, setCurrentUser] = useState<any>(null)
   
   const initialLoadDone = useRef(false)
-  const [isCheckingRunningNumber, setIsCheckingRunningNumber] = useState(false)
-  const [runningNumberValid, setRunningNumberValid] = useState<boolean | null>(null)
   
   const getCurrentTaskStatus = useCallback(() => {
     return computeTaskStatus({
@@ -234,7 +252,7 @@ export default function AddCalendarItemModal({
   }, [taskData.dateStart, taskData.dateStop, taskData.jobOrderNumber, taskData.finalReportNumber])
 
   const checkTaskNumberExists = useCallback(async (
-    column: 'running_number' | 'job_order_number' | 'final_report_number',
+    column: 'job_order_number' | 'final_report_number',
     value: string,
     currentTaskId?: string
   ): Promise<boolean> => {
@@ -259,56 +277,6 @@ export default function AddCalendarItemModal({
       return false
     }
   }, [supabase])
-
-  // ========== FUNCTION TO CHECK IF RUNNING NUMBER EXISTS ==========
-  const checkRunningNumberExists = useCallback(async (runningNumber: string): Promise<boolean> => {
-    return checkTaskNumberExists(
-      'running_number',
-      runningNumber.trim().toUpperCase(),
-      selectedItem?.id
-    )
-  }, [checkTaskNumberExists, selectedItem])
-
-  // Function to validate running number in real-time
-  const validateRunningNumber = useCallback(async (runningNumber: string) => {
-    if (!runningNumber || runningNumber.trim() === '') {
-      setRunningNumberValid(null)
-      setErrors(prev => {
-        const newErrors = { ...prev }
-        delete newErrors.runningNumber
-        return newErrors
-      })
-      return false
-    }
-    
-    // Basic format validation
-    if (runningNumber.length < 3) {
-      setRunningNumberValid(false)
-      setErrors(prev => ({ ...prev, runningNumber: 'Running number must be at least 3 characters' }))
-      return false
-    }
-    
-    setIsCheckingRunningNumber(true)
-    const exists = await checkRunningNumberExists(runningNumber)
-    setIsCheckingRunningNumber(false)
-    
-    const isValid = !exists
-    
-    setRunningNumberValid(isValid)
-    
-    if (exists) {
-      const errorMsg = `Running number "${runningNumber}" already exists. Please use a different number.`
-      setErrors(prev => ({ ...prev, runningNumber: errorMsg }))
-    } else {
-      setErrors(prev => {
-        const newErrors = { ...prev }
-        delete newErrors.runningNumber
-        return newErrors
-      })
-    }
-    
-    return isValid
-  }, [checkRunningNumberExists])
 
   // ========== NOTIFICATION FUNCTIONS ==========
   const sendTaskNotifications = useCallback(async (data: any, taskId: string, action: 'created' | 'updated' = 'created') => {
@@ -487,14 +455,11 @@ export default function AddCalendarItemModal({
     setShowTime(false)
     setShowDescription(false)
     setShowSupport(false)
-    setShowJobOrderNumber(false)
     setShowFinalReport(false)
     setShowEventPic(false)
     setShowEventSupport(false)
     setErrors({})
     setTouched({})
-    setRunningNumberValid(null)
-    setIsCheckingRunningNumber(false)
     
   }, [])
 
@@ -507,6 +472,18 @@ export default function AddCalendarItemModal({
       console.error('Error fetching job tasks:', error)
     } finally {
       setLoadingTasks(false)
+    }
+  }, [supabase])
+
+  const fetchTaskClients = useCallback(async () => {
+    setLoadingClients(true)
+    try {
+      const data = await fetchClients(supabase)
+      setClients(data)
+    } catch (error) {
+      setClients([])
+    } finally {
+      setLoadingClients(false)
     }
   }, [supabase])
 
@@ -580,7 +557,9 @@ export default function AddCalendarItemModal({
 
     setTaskData({
       clientName: item.client_name || item.clientName || '',
-      runningNumber: item.running_number || item.runningNumber || '',
+      clientId: item.client_id || item.clientId || '',
+      location: item.location || '',
+      address: item.address || '',
       jobTask: item.job_task || item.jobTask || '',
       dateStart: item.date_start || item.dateStart || '',
       dateStop: item.date_stop || item.dateStop || '',
@@ -602,9 +581,7 @@ export default function AddCalendarItemModal({
     setShowTime(!!(timeStart || timeStop))
     setShowDescription(!!(item.additional_remark || item.additionalRemark))
     setShowSupport(normalizedTaskSupportIds.length > 0 || normalizedTaskSupportNames.length > 0)
-    setShowJobOrderNumber(!!(item.job_order_number || item.jobOrderNumber))
     setShowFinalReport(!!(item.final_report_number))
-    setRunningNumberValid(true)
   }, [])
 
   const populateEventForm = useCallback((item: any) => {
@@ -670,19 +647,6 @@ export default function AddCalendarItemModal({
     setShowEventSupport(normalizedEventSupportIds.length > 0 || normalizedEventSupportNames.length > 0)
   }, [])
 
-  // Auto-validate running number when user types (for new tasks only)
-  useEffect(() => {
-    if (activeTab === 'task' && !selectedItem && taskData.runningNumber && !isCheckingRunningNumber) {
-      const timer = setTimeout(() => {
-        if (taskData.runningNumber) {
-          validateRunningNumber(taskData.runningNumber)
-        }
-      }, 500)
-      
-      return () => clearTimeout(timer)
-    }
-  }, [taskData.runningNumber, activeTab, selectedItem, validateRunningNumber, isCheckingRunningNumber])
-
   useEffect(() => {
     if (!isOpen) {
       initialLoadDone.current = false
@@ -693,6 +657,7 @@ export default function AddCalendarItemModal({
     
     const loadData = async () => {
       await fetchJobTasks()
+      await fetchTaskClients()
       await fetchStaff()
       
       if (selectedItem) {
@@ -714,7 +679,9 @@ export default function AddCalendarItemModal({
         setTaskData(prev => ({
           ...prev,
           clientName: prefilledData?.clientName || prev.clientName,
-          runningNumber: prefilledData?.runningNumber || prev.runningNumber,
+          clientId: prefilledData?.clientId || prev.clientId,
+          location: prefilledData?.location || prev.location,
+          address: prefilledData?.address || prev.address,
           jobTask: prefilledData?.jobTask || prev.jobTask,
           task_pic_id: prefilledData?.task_pic_id || prev.task_pic_id,
           task_pic_name: prefilledData?.task_pic_name || prev.task_pic_name,
@@ -723,7 +690,6 @@ export default function AddCalendarItemModal({
           dateStart: dateStr,
           dateStop: endDateStr,
         }))
-        setShowJobOrderNumber(!!prefilledData?.jobOrderNumber)
       }
       
       initialLoadDone.current = true
@@ -735,7 +701,7 @@ export default function AddCalendarItemModal({
       resetForm()
       initialLoadDone.current = false
     }
-  }, [isOpen, selectedItem, selectedDate, selectedEndDate, selectedType, prefilledData, populateEventForm, populateTaskForm, resetForm, fetchJobTasks, fetchStaff])
+  }, [isOpen, selectedItem, selectedDate, selectedEndDate, selectedType, prefilledData, populateEventForm, populateTaskForm, resetForm, fetchJobTasks, fetchTaskClients, fetchStaff])
 
   useEffect(() => {
     if (!isOpen || activeTab !== 'task') return
@@ -786,8 +752,57 @@ export default function AddCalendarItemModal({
     checkTaskNumberExists
   ])
 
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'task') return
+    if (!taskData.clientName || taskData.clientId || taskData.location) return
+
+    const locations = getLocationsForClient(clients, taskData.clientName)
+    if (locations.length !== 1) return
+
+    const [location] = locations
+    setTaskData((prev) => {
+      if (prev.clientId || prev.location || prev.clientName !== taskData.clientName) return prev
+
+      return {
+        ...prev,
+        clientId: location.id,
+        location: location.location,
+        address: location.address || '',
+      }
+    })
+
+    if (touched.location) {
+      setErrors((prev) => ({ ...prev, location: '' }))
+    }
+  }, [
+    isOpen,
+    activeTab,
+    clients,
+    taskData.clientName,
+    taskData.clientId,
+    taskData.location,
+    touched.location,
+  ])
+
   // ========== CONDITIONAL RETURN AFTER ALL HOOKS ==========
   if (!isOpen) return null
+
+  const clientNameOptions = getUniqueClientNames(clients).map((name) => ({ value: name, label: name }))
+  if (taskData.clientName && !clientNameOptions.some((option) => option.value === taskData.clientName)) {
+    clientNameOptions.push({ value: taskData.clientName, label: `${taskData.clientName} (current)` })
+  }
+
+  const clientOptions = getLocationsForClient(clients, taskData.clientName)
+  const selectedClient = findClient(clients, {
+    id: taskData.clientId,
+    clientName: taskData.clientName,
+    location: taskData.location,
+  })
+  const hasLegacyLocation =
+    taskData.location &&
+    !clientOptions.some((item) => item.id === (selectedClient?.id || taskData.clientId) || item.location === taskData.location)
+  const legacyClientValue = hasLegacyLocation ? `legacy-${taskData.location}` : ''
+  const selectedClientValue = selectedClient?.id || taskData.clientId || legacyClientValue
 
   // ========== CHECK IF SAVE BUTTON SHOULD BE DISABLED ==========
   const isSaveDisabled = (): boolean => {
@@ -804,24 +819,11 @@ export default function AddCalendarItemModal({
       return !taskData.clientName || !taskData.task_pic_id
     }
     
-    // New task mode - MUST have valid running number
-    const hasRequiredFields = !!taskData.clientName && !!taskData.task_pic_id
-    const hasValidRunningNumber = !!taskData.runningNumber && runningNumberValid === true
-  
-    return !hasRequiredFields || !hasValidRunningNumber
+    return !taskData.clientName || !taskData.task_pic_id
   }
 
   const getSaveButtonTitle = (): string => {
     if (activeTab === 'task' && !selectedItem) {
-      if (!taskData.runningNumber) {
-        return 'Please enter a running number'
-      }
-      if (runningNumberValid === false) {
-        return 'This running number already exists. Please use a different number.'
-      }
-      if (isCheckingRunningNumber) {
-        return 'Checking running number availability...'
-      }
       if (!taskData.clientName) {
         return 'Please enter client name'
       }
@@ -922,6 +924,65 @@ export default function AddCalendarItemModal({
     return ''
   }
 
+  const getAvailableLocationsForTaskClient = (clientName = taskData.clientName) =>
+    getLocationsForClient(clients, clientName)
+
+  const handleClientNameSelect = (clientName: string) => {
+    const locations = getLocationsForClient(clients, clientName)
+    const currentLocationStillValid = locations.some((item) => item.location === taskData.location)
+    const nextLocation = locations.length === 1
+      ? locations[0]
+      : currentLocationStillValid
+        ? findClient(locations, { clientName, location: taskData.location })
+        : undefined
+
+    setTaskData((prev) => ({
+      ...prev,
+      clientName,
+      clientId: nextLocation?.id || '',
+      location: nextLocation?.location || '',
+      address: nextLocation?.address || '',
+    }))
+
+    if (touched.clientName) {
+      setErrors((prev) => ({ ...prev, clientName: validateTaskField('clientName', clientName) }))
+    }
+    if (touched.location) {
+      setErrors((prev) => ({
+        ...prev,
+        location: nextLocation ? '' : validateTaskField('location', ''),
+      }))
+    }
+  }
+
+  const handleClientSelect = (clientId: string) => {
+    if (clientId.startsWith('legacy-')) {
+      setTaskData((prev) => ({
+        ...prev,
+        clientId: '',
+        location: clientId.replace(/^legacy-/, ''),
+        address: '',
+      }))
+      return
+    }
+
+    const selectedLocation = clients.find((item) => item.id === clientId)
+    setTaskData((prev) => ({
+      ...prev,
+      clientId,
+      clientName: selectedLocation?.client_name || prev.clientName,
+      location: selectedLocation?.location || '',
+      address: selectedLocation?.address || '',
+    }))
+
+    if (touched.location) {
+      setErrors((prev) => ({
+        ...prev,
+        location: validateTaskField('location', selectedLocation?.location || ''),
+      }))
+    }
+  }
+
   const validateTaskField = (field: string, value: any): string => {
     switch (field) {
       case 'clientName':
@@ -929,9 +990,8 @@ export default function AddCalendarItemModal({
         if (value.length < 2) return 'Client name must be at least 2 characters'
         if (value.length > 100) return 'Client name cannot exceed 100 characters'
         break
-      case 'runningNumber':
-        if (!value?.trim()) return 'Running Number is required'
-        if (value.length < 3) return 'Running number must be at least 3 characters'
+      case 'location':
+        if (getAvailableLocationsForTaskClient().length > 0 && !value?.trim()) return 'Location is required'
         break
       case 'task_pic_id':
         if (!value) return 'PIC Staff is required'
@@ -992,8 +1052,8 @@ export default function AddCalendarItemModal({
     const newErrors: {[key: string]: string} = {}
     const clientNameError = validateTaskField('clientName', taskData.clientName)
     if (clientNameError) newErrors.clientName = clientNameError
-    const runningNumberError = validateTaskField('runningNumber', taskData.runningNumber)
-    if (runningNumberError) newErrors.runningNumber = runningNumberError
+    const locationError = validateTaskField('location', taskData.location)
+    if (locationError) newErrors.location = locationError
     const picStaffError = validateTaskField('task_pic_id', taskData.task_pic_id)
     if (picStaffError) newErrors.task_pic_id = picStaffError
     if (taskData.dateStop) {
@@ -1022,10 +1082,6 @@ export default function AddCalendarItemModal({
     } else {
       const error = validateTaskField(field, taskData[field as keyof typeof taskData])
       setErrors(prev => ({ ...prev, [field]: error }))
-      
-      if (field === 'runningNumber' && !selectedItem && taskData.runningNumber) {
-        validateRunningNumber(taskData.runningNumber)
-      }
     }
   }
 
@@ -1072,23 +1128,15 @@ export default function AddCalendarItemModal({
 
     if (activeTab === 'task') {
       const currentTaskId = selectedItem?.id
-      const runningNumber = taskData.runningNumber.trim().toUpperCase()
       const jobOrderNumber = normalizeJobOrderNumber(taskData.jobOrderNumber)
       const finalReportNumber = normalizeFinalReportNumber(taskData.finalReportNumber)
       const duplicateErrors: {[key: string]: string} = {}
 
-      setIsCheckingRunningNumber(true)
-      const [runningExists, jobOrderExists, finalReportExists] = await Promise.all([
-        runningNumber ? checkTaskNumberExists('running_number', runningNumber, currentTaskId) : Promise.resolve(false),
+      const [jobOrderExists, finalReportExists] = await Promise.all([
         jobOrderNumber ? checkTaskNumberExists('job_order_number', jobOrderNumber, currentTaskId) : Promise.resolve(false),
         finalReportNumber ? checkTaskNumberExists('final_report_number', finalReportNumber, currentTaskId) : Promise.resolve(false),
       ])
-      setIsCheckingRunningNumber(false)
 
-      if (runningExists) {
-        duplicateErrors.runningNumber = `Running number "${runningNumber}" already exists. Please use a different number.`
-        setRunningNumberValid(false)
-      }
       if (jobOrderExists) {
         duplicateErrors.jobOrderNumber = `Job Order Number "${jobOrderNumber}" already exists. Please use a different number.`
       }
@@ -1161,8 +1209,6 @@ export default function AddCalendarItemModal({
           })
 
         } else {
-          const runningNumber = taskData.runningNumber.trim().toUpperCase()
-          if (!runningNumber) throw new Error("Running number is required")
           const normalizedTaskSupport = normalizeSupportSelection(
             taskData.task_support_ids,
             taskData.task_pic_id,
@@ -1182,7 +1228,9 @@ export default function AddCalendarItemModal({
 
           const dataToSave = {
             client_name: taskData.clientName,
-            running_number: runningNumber,
+            client_id: taskData.clientId || null,
+            location: taskData.location || null,
+            address: taskData.address || null,
             job_task: taskData.jobTask,
             date_start: taskData.dateStart || null,
             date_stop: taskData.dateStop || null,
@@ -1234,7 +1282,11 @@ export default function AddCalendarItemModal({
         
       } catch (error: any) {
         console.error('Error saving:', error)
-        toast({ title: "Error", description: error.message || "Failed to save", variant: "destructive" })
+        toast({
+          title: "Error",
+          description: getSupabaseSchemaErrorMessage(error) || error.message || "Failed to save",
+          variant: "destructive",
+        })
       } finally {
         setIsSaving(false)
         setShowConfirmDialog(false)
@@ -1389,7 +1441,6 @@ export default function AddCalendarItemModal({
                     setActiveTab('event')
                     setErrors({})
                     setTouched({})
-                    setRunningNumberValid(null)
                   }}
                   disabled={eventTabDisabled}
                   title={eventTabDisabled && lockedEditType === 'task' ? lockedTypeTooltip : undefined}
@@ -1421,93 +1472,82 @@ export default function AddCalendarItemModal({
                       </span>
                     </div>
 
+                    {/* Job Order Number */}
+                    <div className="space-y-2">
+                      <Label className="font-medium text-gray-900">Job Order Number</Label>
+                      <Input
+                        value={taskData.jobOrderNumber}
+                        onChange={(e) => {
+                          const value = normalizeJobOrderNumber(e.target.value)
+                          setTaskData(prev => ({ ...prev, jobOrderNumber: value }))
+                          if (touched.jobOrderNumber) {
+                            setErrors(prev => ({ ...prev, jobOrderNumber: validateTaskField('jobOrderNumber', value) }))
+                          }
+                        }}
+                        onBlur={() => handleBlur('jobOrderNumber')}
+                        placeholder={JOB_ORDER_NUMBER_EXAMPLE}
+                        className={`${inputClass} ${touched.jobOrderNumber && errors.jobOrderNumber ? invalidInputClass : ''}`}
+                        disabled={isSaving}
+                      />
+                      <ErrorMessage field="jobOrderNumber" />
+                    </div>
+
                     <div className="space-y-2">
                       <Label className={labelClass}>Client Name <span className={requiredClass}>*</span></Label>
-                      <Input 
-                        value={taskData.clientName} 
-                        onChange={(e) => { 
-                          setTaskData(prev => ({...prev, clientName: e.target.value}))
-                          if (touched.clientName) { 
-                            const error = validateTaskField('clientName', e.target.value)
-                            setErrors(prev => ({ ...prev, clientName: error }))
-                          } 
-                        }} 
-                        onBlur={() => handleBlur('clientName')} 
-                        placeholder="Enter client name" 
-                        className={`${inputClass} ${touched.clientName && errors.clientName ? invalidInputClass : ''}`}
-                        disabled={isSaving} 
-                        autoFocus 
-                      />
+                      {loadingClients ? (
+                        <div className="flex items-center space-x-2 rounded-md border border-gray-300 bg-gray-50 p-2">
+                          <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
+                          <span className="text-sm text-gray-500">Loading clients...</span>
+                        </div>
+                      ) : (
+                        <Combobox
+                          options={clientNameOptions}
+                          value={taskData.clientName || ''}
+                          onValueChange={handleClientNameSelect}
+                          onBlur={() => handleBlur('clientName')}
+                          placeholder="Select client"
+                          emptyMessage="No clients found."
+                          disabled={isSaving}
+                          className={touched.clientName && errors.clientName ? invalidInputClass : ''}
+                        />
+                      )}
                       <ErrorMessage field="clientName" />
                     </div>
 
-                    {/* RUNNING NUMBER - USER INPUT WITH REAL-TIME VALIDATION */}
                     <div className="space-y-2">
-                      <Label className={labelClass}>
-                        Running Number <span className={requiredClass}>*</span>
-                      </Label>
-                      <div className="relative">
-                        <Input 
-                          value={taskData.runningNumber} 
-                          onChange={(e) => { 
-                            const value = e.target.value.toUpperCase()
-                            setTaskData(prev => ({...prev, runningNumber: value}))
-                            setTouched(prev => ({ ...prev, runningNumber: true }))
-                            if (runningNumberValid === false) {
-                              setRunningNumberValid(null)
-                            }
-                            setErrors(prev => {
-                              const nextErrors = { ...prev }
-                              delete nextErrors.runningNumber
-                              return nextErrors
-                            })
-                          }} 
-                          onBlur={() => {
-                            if (!selectedItem && taskData.runningNumber) {
-                              validateRunningNumber(taskData.runningNumber)
-                            }
-                          }}
-                          placeholder="e.g., JOB2401001, INV-001, etc." 
-                          className={`${inputClass} pr-10 font-mono text-sm ${
-                            !selectedItem && taskData.runningNumber && runningNumberValid === true 
-                              ? 'border-green-500 border-2 bg-green-50' 
-                              : !selectedItem && runningNumberValid === false
-                              ? 'border-red-500 border-2 bg-red-50'
-                              : touched.runningNumber && errors.runningNumber
-                              ? invalidInputClass
-                              : ''
-                          }`}
-                          disabled={isSaving} 
-                        />
-                        {!selectedItem && isCheckingRunningNumber && (
-                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                            <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
-                          </div>
-                        )}
-                        {!selectedItem && runningNumberValid === true && !isCheckingRunningNumber && taskData.runningNumber && (
-                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                            <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
-                              <span className="text-white text-[10px]">✓</span>
-                            </div>
-                          </div>
-                        )}
-                        {!selectedItem && runningNumberValid === false && !isCheckingRunningNumber && taskData.runningNumber && (
-                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                            <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center">
-                              <span className="text-white text-[10px]">✗</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      {!selectedItem && runningNumberValid === true && taskData.runningNumber && (
-                        <p className="text-xs text-green-600 flex items-center">
-                          <AlertCircle className="h-3 w-3 mr-1" />
-                          ✓ Running number is available
-                        </p>
-                      )}
-                      <ErrorMessage field="runningNumber" />
+                      <Label className={labelClass}>Location <span className={clientOptions.length > 0 ? requiredClass : 'text-gray-400'}>{clientOptions.length > 0 ? '*' : '(Optional)'}</span></Label>
+                      <Select
+                        value={selectedClientValue}
+                        onValueChange={handleClientSelect}
+                        onOpenChange={() => handleBlur('location')}
+                        disabled={isSaving || !taskData.clientName || clientOptions.length === 0}
+                      >
+                        <SelectTrigger className={`${inputClass} ${touched.location && errors.location ? invalidInputClass : ''}`}>
+                          {selectedClient?.location || taskData.location ? (
+                            <span className="truncate">{selectedClient?.location || taskData.location}</span>
+                          ) : (
+                            <SelectValue placeholder={taskData.clientName ? 'Select location' : 'Select client first'} />
+                          )}
+                        </SelectTrigger>
+                        <SelectContent
+                          className="max-h-[45vh] overflow-hidden border border-gray-200 bg-white text-gray-900 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                          viewportClassName="h-auto max-h-52 overflow-y-auto overscroll-contain"
+                        >
+                          {hasLegacyLocation && (
+                            <SelectItem value={legacyClientValue} className="text-gray-900 dark:text-gray-100">
+                              {taskData.location} (current)
+                            </SelectItem>
+                          )}
+                          {clientOptions.map((location) => (
+                            <SelectItem key={location.id} value={location.id} className="text-gray-900 dark:text-gray-100">
+                              {location.location}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <ErrorMessage field="location" />
                     </div>
-                    
+
                     <div className="space-y-2">
                       <Label className={labelClass}>Job Task <span className={requiredClass}>*</span></Label>
                       {loadingTasks ? (
@@ -1623,41 +1663,6 @@ export default function AddCalendarItemModal({
                       <div className="space-y-2">
                         <Label className={labelClass}>Additional Remark</Label>
                         <Textarea value={taskData.additionalRemark} onChange={(e) => setTaskData(prev => ({...prev, additionalRemark: e.target.value}))} placeholder="Enter any additional remarks..." className={`${inputClass} min-h-[80px]`} disabled={isSaving} />
-                      </div>
-                    )}
-
-                    {/* Job Order Number */}
-                    {!showJobOrderNumber ? (
-                      <button type="button" onClick={() => setShowJobOrderNumber(true)} className={actionButtonClass} disabled={isSaving}>
-                        <FileText className="mr-2 h-4 w-4" /> Add Job Order Number
-                      </button>
-                    ) : (
-                      <div className="space-y-2 border-t border-gray-200 pt-4">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <Label className="flex items-center font-medium text-gray-900">
-                            <FileText className="mr-2 h-4 w-4 text-gray-500" />Job Order Number
-                          </Label>
-                          {!taskData.jobOrderNumber && (
-                            <Button type="button" variant="ghost" size="sm" onClick={() => setShowJobOrderNumber(false)} className="h-6 w-6 p-0 text-gray-500" disabled={isSaving}>
-                              <X className="h-3 w-3" />
-                            </Button>
-                          )}
-                        </div>
-                        <Input
-                          value={taskData.jobOrderNumber}
-                          onChange={(e) => {
-                            const value = normalizeJobOrderNumber(e.target.value)
-                            setTaskData(prev => ({ ...prev, jobOrderNumber: value }))
-                            if (touched.jobOrderNumber) {
-                              setErrors(prev => ({ ...prev, jobOrderNumber: validateTaskField('jobOrderNumber', value) }))
-                            }
-                          }}
-                          onBlur={() => handleBlur('jobOrderNumber')}
-                          placeholder={JOB_ORDER_NUMBER_EXAMPLE}
-                          className={`${inputClass} ${touched.jobOrderNumber && errors.jobOrderNumber ? invalidInputClass : ''}`}
-                          disabled={isSaving}
-                        />
-                        <ErrorMessage field="jobOrderNumber" />
                       </div>
                     )}
 

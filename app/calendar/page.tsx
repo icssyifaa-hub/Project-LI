@@ -1,17 +1,17 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { CalendarViews } from './components/CalendarViews'
 import { useCalendarData } from '@/app/calendar/hooks/useCalendarData'
-import AddCalendarItemModal from './AddCalendarItemModal'
-import TaskInbox from './TaskInbox'
+import AddCalendarItemModal from './components/AddCalendarItemModal'
+import TaskInbox from './components/TaskInbox'
 import CalendarFilter from './components/CalendarFilter'
 import type { Task, Event, ViewType} from '@/app/calendar/types/calendar'
-import type { UnscheduledTask } from './TaskInbox'
+import type { UnscheduledTask } from './components/TaskInbox'
 import { useToast } from '@/components/ui/use-toast'
 import { Button } from '@/components/ui/button'
-import NotificationsPanel from './NotificationsPanel'
+import NotificationsPanel from './components/NotificationsPanel'
 import { createClient } from '@/lib/supabase/client'
 import { 
   Inbox, 
@@ -30,8 +30,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-import { useUsers } from '../settings/hooks/useUsers'
-import { useHolidays } from '../settings/hooks/useHolidays'
+import { useUsers } from '@/app/settings-admin/hooks/useUsers'
+import { useHolidays } from '@/app/settings-admin/hooks/useHolidays'
 
 const STORAGE_KEYS = {
   STAFF_FILTERS: 'calendar_staff_filters',
@@ -43,6 +43,7 @@ const STORAGE_KEYS = {
 }
 
 const FOCUS_HIGHLIGHT_DURATION_MS = 5000
+const CALENDAR_AUTO_REFRESH_MS = 15000
 
 const createStableDate = (date: Date): Date => {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0)
@@ -153,10 +154,12 @@ export default function CalendarPage() {
     deleteTask, 
     deleteEvent,
     refresh,
+    refreshSilently,
   } = useCalendarData(currentDate, view)
 
   const { users: allUsers } = useUsers()
   const { holidays: allHolidays } = useHolidays()
+  const refreshSilentlyRef = useRef(refreshSilently)
   const searchParamString = searchParams.toString()
   const userIdByName = useMemo(() => {
     const map = new Map<string, string>()
@@ -175,6 +178,22 @@ export default function CalendarPage() {
     localStorage.removeItem('notification_unread_count')
     localStorage.removeItem('inbox_unread_count')
   }, [])
+
+  useEffect(() => {
+    refreshSilentlyRef.current = refreshSilently
+  }, [refreshSilently])
+
+  useEffect(() => {
+    if (!isInitialized || showItemModal) return
+
+    const autoRefreshCalendar = () => {
+      if (document.visibilityState !== 'visible') return
+      void refreshSilentlyRef.current()
+    }
+
+    const intervalId = window.setInterval(autoRefreshCalendar, CALENDAR_AUTO_REFRESH_MS)
+    return () => window.clearInterval(intervalId)
+  }, [isInitialized, showItemModal])
 
   useEffect(() => {
     const fetchBadgeCounts = async () => {
@@ -639,7 +658,9 @@ export default function CalendarPage() {
       setSelectedTask({
         id: draggedTask.id,
         clientName: draggedTask.clientName,
-        runningNumber: draggedTask.runningNumber || '',
+        clientId: draggedTask.clientId || '',
+        location: draggedTask.location || '',
+        address: draggedTask.address || '',
         jobTask: draggedTask.jobTask,
         dateStart: dateStartValue,
         dateStop: '',
@@ -681,11 +702,13 @@ export default function CalendarPage() {
         finalData = {
           ...data,
           client_name: data.client_name || prefilledTaskData.clientName,
+          client_id: data.client_id || prefilledTaskData.clientId,
+          location: data.location || prefilledTaskData.location,
+          address: data.address || prefilledTaskData.address,
           job_task: data.job_task || prefilledTaskData.jobTask,
           task_pic_id: data.task_pic_id || prefilledTaskData.task_pic_id,
           task_pic_name: data.task_pic_name || prefilledTaskData.task_pic_name,
           task_pic_color: data.task_pic_color || prefilledTaskData.task_pic_color,
-          running_number: data.running_number || prefilledTaskData.runningNumber,
           job_order_number: data.job_order_number || prefilledTaskData.jobOrderNumber,
           // PDFs removed: job order URL no longer used
         }
@@ -1019,7 +1042,6 @@ export default function CalendarPage() {
                     setSelectedTask({
                       id: task.id,
                       clientName: task.clientName,
-                      runningNumber: task.runningNumber || '',
                       jobTask: task.jobTask,
                       dateStart: '',
                       dateStop: '',

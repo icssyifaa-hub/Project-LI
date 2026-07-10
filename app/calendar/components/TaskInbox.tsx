@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -791,6 +791,44 @@ function EditTaskModal({
     }
   }, [task, isOpen, staffList, clients])
 
+  useEffect(() => {
+    if (!isOpen || !task || clients.length === 0) return
+
+    const selectedLocation = findClient(clients, {
+      id: formData.clientId,
+      clientName: formData.clientName,
+      location: formData.location || task.location,
+    })
+    if (!selectedLocation) return
+
+    setFormData((prev) => {
+      const nextAddress = selectedLocation.address || ''
+      if (
+        prev.clientId === selectedLocation.id &&
+        prev.clientName === selectedLocation.client_name &&
+        prev.location === selectedLocation.location &&
+        (prev.address || '') === nextAddress
+      ) {
+        return prev
+      }
+
+      return {
+        ...prev,
+        clientId: selectedLocation.id || prev.clientId,
+        clientName: selectedLocation.client_name || prev.clientName,
+        location: selectedLocation.location || prev.location,
+        address: nextAddress,
+      }
+    })
+  }, [
+    isOpen,
+    task,
+    clients,
+    formData.clientId,
+    formData.clientName,
+    formData.location,
+  ])
+
   const validateField = (field: string, value: string): string => {
     switch (field) {
       case 'clientName':
@@ -970,12 +1008,13 @@ function EditTaskModal({
   if (formData.clientName && !clientNameOptions.some((option) => option.value === formData.clientName)) {
     clientNameOptions.push({ value: formData.clientName, label: `${formData.clientName} (current)` })
   }
-  const availableLocations = getLocationsForClient(clients, formData.clientName)
   const selectedClient = findClient(clients, {
     id: formData.clientId,
     clientName: formData.clientName,
     location: formData.location || task.location,
   })
+  const resolvedClientName = selectedClient?.client_name || formData.clientName
+  const availableLocations = getLocationsForClient(clients, resolvedClientName)
   const effectiveLocation = selectedClient?.location || formData.location || task.location || ''
   const effectiveAddress = selectedClient?.address || formData.address || task.address || ''
   const hasLegacyLocation =
@@ -1084,7 +1123,7 @@ function EditTaskModal({
               value={selectedClientValue}
               onValueChange={handleClientSelect}
               onOpenChange={() => handleBlur('location')}
-              disabled={saving || !formData.clientName || availableLocations.length === 0}
+              disabled={saving || !formData.clientName}
             >
               <SelectTrigger className={`bg-white border-gray-300 ${touched.location && errors.location ? 'border-red-500' : ''}`}>
                 {selectedLocationLabel ? (
@@ -1094,11 +1133,16 @@ function EditTaskModal({
                 )}
               </SelectTrigger>
               <SelectContent
-                className="max-h-80 overflow-hidden border border-gray-200 bg-white text-gray-900 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                className="z-[80] max-h-80 overflow-hidden border border-gray-200 bg-white text-gray-900 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
                 viewportClassName="h-auto max-h-52 overflow-y-auto overscroll-contain"
               >
                 {hasLegacyLocation && (
                   <SelectItem value={legacyClientValue}>{effectiveLocation} (current)</SelectItem>
+                )}
+                {availableLocations.length === 0 && (
+                  <div className="px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
+                    No locations found for this client.
+                  </div>
                 )}
                 {availableLocations.map((location) => (
                   <SelectItem key={location.id} value={location.id}>
@@ -1208,11 +1252,14 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
   const [loadingData, setLoadingData] = useState(true)
 
   const { toast } = useToast()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const realtimeRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const fetchAllData = async () => {
-    setLoadingData(true)
+  const fetchAllData = useCallback(async (options: { silent?: boolean } = {}) => {
+    if (!options.silent) {
+      setLoadingData(true)
+    }
     try {
       const { data: staffData, error: staffError } = await supabase
         .from('users')
@@ -1316,19 +1363,60 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
       
     } catch (error: any) {
       console.error('Error fetching data:', error)
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to load data",
-        variant: "destructive",
-      })
+      if (!options.silent) {
+        toast({
+          title: "Error",
+          description: error?.message || "Failed to load data",
+          variant: "destructive",
+        })
+      }
     } finally {
-      setLoadingData(false)
+      if (!options.silent) {
+        setLoadingData(false)
+      }
     }
-  }
+  }, [supabase, toast, onUnreadCountChange])
 
   useEffect(() => {
     fetchAllData()
-  }, [refreshKey])
+  }, [fetchAllData, refreshKey])
+
+  useEffect(() => {
+    const scheduleRealtimeRefresh = () => {
+      if (realtimeRefreshTimerRef.current) {
+        clearTimeout(realtimeRefreshTimerRef.current)
+      }
+
+      realtimeRefreshTimerRef.current = setTimeout(() => {
+        fetchAllData({ silent: true })
+      }, 300)
+    }
+
+    const channel = supabase
+      .channel('task-inbox-tasks-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tasks',
+        },
+        () => {
+          scheduleRealtimeRefresh()
+        }
+      )
+      .subscribe((status) => {
+        console.log('Task inbox realtime status:', status)
+      })
+
+    return () => {
+      if (realtimeRefreshTimerRef.current) {
+        clearTimeout(realtimeRefreshTimerRef.current)
+        realtimeRefreshTimerRef.current = null
+      }
+      supabase.removeChannel(channel)
+    }
+  }, [fetchAllData, supabase])
 
   useEffect(() => {
     onUnreadCountChange?.(tasks.length)

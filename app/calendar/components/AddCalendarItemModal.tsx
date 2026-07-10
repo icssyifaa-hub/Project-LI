@@ -784,6 +784,44 @@ export default function AddCalendarItemModal({
     touched.location,
   ])
 
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'task' || clients.length === 0) return
+
+    const selectedLocation = findClient(clients, {
+      id: taskData.clientId,
+      clientName: taskData.clientName,
+      location: taskData.location,
+    })
+    if (!selectedLocation) return
+
+    setTaskData((prev) => {
+      const nextAddress = selectedLocation.address || ''
+      if (
+        prev.clientId === selectedLocation.id &&
+        prev.clientName === selectedLocation.client_name &&
+        prev.location === selectedLocation.location &&
+        (prev.address || '') === nextAddress
+      ) {
+        return prev
+      }
+
+      return {
+        ...prev,
+        clientId: selectedLocation.id || prev.clientId,
+        clientName: selectedLocation.client_name || prev.clientName,
+        location: selectedLocation.location || prev.location,
+        address: nextAddress,
+      }
+    })
+  }, [
+    isOpen,
+    activeTab,
+    clients,
+    taskData.clientId,
+    taskData.clientName,
+    taskData.location,
+  ])
+
   // ========== CONDITIONAL RETURN AFTER ALL HOOKS ==========
   if (!isOpen) return null
 
@@ -792,12 +830,13 @@ export default function AddCalendarItemModal({
     clientNameOptions.push({ value: taskData.clientName, label: `${taskData.clientName} (current)` })
   }
 
-  const clientOptions = getLocationsForClient(clients, taskData.clientName)
   const selectedClient = findClient(clients, {
     id: taskData.clientId,
     clientName: taskData.clientName,
     location: taskData.location,
   })
+  const resolvedClientName = selectedClient?.client_name || taskData.clientName
+  const clientOptions = getLocationsForClient(clients, resolvedClientName)
   const hasLegacyLocation =
     taskData.location &&
     !clientOptions.some((item) => item.id === (selectedClient?.id || taskData.clientId) || item.location === taskData.location)
@@ -1225,12 +1264,17 @@ export default function AddCalendarItemModal({
           })
           const jobOrderNumber = normalizeJobOrderNumber(taskData.jobOrderNumber)
           const finalReportNumber = normalizeFinalReportNumber(taskData.finalReportNumber)
+          const selectedTaskClient = findClient(clients, {
+            id: taskData.clientId,
+            clientName: taskData.clientName,
+            location: taskData.location,
+          })
 
           const dataToSave = {
-            client_name: taskData.clientName,
-            client_id: taskData.clientId || null,
-            location: taskData.location || null,
-            address: taskData.address || null,
+            client_name: selectedTaskClient?.client_name || taskData.clientName,
+            client_id: selectedTaskClient?.id || taskData.clientId || null,
+            location: selectedTaskClient?.location || taskData.location || null,
+            address: selectedTaskClient?.address || taskData.address || null,
             job_task: taskData.jobTask,
             date_start: taskData.dateStart || null,
             date_stop: taskData.dateStop || null,
@@ -1520,7 +1564,7 @@ export default function AddCalendarItemModal({
                         value={selectedClientValue}
                         onValueChange={handleClientSelect}
                         onOpenChange={() => handleBlur('location')}
-                        disabled={isSaving || !taskData.clientName || clientOptions.length === 0}
+                        disabled={isSaving || !taskData.clientName}
                       >
                         <SelectTrigger className={`${inputClass} ${touched.location && errors.location ? invalidInputClass : ''}`}>
                           {selectedClient?.location || taskData.location ? (
@@ -1530,13 +1574,18 @@ export default function AddCalendarItemModal({
                           )}
                         </SelectTrigger>
                         <SelectContent
-                          className="max-h-[45vh] overflow-hidden border border-gray-200 bg-white text-gray-900 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                          className="z-[80] max-h-[45vh] overflow-hidden border border-gray-200 bg-white text-gray-900 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
                           viewportClassName="h-auto max-h-52 overflow-y-auto overscroll-contain"
                         >
                           {hasLegacyLocation && (
                             <SelectItem value={legacyClientValue} className="text-gray-900 dark:text-gray-100">
                               {taskData.location} (current)
                             </SelectItem>
+                          )}
+                          {clientOptions.length === 0 && (
+                            <div className="px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
+                              No locations found for this client.
+                            </div>
                           )}
                           {clientOptions.map((location) => (
                             <SelectItem key={location.id} value={location.id} className="text-gray-900 dark:text-gray-100">

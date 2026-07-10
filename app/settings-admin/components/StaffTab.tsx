@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useUsers } from '../hooks/useUsers'
-import { Loader2, Mail, Search, UserCog } from 'lucide-react'
+import { Mail, Search, UserCog } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import {
   Card,
@@ -30,7 +30,7 @@ import {
 import { SettingsPagination, useSettingsPagination } from './SettingsPagination'
 
 export function StaffTab() {
-  const { users, loading } = useUsers()
+  const { users } = useUsers()
   const [searchTerm, setSearchTerm] = useState('')
   const staff = users.filter(user => user.role === 'staff' && user.is_active)
   const filteredStaff = staff.filter((member) => {
@@ -43,14 +43,6 @@ export function StaffTab() {
     )
   })
   const staffPagination = useSettingsPagination(filteredStaff)
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600 dark:text-blue-400" />
-      </div>
-    )
-  }
 
   return (
     <Card className={settingsCardClass}>

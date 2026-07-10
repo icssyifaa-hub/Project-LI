@@ -81,7 +81,7 @@ const holidaySelectItemClass =
   'text-gray-900 focus:bg-gray-100 focus:text-gray-900 dark:text-gray-100 dark:focus:bg-gray-800 dark:focus:text-gray-100'
 
 export function HolidaysTab() {
-  const { holidays, loading, addHoliday, updateHoliday, deleteHoliday } = useHolidays()
+  const { holidays, addHoliday, updateHoliday, deleteHoliday } = useHolidays()
   const { toast } = useToast()
   
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -212,14 +212,6 @@ export function HolidaysTab() {
       return states.join(' & ')
     }
     return `${stateCodes.length} states`
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    )
   }
 
   return (

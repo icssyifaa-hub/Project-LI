@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { 
   getTasks, createTask, updateTask, deleteTask as deleteTaskApi,
   getEvents, createEvent, updateEvent, deleteEvent as deleteEventApi,
@@ -54,10 +54,11 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
   const [staffMap, setStaffMap] = useState<{[key: string]: StaffInfo}>({})
   const [loadingStaff, setLoadingStaff] = useState(true)
   const { toast } = useToast()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const lastStaffFetchRef = useRef<number>(0)
   const fetchRequestIdRef = useRef<number>(0)
   const loadingRequestIdRef = useRef<number | null>(null)
+  const realtimeRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const staffMapRef = useRef<{[key: string]: StaffInfo}>({})
 
   useEffect(() => {
@@ -382,6 +383,37 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  useEffect(() => {
+    const scheduleRealtimeRefresh = () => {
+      if (realtimeRefreshTimerRef.current) {
+        clearTimeout(realtimeRefreshTimerRef.current)
+      }
+
+      realtimeRefreshTimerRef.current = setTimeout(() => {
+        void fetchData({ silent: true })
+      }, 300)
+    }
+
+    const channel = supabase
+      .channel('calendar-tasks-events-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
+        scheduleRealtimeRefresh()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => {
+        scheduleRealtimeRefresh()
+      })
+      .subscribe((status) => {
+        console.log('Calendar realtime status:', status)
+      })
+
+    return () => {
+      if (realtimeRefreshTimerRef.current) {
+        clearTimeout(realtimeRefreshTimerRef.current)
+      }
+      void supabase.removeChannel(channel)
+    }
+  }, [fetchData, supabase])
 
   const saveTask = useCallback(async (taskData: any, selectedTask: Task | null, pdfFile?: File | null) => {
     try {

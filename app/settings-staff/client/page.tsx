@@ -11,6 +11,7 @@ import {
   CLIENT_SETUP_MESSAGE,
   Client,
   fetchClients,
+  getClientTableRows,
   isMissingClientTableError,
 } from '@/lib/settings/clients'
 import { SettingsPagination, useSettingsPagination } from '@/app/settings-admin/components/SettingsPagination'
@@ -65,6 +66,10 @@ export default function ClientPage() {
     )
   })
   const clientsPagination = useSettingsPagination(filteredClients)
+  const clientTableRows = getClientTableRows(
+    clientsPagination.paginatedRows,
+    clientsPagination.pageStart
+  )
 
   if (!user) return null
 
@@ -138,10 +143,17 @@ export default function ClientPage() {
                     </td>
                   </tr>
                 ) : (
-                  clientsPagination.paginatedRows.map((client, index) => (
+                  clientTableRows.map((client) => (
                     <tr key={client.id} className="border-b border-black bg-white transition-colors hover:bg-gray-50 dark:bg-gray-900 dark:hover:bg-gray-800">
-                      <td className={tableCellClass}>{clientsPagination.pageStart + index + 1}</td>
-                      <td className={`${tableCellClass} font-semibold`}>{client.client_name}</td>
+                      <td className={tableCellClass}>{client.displayIndex}</td>
+                      {client.isFirstClientRow && (
+                        <td
+                          rowSpan={client.clientNameRowSpan}
+                          className={`${tableCellClass} align-middle font-semibold`}
+                        >
+                          {client.client_name}
+                        </td>
+                      )}
                       <td className={tableCellClass}>{client.location}</td>
                       <td className={tableCellClass}>{client.address || '-'}</td>
                     </tr>

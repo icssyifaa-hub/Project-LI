@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Hash, Loader2, Search } from 'lucide-react'
+import { Hash, Search } from 'lucide-react'
 import { getTaskClient, type TaskClientRecord } from '@/lib/settings/task-client'
 import {
   settingsCardClass,
@@ -50,7 +50,7 @@ function formatDate(date: string | null) {
 export function NumberFileTab() {
   const supabase = useMemo(() => createClient(), [])
   const [rows, setRows] = useState<TaskNumberRow[]>([])
-  const [loading, setLoading] = useState(true)
+  const [, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -123,14 +123,6 @@ export function NumberFileTab() {
       isMounted = false
     }
   }, [supabase])
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    )
-  }
 
   return (
     <Card className={settingsCardClass}>

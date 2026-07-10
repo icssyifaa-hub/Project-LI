@@ -68,7 +68,7 @@ import {
 import { SettingsPagination, useSettingsPagination } from './SettingsPagination'
 
 export function JobTasksTab() {
-  const { jobTasks, loading, addJobTask, updateJobTask, deleteJobTask } = useJobTasks()
+  const { jobTasks, addJobTask, updateJobTask, deleteJobTask } = useJobTasks()
   const { toast } = useToast()
   
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -150,14 +150,6 @@ export function JobTasksTab() {
     )
   })
   const jobTasksPagination = useSettingsPagination(filteredJobTasks)
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    )
-  }
 
   return (
     <>

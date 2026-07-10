@@ -12,7 +12,13 @@ export type Client = {
   updated_at?: string
 }
 
-const normalizeText = (value: unknown) => String(value || '').trim()
+export type ClientTableRow = Client & {
+  displayIndex: number
+  isFirstClientRow: boolean
+  clientNameRowSpan: number
+}
+
+const normalizeText = (value: unknown) => String(value || '').replace(/\s+/g, ' ').trim()
 
 export const sortClients = (items: Client[]) =>
   [...items].sort((a, b) => {
@@ -43,6 +49,34 @@ export const getLocationsForClient = (items: Client[], clientName: string) => {
   return sortClients(
     items.filter((item) => normalizeText(item.client_name).toLowerCase() === normalizedClientName)
   )
+}
+
+export const getClientTableRows = (items: Client[], startIndex = 0): ClientTableRow[] => {
+  const rows = items.map((item, index) => ({
+    ...item,
+    displayIndex: startIndex + index + 1,
+    isFirstClientRow: false,
+    clientNameRowSpan: 0,
+  }))
+
+  let index = 0
+  while (index < rows.length) {
+    const clientName = normalizeText(rows[index].client_name).toLowerCase()
+    let span = 1
+
+    while (
+      index + span < rows.length &&
+      normalizeText(rows[index + span].client_name).toLowerCase() === clientName
+    ) {
+      span += 1
+    }
+
+    rows[index].isFirstClientRow = true
+    rows[index].clientNameRowSpan = span
+    index += span
+  }
+
+  return rows
 }
 
 export const findClient = (

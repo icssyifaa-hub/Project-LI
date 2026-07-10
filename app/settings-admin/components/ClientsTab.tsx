@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/use-toast'
 import { useClients } from '../hooks/useClients'
-import type { Client } from '@/lib/settings/clients'
+import { getClientTableRows, type Client } from '@/lib/settings/clients'
 import type { ClientFormData } from '../types'
 import {
   settingsCardClass,
@@ -65,7 +65,6 @@ const initialFormData: ClientFormData = {
 export function ClientsTab() {
   const {
     client,
-    loading,
     addClient,
     updateClient,
     deleteClient,
@@ -90,6 +89,10 @@ export function ClientsTab() {
     )
   })
   const clientPagination = useSettingsPagination(filteredClient)
+  const clientTableRows = getClientTableRows(
+    clientPagination.paginatedRows,
+    clientPagination.pageStart
+  )
 
   const handleAdd = () => {
     setEditingClient(null)
@@ -140,14 +143,6 @@ export function ClientsTab() {
     } catch {
       // The hook shows the error toast.
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    )
   }
 
   return (
@@ -204,10 +199,17 @@ export function ClientsTab() {
                       </td>
                     </tr>
                   ) : (
-                    clientPagination.paginatedRows.map((item, index) => (
+                    clientTableRows.map((item) => (
                       <tr key={item.id} className={settingsTableRowClass}>
-                        <td className={settingsMutedCellClass}>{clientPagination.pageStart + index + 1}</td>
-                        <td className={settingsStrongCellClass}>{item.client_name}</td>
+                        <td className={settingsMutedCellClass}>{item.displayIndex}</td>
+                        {item.isFirstClientRow && (
+                          <td
+                            rowSpan={item.clientNameRowSpan}
+                            className={`${settingsStrongCellClass} align-middle`}
+                          >
+                            {item.client_name}
+                          </td>
+                        )}
                         <td className={settingsMutedCellClass}>{item.location}</td>
                         <td className={settingsMutedCellClass}>{item.address || '-'}</td>
                         <td className="px-4 py-3">

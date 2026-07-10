@@ -43,7 +43,7 @@ const STORAGE_KEYS = {
 }
 
 const FOCUS_HIGHLIGHT_DURATION_MS = 5000
-const CALENDAR_AUTO_REFRESH_MS = 15000
+const CALENDAR_AUTO_REFRESH_MS = 5000
 
 const createStableDate = (date: Date): Date => {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0)
@@ -1042,6 +1042,9 @@ export default function CalendarPage() {
                     setSelectedTask({
                       id: task.id,
                       clientName: task.clientName,
+                      clientId: task.clientId || '',
+                      location: task.location || '',
+                      address: task.address || '',
                       jobTask: task.jobTask,
                       dateStart: '',
                       dateStop: '',

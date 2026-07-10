@@ -54,7 +54,7 @@ import {
 import { SettingsPagination, useSettingsPagination } from './SettingsPagination'
 
 export function UsersTab() {
-  const { users, loading, addUser, updateUser, resetUserPassword, toggleUserStatus, currentUserId } = useUsers({ admin: true })
+  const { users, addUser, updateUser, resetUserPassword, toggleUserStatus, currentUserId } = useUsers({ admin: true })
   const { toast } = useToast()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
@@ -183,14 +183,6 @@ export function UsersTab() {
     )
   })
   const usersPagination = useSettingsPagination(filteredUsers)
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    )
-  }
 
   return (
     <>

@@ -113,7 +113,7 @@ const getEventStatus = (dateStart: string | null, dateStop: string | null) => {
   }
 }
 
-const tableHeaderCellClass = 'border-r border-black px-4 py-3 text-left text-[11px] font-semibold uppercase text-gray-700 dark:text-gray-200'
+const tableHeaderCellClass = 'border-r border-black px-4 py-3 text-left text-[12px] font-semibold uppercase text-gray-700 dark:text-gray-200'
 const sortableHeaderCellClass = `${tableHeaderCellClass} cursor-pointer transition-colors hover:bg-gray-200/80 dark:hover:bg-gray-700/70`
 const tableCellClass = 'border-r border-black px-4 py-3'
 const paginationButtonClass = 'border-gray-300 bg-white text-gray-900 shadow-sm hover:bg-gray-100 disabled:border-gray-200 disabled:bg-gray-200 disabled:text-gray-500 disabled:opacity-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:disabled:border-gray-800 dark:disabled:bg-gray-800 dark:disabled:text-gray-500'
@@ -679,7 +679,7 @@ export default function EventsPage() {
                   <div className="flex items-center space-x-1">Status <ArrowUpDown className="h-3 w-3" /></div>
                 </th>
                 {isAdmin && (
-                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase text-gray-700 dark:text-gray-200">Actions</th>
+                  <th className="px-4 py-3 text-left text-[12px] font-semibold uppercase text-gray-700 dark:text-gray-200">Actions</th>
                 )}
               </tr>
             </thead>

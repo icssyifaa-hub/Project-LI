@@ -18,7 +18,7 @@ import { MALAYSIA_STATES } from '@/app/settings-admin/types'
 import type { Holiday } from '@/app/settings-admin/types'
 import { SettingsPagination, useSettingsPagination } from '@/app/settings-admin/components/SettingsPagination'
 
-const tableHeaderCellClass = 'border-r border-black px-4 py-3 text-left text-[11px] font-semibold uppercase text-gray-700 dark:text-gray-200'
+const tableHeaderCellClass = 'border-r border-black px-4 py-3 text-left text-[12px] font-semibold uppercase text-gray-700 dark:text-gray-200'
 const tableCellClass = 'border-r border-black px-4 py-3 text-black dark:text-gray-100'
 const HOLIDAY_YEAR_START = 2022
 const HOLIDAY_YEAR_END = 2035

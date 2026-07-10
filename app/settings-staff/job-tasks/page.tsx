@@ -15,7 +15,7 @@ type JobTask = {
   full_name: string
 }
 
-const tableHeaderCellClass = 'border-r border-black px-4 py-3 text-left text-[11px] font-semibold uppercase text-gray-700 dark:text-gray-200'
+const tableHeaderCellClass = 'border-r border-black px-4 py-3 text-left text-[12px] font-semibold uppercase text-gray-700 dark:text-gray-200'
 const tableCellClass = 'border-r border-black px-4 py-3 text-black dark:text-gray-100'
 
 export default function JobTasksPage() {

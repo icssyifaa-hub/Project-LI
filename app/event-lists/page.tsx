@@ -473,11 +473,12 @@ export default function EventsPage() {
 
   const activeStaffCount = Array.from(staffStatusMap.values()).filter(isActive => isActive === true).length
   const inactiveStaffCount = staffList.length - activeStaffCount
-  const reportHeaders = ['Title', 'Start Date', 'End Date', 'Start Time', 'End Time', 'PIC', 'Support Staff', 'Status']
-  const reportRows = filteredAndSortedEvents.map(event => {
+  const reportHeaders = ['No', 'Title', 'Start Date', 'End Date', 'Start Time', 'End Time', 'PIC', 'Support Staff', 'Status']
+  const reportRows = filteredAndSortedEvents.map((event, index) => {
     const status = getEventStatus(event.date_start, event.date_stop)
 
     return [
+      index + 1,
       event.title,
       formatDate(event.date_start),
       formatDate(event.date_stop),

@@ -53,6 +53,29 @@ import {
 } from './settings-styles'
 import { SettingsPagination, useSettingsPagination } from './SettingsPagination'
 
+const copyTextToClipboard = async (text: string) => {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'fixed'
+  textarea.style.left = '-9999px'
+  textarea.style.top = '0'
+  document.body.appendChild(textarea)
+  textarea.select()
+
+  try {
+    const copied = document.execCommand('copy')
+    if (!copied) throw new Error('Copy command was not available')
+  } finally {
+    textarea.remove()
+  }
+}
+
 export function UsersTab() {
   const { users, addUser, updateUser, resetUserPassword, toggleUserStatus, currentUserId } = useUsers({ admin: true })
   const { toast } = useToast()
@@ -163,11 +186,20 @@ export function UsersTab() {
   const copyTemporaryCredentials = async () => {
     if (!temporaryCredentials) return
 
-    await navigator.clipboard.writeText(
-      `ICS CMS\nUsername: ${temporaryCredentials.email}\nTemporary password: ${temporaryCredentials.password}`
-    )
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 1800)
+    try {
+      await copyTextToClipboard(
+        `ICS CMS\nUsername: ${temporaryCredentials.email}\nTemporary password: ${temporaryCredentials.password}`
+      )
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1800)
+    } catch (error) {
+      console.error('Failed to copy temporary credentials:', error)
+      toast({
+        title: "Copy failed",
+        description: "Please copy the username and temporary password manually.",
+        variant: "destructive",
+      })
+    }
   }
 
   const filteredUsers = users.filter((user) => {

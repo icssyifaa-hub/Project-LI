@@ -581,11 +581,11 @@ export default function JobOrdersPage() {
 
   if (!user) return null
 
-  // Get count of active vs inactive staff
   const activeStaffCount = Array.from(staffStatusMap.values()).filter(isActive => isActive === true).length
   const inactiveStaffCount = staffList.length - activeStaffCount
-  const reportHeaders = ['Client Name', 'Location', 'Job Task', 'Start Date', 'End Date', 'Job Order Number', 'Final Report Number', 'Delivery Order', 'Invoice', 'Status', 'Additional Remark', 'PIC', 'Support Staff']
-  const reportRows = filteredAndSortedJobs.map(job => [
+  const reportHeaders = ['No', 'Client Name', 'Location', 'Job Task', 'Start Date', 'End Date', 'Job Order Number', 'Final Report Number', 'Delivery Order', 'Invoice', 'Status', 'Additional Remark', 'PIC', 'Support Staff']
+  const reportRows = filteredAndSortedJobs.map((job, index) => [
+    index + 1,
     job.client_name,
     job.location || '',
     job.job_task,
@@ -991,8 +991,8 @@ export default function JobOrdersPage() {
           <div>
             <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Number Indicators:</h4>
             <div className="space-y-1 text-xs">
-              <div className="flex items-center"><span className="mr-2 rounded border border-blue-100 bg-blue-50 px-2 py-0.5 font-mono text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/50 dark:text-blue-200">{JOB_ORDER_NUMBER_EXAMPLE}</span><span className="text-gray-600 dark:text-gray-400">= Job order number entered</span></div>
-              <div className="flex items-center"><span className="mr-2 rounded border border-green-100 bg-green-50 px-2 py-0.5 font-mono text-green-700 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200">{FINAL_REPORT_NUMBER_EXAMPLE}</span><span className="text-gray-600 dark:text-gray-400">= Final report number entered</span></div>
+              <div className="flex items-center"><span className="mr-2 rounded border border-blue-100 bg-blue-50 px-2 py-0.5 font-mono text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/50 dark:text-blue-200">{JOB_ORDER_NUMBER_EXAMPLE}</span><span className="text-gray-600 dark:text-gray-400">= Job order number</span></div>
+              <div className="flex items-center"><span className="mr-2 rounded border border-green-100 bg-green-50 px-2 py-0.5 font-mono text-green-700 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200">{FINAL_REPORT_NUMBER_EXAMPLE}</span><span className="text-gray-600 dark:text-gray-400">= Final report number</span></div>
               <div className="flex items-center"><span className="mr-2 h-4 w-4 text-gray-300 dark:text-gray-500">-</span><span className="text-gray-600 dark:text-gray-400">= Number not entered</span></div>
             </div>
           </div>

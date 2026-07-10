@@ -8,7 +8,6 @@ import {
 import { useToast } from '@/components/ui/use-toast'
 import { createClient } from '@/lib/supabase/client'
 import { getSupabaseSchemaErrorMessage } from '@/lib/supabase/schema-errors'
-// PDF upload/delete removed - using job order number/final report number instead
 import { notifyStaffForTask, notifyStaffForEvent } from '@/lib/supabase/notifications'
 import type { Task, Event, Holiday, ViewType, StaffInfo } from '@/app/calendar/types/calendar'
 import { getTaskClient, TASK_CLIENT_SELECT } from '@/lib/settings/task-client'

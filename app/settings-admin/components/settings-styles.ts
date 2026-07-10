@@ -18,7 +18,8 @@ export const settingsContentClass = 'space-y-4 pt-6'
 export const settingsTableWrapperClass =
   'overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900'
 
-export const settingsTableClass = 'w-full min-w-[960px] text-sm'
+export const settingsTableClass =
+  'w-full min-w-[960px] border-collapse text-sm [&_td]:border [&_td]:border-gray-200 [&_th]:border [&_th]:border-gray-200 dark:[&_td]:border-gray-800 dark:[&_th]:border-gray-800'
 
 export const settingsTableHeaderClass =
   'border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-950/60'

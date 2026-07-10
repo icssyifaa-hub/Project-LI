@@ -29,6 +29,10 @@ const getItemStyle = (item: any) => {
 
 const holidayStyle = 'bg-emerald-600 text-black cursor-pointer hover:bg-emerald-700 transition-colors dark:bg-emerald-500 dark:text-white dark:hover:bg-emerald-400'
 
+const shouldDisableTouchRangeDrag = () =>
+  typeof window !== 'undefined' &&
+  window.matchMedia('(max-width: 767px), (hover: none) and (pointer: coarse)').matches
+
 const getTaskDisplayText = (item: any) => {
   const jobTask = item.jobTask || 'No Job Task'
   const clientName = item.clientName || 'No Client'
@@ -474,8 +478,6 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
   const monthRangeLastDateRef = useRef<Date | null>(null)
   const monthRangeDidMoveRef = useRef(false)
   const monthRangeSuppressClickRef = useRef(false)
-  const monthRangePointerIdRef = useRef<number | null>(null)
-  const monthRangeTouchIdRef = useRef<number | null>(null)
   const [monthRangePreview, setMonthRangePreview] = useState<{ start: string; end: string } | null>(null)
 
   const weekDays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
@@ -550,8 +552,6 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
     monthRangeDragStartRef.current = null
     monthRangeLastDateRef.current = null
     monthRangeDidMoveRef.current = false
-    monthRangePointerIdRef.current = null
-    monthRangeTouchIdRef.current = null
     setMonthRangePreview(null)
 
     if (!didMove) return
@@ -562,6 +562,7 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
   }
 
   const handleMonthRangeMouseDown = (date: Date, e: React.MouseEvent<HTMLElement>) => {
+    if (shouldDisableTouchRangeDrag()) return
     if (view !== 'month' || isDragging || e.button !== 0) return
     const target = e.target as HTMLElement
     if (isMonthRangeBlockedTarget(target)) return
@@ -570,45 +571,15 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
   }
 
   const handleMonthRangeMouseEnter = (date: Date) => {
+    if (shouldDisableTouchRangeDrag()) return
     if (!monthRangeDragStartRef.current || view !== 'month' || isDragging) return
     updateMonthRangeDrag(date)
   }
 
   const handleMonthRangeMouseUp = (date: Date, e: React.MouseEvent<HTMLElement>) => {
+    if (shouldDisableTouchRangeDrag()) return
     if (!monthRangeDragStartRef.current || view !== 'month' || isDragging) return
     finishMonthRangeDrag(date)
-    e.stopPropagation()
-  }
-
-  const handleMonthRangePointerDown = (date: Date, e: React.PointerEvent<HTMLElement>) => {
-    if (e.pointerType === 'mouse' || view !== 'month' || isDragging || !e.isPrimary) return
-    const target = e.target as HTMLElement
-    if (isMonthRangeBlockedTarget(target)) return
-
-    monthRangePointerIdRef.current = e.pointerId
-    startMonthRangeDrag(date)
-    e.stopPropagation()
-  }
-
-  const handleMonthRangePointerUp = (date: Date, e: React.PointerEvent<HTMLElement>) => {
-    if (e.pointerType === 'mouse' || monthRangePointerIdRef.current !== e.pointerId) return
-    finishMonthRangeDrag()
-    e.stopPropagation()
-  }
-
-  const handleMonthRangeTouchStart = (date: Date, e: React.TouchEvent<HTMLElement>) => {
-    if (view !== 'month' || isDragging || e.touches.length !== 1) return
-    const target = e.target as HTMLElement
-    if (isMonthRangeBlockedTarget(target)) return
-
-    monthRangeTouchIdRef.current = e.touches[0].identifier
-    startMonthRangeDrag(date)
-    e.stopPropagation()
-  }
-
-  const handleMonthRangeTouchEnd = (date: Date, e: React.TouchEvent<HTMLElement>) => {
-    if (monthRangeTouchIdRef.current === null) return
-    finishMonthRangeDrag()
     e.stopPropagation()
   }
 
@@ -637,66 +608,11 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
       finishMonthRangeDrag()
     }
 
-    const handleWindowPointerMove = (event: PointerEvent) => {
-      if (!monthRangeDragStartRef.current || monthRangePointerIdRef.current !== event.pointerId) return
-
-      const target = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null
-      const dateElement = target?.closest('[data-month-date-key]') as HTMLElement | null
-      const dateKey = dateElement?.dataset.monthDateKey
-      const date = parseDateKey(dateKey)
-      if (!date) return
-
-      updateMonthRangeDrag(date)
-      event.preventDefault()
-    }
-
-    const handleWindowPointerUp = (event: PointerEvent) => {
-      if (monthRangePointerIdRef.current !== event.pointerId) return
-      finishMonthRangeDrag()
-      event.preventDefault()
-    }
-
-    const handleWindowTouchMove = (event: TouchEvent) => {
-      if (!monthRangeDragStartRef.current || monthRangeTouchIdRef.current === null) return
-      const touch = Array.from(event.touches).find(item => item.identifier === monthRangeTouchIdRef.current)
-      if (!touch) return
-
-      const target = document.elementFromPoint(touch.clientX, touch.clientY) as HTMLElement | null
-      const dateElement = target?.closest('[data-month-date-key]') as HTMLElement | null
-      const dateKey = dateElement?.dataset.monthDateKey
-      const date = parseDateKey(dateKey)
-      if (!date) return
-
-      updateMonthRangeDrag(date)
-      event.preventDefault()
-    }
-
-    const handleWindowTouchEnd = (event: TouchEvent) => {
-      if (monthRangeTouchIdRef.current === null) return
-      const endedTouch = Array.from(event.changedTouches).find(item => item.identifier === monthRangeTouchIdRef.current)
-      if (!endedTouch) return
-
-      finishMonthRangeDrag()
-      event.preventDefault()
-    }
-
     window.addEventListener('mousemove', handleWindowMouseMove)
     window.addEventListener('mouseup', handleWindowMouseUp)
-    window.addEventListener('pointermove', handleWindowPointerMove, { passive: false })
-    window.addEventListener('pointerup', handleWindowPointerUp, { passive: false })
-    window.addEventListener('pointercancel', handleWindowPointerUp, { passive: false })
-    window.addEventListener('touchmove', handleWindowTouchMove, { passive: false })
-    window.addEventListener('touchend', handleWindowTouchEnd, { passive: false })
-    window.addEventListener('touchcancel', handleWindowTouchEnd, { passive: false })
     return () => {
       window.removeEventListener('mousemove', handleWindowMouseMove)
       window.removeEventListener('mouseup', handleWindowMouseUp)
-      window.removeEventListener('pointermove', handleWindowPointerMove)
-      window.removeEventListener('pointerup', handleWindowPointerUp)
-      window.removeEventListener('pointercancel', handleWindowPointerUp)
-      window.removeEventListener('touchmove', handleWindowTouchMove)
-      window.removeEventListener('touchend', handleWindowTouchEnd)
-      window.removeEventListener('touchcancel', handleWindowTouchEnd)
     }
   }, [])
 
@@ -1480,24 +1396,16 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                           onMouseDown={(e) => handleMonthRangeMouseDown(date, e)}
                           onMouseEnter={() => handleMonthRangeMouseEnter(date)}
                           onMouseUp={(e) => handleMonthRangeMouseUp(date, e)}
-                          onPointerDown={(e) => handleMonthRangePointerDown(date, e)}
-                          onPointerUp={(e) => handleMonthRangePointerUp(date, e)}
-                          onTouchStart={(e) => handleMonthRangeTouchStart(date, e)}
-                          onTouchEnd={(e) => handleMonthRangeTouchEnd(date, e)}
                           onClick={() => handleMonthCellClick(date)}
                         >
                           <button
                             type="button"
                             data-month-date-key={dateKey}
-                            className="absolute inset-0 z-10 cursor-pointer touch-none bg-transparent focus:outline-none focus-visible:outline-none focus-visible:ring-0"
+                            className="absolute inset-0 z-10 cursor-pointer touch-pan-y bg-transparent focus:outline-none focus-visible:outline-none focus-visible:ring-0"
                             aria-label={`Add item on ${dateKey}`}
                             onMouseDown={(e) => handleMonthRangeMouseDown(date, e)}
                             onMouseEnter={() => handleMonthRangeMouseEnter(date)}
                             onMouseUp={(e) => handleMonthRangeMouseUp(date, e)}
-                            onPointerDown={(e) => handleMonthRangePointerDown(date, e)}
-                            onPointerUp={(e) => handleMonthRangePointerUp(date, e)}
-                            onTouchStart={(e) => handleMonthRangeTouchStart(date, e)}
-                            onTouchEnd={(e) => handleMonthRangeTouchEnd(date, e)}
                             onClick={(e) => {
                               e.stopPropagation()
                               if (monthRangeSuppressClickRef.current) {

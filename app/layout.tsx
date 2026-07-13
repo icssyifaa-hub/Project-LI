@@ -2,6 +2,21 @@ import { ThemeProvider } from '@/components/theme-provider'
 import ClientLayout from '@/components/layout/client-layout'
 import './globals.css'
 
+export const metadata = {
+  title: 'ICS CMS',
+  description: 'ICS calendar management system',
+  manifest: '/manifest.webmanifest',
+  icons: {
+    icon: [
+      { url: '/icon-mobile.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-mobileview.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/icon-mobile.png', sizes: '192x192', type: 'image/png' },
+    ],
+  },
+}
+
 export default function RootLayout({
   children,
 }: {

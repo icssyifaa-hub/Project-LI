@@ -727,6 +727,43 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
     return items
   }
 
+  const formatScheduleTime = (item: any) => {
+    if (!item.timeStart) return 'All day'
+
+    const formatTime = (time?: string) => {
+      if (!time) return ''
+      const [hourValue, minuteValue = '00'] = time.split(':')
+      const hour = Number(hourValue)
+      if (!Number.isFinite(hour)) return time
+      const minute = Number(minuteValue)
+      const suffix = hour >= 12 ? 'PM' : 'AM'
+      const hour12 = hour % 12 || 12
+      const minuteText = minute > 0 ? `:${String(minute).padStart(2, '0')}` : ''
+      return `${hour12}${minuteText} ${suffix}`
+    }
+
+    if (!item.timeStop) return formatTime(item.timeStart)
+    return `${formatTime(item.timeStart)} - ${formatTime(item.timeStop)}`
+  }
+
+  const getScheduleItemTitle = (item: any) => {
+    if (item.type === 'holiday') return item.title || item.name || 'Public Holiday'
+    if (item.type === 'event') return item.title || 'Untitled Event'
+    return `${item.jobTask || 'Task'} - ${item.clientName || 'No Client'}`
+  }
+
+  const getScheduleItemColor = (item: any) => {
+    if (item.type === 'holiday') return 'bg-emerald-500'
+    return getSolidClass(item.type === 'event' ? item.event_pic_color : item.task_pic_color) || 'bg-blue-500'
+  }
+
+  const sortScheduleItems = (items: any[]) => [...items].sort((a, b) => {
+    if (!a.timeStart && b.timeStart) return -1
+    if (a.timeStart && !b.timeStart) return 1
+    if (a.timeStart && b.timeStart) return a.timeStart.localeCompare(b.timeStart)
+    return getScheduleItemTitle(a).localeCompare(getScheduleItemTitle(b))
+  })
+
   const formatYearPanelDate = (date: Date) => {
     return date.toLocaleDateString('en-GB', {
       weekday: 'long',
@@ -1638,22 +1675,8 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
 
       {/* SCHEDULE VIEW */}
       {view === 'schedule' && (
-        <div className="flex h-full flex-col overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100">
-          <div className="flex-shrink-0 border-b bg-white p-3 sm:p-4 dark:border-gray-800 dark:bg-gray-900">
-            <div>
-              <h2 className="text-xl font-bold text-gray-800 sm:text-2xl dark:text-gray-100">📅 Schedule View</h2>
-              <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
-                Showing tasks and events for {months[currentDate.getMonth()]} {currentDate.getFullYear()}
-              </p>
-              {hiddenStaffFilterCount > 0 && (
-                <p className="text-xs text-blue-600 mt-1">
-                  {hiddenStaffFilterCount} staff selection(s) hidden
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-3 sm:p-4">
+        <div className="flex h-full flex-col overflow-hidden bg-white text-gray-900 dark:bg-[#202124] dark:text-white">
+          <div className="flex-1 overflow-y-auto">
             {(() => {
               const year = currentDate.getFullYear()
               const month = currentDate.getMonth()
@@ -1664,9 +1687,8 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
               if (datesWithItems.length === 0) {
                 return (
                   <div className="flex h-full flex-col items-center justify-center text-center">
-                    <div className="text-6xl mb-4">📅</div>
-                    <p className="text-base text-gray-500 sm:text-lg dark:text-gray-300">No tasks or events for {months[month]} {year}</p>
-                    <p className="text-sm text-gray-400 mt-2 dark:text-gray-500">
+                    <p className="text-base font-medium text-gray-700 sm:text-lg dark:text-gray-200">No tasks or events for {months[month]} {year}</p>
+                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                       {hiddenStaffFilterCount > 0 
                         ? 'Try enabling more staff filters to see more items.'
                         : 'Add tasks or events to get started.'}
@@ -1676,132 +1698,84 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
               }
               
               return (
-                <div className="space-y-3">
+                <div className="divide-y divide-gray-200 dark:divide-white/10">
                   {datesWithItems.map(({ date, items, holidays: dayHolidays }) => {
                     const isToday = formatDateKey(date) === formatDateKey(new Date())
+                    const scheduleItems = sortScheduleItems([
+                      ...items,
+                      ...dayHolidays.map((holiday: any) => ({
+                        ...holiday,
+                        type: 'holiday' as const,
+                        title: holiday.name,
+                      })),
+                    ])
                     
                     return (
                       <div 
                         key={formatDateKey(date)} 
-                        className={`border rounded-lg overflow-hidden bg-white transition-shadow hover:shadow-md dark:border-gray-800 dark:bg-gray-900 ${
-                          isToday ? 'ring-2 ring-blue-500' : ''
+                        className={`grid grid-cols-[64px_minmax(0,1fr)] gap-1 px-4 py-3 sm:grid-cols-[84px_minmax(150px,180px)_minmax(0,1fr)] sm:gap-6 sm:px-6 ${
+                          isToday ? 'bg-blue-50 dark:bg-white/[0.04]' : ''
                         }`}
                       >
-                        <div 
-                          className={`flex cursor-pointer flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 ${
-                            isToday ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700'
-                          }`}
+                        <button
+                          type="button"
+                          className="flex flex-col items-center gap-0.5 pt-1 text-left sm:grid sm:grid-cols-[28px_1fr] sm:items-start sm:gap-2"
                           onClick={() => handleDateClick(date)}
                         >
-                          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
-                            <span className="text-base font-semibold sm:text-lg">
-                              {date.getDate()} {months[date.getMonth()]} {date.getFullYear()}
-                            </span>
-                            <span className={`text-sm ${isToday ? 'text-white/80' : 'text-gray-500 dark:text-gray-400'}`}>
-                              {date.toLocaleDateString('default', { weekday: 'long' })}
-                            </span>
-                            {dayHolidays.length > 0 && (
-                              <div className="flex flex-wrap gap-1">
-                                {dayHolidays.map(holiday => (
-                                  <span 
-                                    key={holiday.id}
-                                    className={`calendar-view-item-text rounded-full px-2 py-0.5 text-xs ${holidayStyle}`}
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      handleHolidayClick(holiday, e)
-                                    }}
-                                  >
-                                    🎉 {holiday.name}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          <div className="text-sm">
-                            {items.length} item{items.length !== 1 ? 's' : ''}
-                          </div>
-                        </div>
+                          <span className="text-xl font-medium leading-none text-gray-900 sm:text-lg sm:font-bold dark:text-gray-100">{date.getDate()}</span>
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 sm:pt-0.5 sm:text-xs dark:text-gray-400">
+                            <span className="hidden sm:inline">{months[date.getMonth()].slice(0, 3)}, </span>
+                            {weekDays[date.getDay()]}
+                          </span>
+                        </button>
 
-                        {items.length > 0 && (
-                          <div className="divide-y dark:divide-gray-800">
-                            {items.map(item => (
-                              <div
+                        <div className="col-start-2 space-y-2 sm:hidden">
+                          {scheduleItems.map(item => {
+                            const colorClass = getScheduleItemColor(item)
+                            const title = getScheduleItemTitle(item)
+
+                            return (
+                              <button
                                 key={`${item.type}-${item.id}`}
                                 data-task-id={item.type === 'task' ? item.id : undefined}
                                 data-event-id={item.type === 'event' ? item.id : undefined}
-                                className="p-3 hover:bg-gray-50 cursor-pointer transition-colors dark:hover:bg-gray-800/70"
-                                onClick={(e) => handleItemClick(item, item.type, e)}
+                                className={`calendar-view-item-text block w-full rounded-md px-3 py-2 text-left text-[20px] font-medium leading-tight text-black shadow-sm ${colorClass}`}
+                                onClick={(e) => {
+                                  if (item.type === 'holiday') {
+                                    handleHolidayClick(item, e)
+                                  } else {
+                                    handleItemClick(item, item.type, e)
+                                  }
+                                }}
                               >
-                                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
-                                  <div className="w-full text-sm font-medium text-gray-600 sm:w-16 dark:text-gray-300">
-                                    {item.timeStart || 'All day'}
-                                    {item.timeStop && ` - ${item.timeStop}`}
-                                  </div>
-                                  <div className="text-lg">
-                                    {getItemIcon(item)}
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <div className="font-medium text-gray-900 dark:text-gray-100">
-                                      {item.type === 'event' 
-                                        ? item.title 
-                                        : `${item.jobTask || 'Task'} - ${item.clientName || 'No Client'}`
-                                      }
-                                    </div>
-                                    <div className="text-xs text-gray-600 dark:text-gray-300 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                                      <span className="flex items-center gap-1">
-                                        <UserRound className="h-3 w-3 shrink-0" />
-                                        <span>PIC:</span>
-                                        <span className={`w-2 h-2 rounded-full ${getDotClass(item.type === 'event' ? item.event_pic_color : item.task_pic_color)}`}></span>
-                                        <span>{item.type === 'event' ? (item.event_pic_name || 'No PIC') : (item.task_pic_name || 'No PIC')}</span>
-                                      </span>
-                                      
-                                      {item.type === 'event' && item.event_support_names && item.event_support_names.length > 0 && (
-                                        <span className="flex items-center gap-1">
-                                          <span className="text-gray-400">→</span>
-                                          <span>👥 Support: {item.event_support_names.join(', ')}</span>
-                                        </span>
-                                      )}
-                                      
-                                      {item.type === 'task' && item.task_support_names && item.task_support_names.length > 0 && (
-                                        <span className="flex items-center gap-1">
-                                          <span className="text-gray-400">→</span>
-                                          <span>👥 Support: {item.task_support_names.join(', ')}</span>
-                                        </span>
-                                      )}
-                                      
-                                    </div>
-                                  </div>
-                                  {item.type === 'task' && item.jobStatus && (
-                                    <div className={`
-                                      text-xs px-2 py-1 rounded-full whitespace-nowrap
-                                      ${item.jobStatus === 'completed' ? 'bg-green-100 text-green-800' : ''}
-                                      ${item.jobStatus === 'ongoing' ? 'bg-green-100 text-green-800' : ''}
-                                      ${item.jobStatus === 'upcoming' ? 'bg-blue-100 text-blue-800' : ''}
-                                      ${item.jobStatus === 'in-progress' ? 'bg-yellow-200 text-yellow-900' : ''}
-                                      ${item.jobStatus === 'incomplete' ? 'bg-red-200 text-red-900' : ''}
-                                    `}>
-                                      {item.jobStatus === 'in-progress' ? 'In Progress' :
-                                       item.jobStatus === 'ongoing' ? 'Ongoing' :
-                                       item.jobStatus === 'upcoming' ? 'Upcoming' :
-                                       item.jobStatus === 'completed' ? 'Completed' :
-                                       item.jobStatus === 'onhold' ? 'On Hold' : 'Incomplete'}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        
-                        {items.length === 0 && dayHolidays.length > 0 && (
-                          <div className="p-3 bg-green-50 text-center text-sm text-green-700 dark:bg-emerald-950/40 dark:text-emerald-200">
-                            {dayHolidays.map(holiday => (
-                              <span key={holiday.id} className="inline-block mr-2">
-                                🎉 Public Holiday: {holiday.name}
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                                <span className="block break-words">{title}</span>
+                                {formatScheduleTime(item) !== 'All day' && (
+                                  <span className="mt-1 block text-[18px] font-normal leading-tight">{formatScheduleTime(item)}</span>
+                                )}
+                              </button>
+                            )
+                          })}
+                        </div>
+
+                        <div className="hidden space-y-4 sm:col-start-2 sm:col-span-2 sm:block">
+                          {scheduleItems.map(item => (
+                            <button
+                              key={`${item.type}-${item.id}-time`}
+                              className="grid w-full grid-cols-[18px_minmax(120px,170px)_minmax(0,1fr)] items-start gap-4 text-left"
+                              onClick={(e) => {
+                                if (item.type === 'holiday') {
+                                  handleHolidayClick(item, e)
+                                } else {
+                                  handleItemClick(item, item.type, e)
+                                }
+                              }}
+                            >
+                              <span className={`mt-1.5 h-3 w-3 rounded-full ${getScheduleItemColor(item)}`}></span>
+                              <span className="text-sm font-semibold leading-6 text-gray-800 dark:text-gray-100">{formatScheduleTime(item)}</span>
+                              <span className="break-words text-sm font-semibold leading-6 text-gray-900 dark:text-gray-100">{getScheduleItemTitle(item)}</span>
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     )
                   })}

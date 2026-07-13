@@ -14,7 +14,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-// ============== CALENDAR TYPES ==============
 export type ViewType = 'day' | 'week' | 'month' | 'year' | 'schedule' 
 
 export interface CalendarEvent {
@@ -27,7 +26,7 @@ export interface CalendarEvent {
   description?: string
 }
 
-// ============== CALENDAR UTILS ==============
+
 export function getDaysForView(date: Date, view: ViewType): Date[] {
   switch (view) {
     case 'day':
@@ -85,7 +84,6 @@ export function formatTime(time?: string): string {
   return time.substring(0, 5) 
 }
 
-// ============== DATE UTILS ==============
 export function isToday(date: Date): boolean {
   return format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
 }

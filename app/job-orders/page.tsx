@@ -912,9 +912,9 @@ export default function JobOrdersPage() {
                           {getStatusText(job.job_status)}
                         </span>
                       </td>
-                      <td className={tableCellClass}>
+                      <td className={`${tableCellClass} min-w-[320px] max-w-[420px] align-top`}>
                         {job.additional_remark ? (
-                          <span className="block max-w-[260px] truncate text-black" title={job.additional_remark}>
+                          <span className="block whitespace-pre-wrap break-words text-black" title={job.additional_remark}>
                             {job.additional_remark}
                           </span>
                         ) : (

@@ -12,6 +12,7 @@ import {
   ArrowUpDown,
   Download,
   FileText,
+  Info,
   ChevronLeft,
   ChevronRight,
   Calendar as CalendarIcon,
@@ -38,6 +39,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { getDotClass } from '@/lib/colors'
 import { downloadExcelReport, downloadPdfReport } from '@/lib/reports/report-export'
 import { FINAL_REPORT_NUMBER_EXAMPLE, JOB_ORDER_NUMBER_EXAMPLE } from '@/lib/reports/number-formats'
@@ -169,6 +175,7 @@ const getReminderRowClass = (reminderText: string, status?: string) => {
 const tableHeaderCellClass = 'border-r border-black px-4 py-3 text-left text-[12px] font-semibold uppercase text-gray-700 dark:text-gray-200'
 const sortableHeaderCellClass = `${tableHeaderCellClass} cursor-pointer transition-colors hover:bg-gray-200/80 dark:hover:bg-gray-700/70`
 const tableCellClass = 'border-r border-black px-4 py-3'
+const tableMinWidthClass = 'min-w-[1380px]'
 const paginationButtonClass = 'border-gray-300 bg-white text-gray-900 shadow-sm hover:bg-gray-100 disabled:border-gray-200 disabled:bg-gray-200 disabled:text-gray-500 disabled:opacity-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:disabled:border-gray-800 dark:disabled:bg-gray-800 dark:disabled:text-gray-500'
 const activePaginationButtonClass = 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-white dark:hover:bg-blue-400'
 const rowsPerPageOptions = ['10', '25', '50', '100', 'all']
@@ -619,8 +626,8 @@ export default function JobOrdersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-2 dark:bg-gray-950 sm:p-3 lg:p-4">
-      <div className="w-full max-w-none space-y-6">
+    <div className="flex h-[calc(100vh-4rem)] max-w-full flex-col overflow-hidden bg-white p-2 dark:bg-gray-950 sm:p-3 lg:p-4">
+      <div className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col gap-4 overflow-hidden">
         <AlertDialog open={!!unscheduledJob} onOpenChange={(open) => !open && setUnscheduledJob(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -641,7 +648,7 @@ export default function JobOrdersPage() {
         </AlertDialog>
 
         {/* Header */}
-        <div className="-mx-2 -mt-2 flex flex-col gap-4 border-b border-gray-200 bg-white px-2 py-4 dark:border-gray-800 dark:bg-gray-950 sm:-mx-3 sm:-mt-3 sm:flex-row sm:items-center sm:justify-between sm:px-3 lg:-mx-4 lg:-mt-4 lg:px-4">
+        <div className="-mx-2 -mt-2 flex shrink-0 flex-col gap-4 border-b border-gray-200 bg-white px-2 py-4 dark:border-gray-800 dark:bg-gray-950 sm:-mx-3 sm:-mt-3 sm:flex-row sm:items-center sm:justify-between sm:px-3 lg:-mx-4 lg:-mt-4 lg:px-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Job Task Order List</h1>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -680,7 +687,7 @@ export default function JobOrdersPage() {
         </div>
 
         {/* Filters */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid shrink-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Input
             placeholder="Search by client, location, contact, task, or report..."
             value={searchTerm}
@@ -727,7 +734,7 @@ export default function JobOrdersPage() {
 
         {/* Active Filters Summary */}
         {(searchTerm || filterStaff !== 'all' || filterStatus !== 'all') && (
-          <div className="flex flex-wrap items-center gap-2 text-sm">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 text-sm">
             <span className="text-gray-500 dark:text-gray-400">Filters active:</span>
             {searchTerm && <span className="rounded-full bg-blue-100 px-2 py-0.5 text-blue-800 dark:bg-blue-950/60 dark:text-blue-200">Search: {searchTerm}</span>}
             {filterStaff !== 'all' && (
@@ -743,10 +750,10 @@ export default function JobOrdersPage() {
         )}
 
         {/* Table */}
-        <div className="overflow-hidden rounded-lg border border-black bg-white shadow-sm ring-1 ring-black/10 dark:bg-gray-900">
-          <div className="overflow-x-auto">
-          <table className="w-full min-w-[1380px] border-collapse text-sm">
-            <thead className="bg-gray-100 dark:bg-gray-800">
+        <div className="flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col overflow-hidden rounded-lg border border-black bg-white shadow-sm ring-1 ring-black/10 dark:bg-gray-900">
+          <div className="min-h-0 w-full min-w-0 flex-1 overflow-auto">
+          <table className={`w-full ${tableMinWidthClass} border-collapse text-sm`}>
+            <thead className="sticky top-0 z-10 bg-gray-100 dark:bg-gray-800">
               <tr className="border-b border-black">
                 <th className={`${tableHeaderCellClass} w-12`}>No</th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('client_name')}>
@@ -932,7 +939,7 @@ export default function JobOrdersPage() {
 
         {/* Pagination */}
         {filteredAndSortedJobs.length > 0 && !loading && (
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-col gap-2 text-sm text-gray-500 sm:flex-row sm:items-center">
               <span>
                 Showing {showingStart} to {showingEnd} of {filteredAndSortedJobs.length} entries
@@ -954,6 +961,54 @@ export default function JobOrdersPage() {
                   </SelectContent>
                 </Select>
                 <span>rows per page</span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 border-gray-300 bg-white text-gray-900 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
+                    >
+                      <Info className="mr-2 h-4 w-4" />
+                      Notes
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    align="start"
+                    side="bottom"
+                    className="w-[720px] max-w-[calc(100vw-2rem)] border-gray-200 bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                  >
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                      <div className="rounded-md border border-gray-200 p-4 dark:border-gray-700">
+                        <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Number Indicators:</h4>
+                        <div className="space-y-1 text-xs">
+                          <div className="flex items-center"><span className="mr-2 rounded border border-blue-100 bg-blue-50 px-2 py-0.5 font-mono text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/50 dark:text-blue-200">{JOB_ORDER_NUMBER_EXAMPLE}</span><span className="text-gray-600 dark:text-gray-400">= Job order number</span></div>
+                          <div className="flex items-center"><span className="mr-2 rounded border border-green-100 bg-green-50 px-2 py-0.5 font-mono text-green-700 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200">{FINAL_REPORT_NUMBER_EXAMPLE}</span><span className="text-gray-600 dark:text-gray-400">= Final report number</span></div>
+                          <div className="flex items-center"><span className="mr-2 h-4 w-4 text-gray-300 dark:text-gray-500">-</span><span className="text-gray-600 dark:text-gray-400">= Number not entered</span></div>
+                        </div>
+                      </div>
+                      <div className="rounded-md border border-gray-200 p-4 dark:border-gray-700">
+                        <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Status:</h4>
+                        <div className="space-y-1 text-xs">
+                          <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full bg-green-300"></span><span className="text-gray-600 dark:text-gray-400">Ongoing</span></div>
+                          <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full bg-blue-300"></span><span className="text-gray-600 dark:text-gray-400">Upcoming</span></div>
+                          <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full bg-yellow-200"></span><span className="text-gray-600 dark:text-gray-400">Due soon / In Progress</span></div>
+                          <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full bg-red-200"></span><span className="text-gray-600 dark:text-gray-400">Incomplete / Overdue</span></div>
+                          <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full border border-gray-300 bg-white"></span><span className="text-gray-600 dark:text-gray-400">Completed / Normal</span></div>
+                          <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full bg-gray-400"></span><span className="text-gray-600 dark:text-gray-400">On Hold (Inbox)</span></div>
+                        </div>
+                      </div>
+                      <div className="rounded-md border border-gray-200 p-4 dark:border-gray-700">
+                        <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Reminder Format (25 days):</h4>
+                        <div className="space-y-1 text-xs">
+                          <div className="flex items-center"><span className="mr-2 text-orange-600 dark:text-orange-300">7d</span><span className="text-gray-600 dark:text-gray-400">= 7 days until reminder</span></div>
+                          <div className="flex items-center"><span className="mr-2 font-bold text-orange-600 dark:text-orange-300">0d</span><span className="text-gray-600 dark:text-gray-400">= Reminder day</span></div>
+                          <div className="flex items-center"><span className="mr-2 font-medium text-red-600 dark:text-red-400">-7d</span><span className="text-gray-600 dark:text-gray-400">= 7 days overdue</span></div>
+                          <div className="flex items-center"><span className="mr-2 text-gray-400 dark:text-gray-500">N/A</span><span className="text-gray-600 dark:text-gray-400">= No date or completed</span></div>
+                        </div>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
@@ -986,37 +1041,6 @@ export default function JobOrdersPage() {
           </div>
         )}
 
-        {/* Info Section */}
-        <div className="grid grid-cols-1 gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900 md:grid-cols-3">
-          <div>
-            <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Number Indicators:</h4>
-            <div className="space-y-1 text-xs">
-              <div className="flex items-center"><span className="mr-2 rounded border border-blue-100 bg-blue-50 px-2 py-0.5 font-mono text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/50 dark:text-blue-200">{JOB_ORDER_NUMBER_EXAMPLE}</span><span className="text-gray-600 dark:text-gray-400">= Job order number</span></div>
-              <div className="flex items-center"><span className="mr-2 rounded border border-green-100 bg-green-50 px-2 py-0.5 font-mono text-green-700 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200">{FINAL_REPORT_NUMBER_EXAMPLE}</span><span className="text-gray-600 dark:text-gray-400">= Final report number</span></div>
-              <div className="flex items-center"><span className="mr-2 h-4 w-4 text-gray-300 dark:text-gray-500">-</span><span className="text-gray-600 dark:text-gray-400">= Number not entered</span></div>
-            </div>
-          </div>
-          <div>
-            <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Status Legend:</h4>
-            <div className="space-y-1 text-xs">
-              <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full bg-green-300"></span><span className="text-gray-600 dark:text-gray-400">Ongoing</span></div>
-              <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full bg-blue-300"></span><span className="text-gray-600 dark:text-gray-400">Upcoming</span></div>
-              <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full bg-yellow-200"></span><span className="text-gray-600 dark:text-gray-400">Due soon / In Progress</span></div>
-              <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full bg-red-200"></span><span className="text-gray-600 dark:text-gray-400">Incomplete / Overdue</span></div>
-              <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full border border-gray-300 bg-white"></span><span className="text-gray-600 dark:text-gray-400">Completed / Normal</span></div>
-              <div className="flex items-center"><span className="mr-2 h-3 w-3 rounded-full bg-gray-400"></span><span className="text-gray-600 dark:text-gray-400">On Hold (Inbox)</span></div>
-            </div>
-          </div>
-          <div>
-            <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Reminder Format (25 days):</h4>
-            <div className="space-y-1 text-xs">
-              <div className="flex items-center"><span className="mr-2 text-orange-600 dark:text-orange-300">7d</span><span className="text-gray-600 dark:text-gray-400">= 7 days until reminder</span></div>
-              <div className="flex items-center"><span className="mr-2 font-bold text-orange-600 dark:text-orange-300">0d</span><span className="text-gray-600 dark:text-gray-400">= Reminder day</span></div>
-              <div className="flex items-center"><span className="mr-2 font-medium text-red-600 dark:text-red-400">-7d</span><span className="text-gray-600 dark:text-gray-400">= 7 days overdue</span></div>
-              <div className="flex items-center"><span className="mr-2 text-gray-400 dark:text-gray-500">N/A</span><span className="text-gray-600 dark:text-gray-400">= No date or completed</span></div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   )

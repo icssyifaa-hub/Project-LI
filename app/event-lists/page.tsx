@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Calendar as CalendarIcon,
   Trash2,
+  Info,
   User,
   UserPlus
 } from 'lucide-react'
@@ -43,6 +44,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { getDotClass } from '@/lib/colors'
 import { downloadExcelReport, downloadPdfReport } from '@/lib/reports/report-export'
 
@@ -116,6 +122,7 @@ const getEventStatus = (dateStart: string | null, dateStop: string | null) => {
 const tableHeaderCellClass = 'border-r border-black px-4 py-3 text-left text-[12px] font-semibold uppercase text-gray-700 dark:text-gray-200'
 const sortableHeaderCellClass = `${tableHeaderCellClass} cursor-pointer transition-colors hover:bg-gray-200/80 dark:hover:bg-gray-700/70`
 const tableCellClass = 'border-r border-black px-4 py-3'
+const tableMinWidthClass = 'min-w-[1080px]'
 const paginationButtonClass = 'border-gray-300 bg-white text-gray-900 shadow-sm hover:bg-gray-100 disabled:border-gray-200 disabled:bg-gray-200 disabled:text-gray-500 disabled:opacity-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:disabled:border-gray-800 dark:disabled:bg-gray-800 dark:disabled:text-gray-500'
 const activePaginationButtonClass = 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-white dark:hover:bg-blue-400'
 const rowsPerPageOptions = ['10', '25', '50', '100', 'all']
@@ -508,8 +515,8 @@ export default function EventsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-2 dark:bg-gray-950 sm:p-3 lg:p-4">
-      <div className="w-full max-w-none space-y-6">
+    <div className="flex h-[calc(100vh-4rem)] max-w-full flex-col overflow-hidden bg-white p-2 dark:bg-gray-950 sm:p-3 lg:p-4">
+      <div className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col gap-4 overflow-hidden">
         <AlertDialog open={isAdmin && deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -531,7 +538,7 @@ export default function EventsPage() {
           </AlertDialogContent>
         </AlertDialog>
 
-        <div className="-mx-2 -mt-2 flex flex-col gap-4 border-b border-gray-200 bg-white px-2 py-4 dark:border-gray-800 dark:bg-gray-950 sm:-mx-3 sm:-mt-3 sm:flex-row sm:items-center sm:justify-between sm:px-3 lg:-mx-4 lg:-mt-4 lg:px-4">
+        <div className="-mx-2 -mt-2 flex shrink-0 flex-col gap-4 border-b border-gray-200 bg-white px-2 py-4 dark:border-gray-800 dark:bg-gray-950 sm:-mx-3 sm:-mt-3 sm:flex-row sm:items-center sm:justify-between sm:px-3 lg:-mx-4 lg:-mt-4 lg:px-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Events List</h1>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -571,7 +578,7 @@ export default function EventsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid shrink-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Input
             placeholder="Search by title, description..."
             value={searchTerm}
@@ -622,7 +629,7 @@ export default function EventsPage() {
         </div>
 
         {(searchTerm || filterStaff !== 'all' || filterStatus !== 'all') && (
-          <div className="flex items-center gap-2 text-sm flex-wrap">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 text-sm">
             <span className="text-gray-500 dark:text-gray-400">Filters active:</span>
             {searchTerm && (
               <span className="rounded-full px-2 py-0.5 [background-color:#dbeafe] [color:#1e40af]">
@@ -654,10 +661,10 @@ export default function EventsPage() {
           </div>
         )}
 
-        <div className="overflow-hidden rounded-lg border border-black bg-white shadow-sm ring-1 ring-black/10 dark:bg-gray-900">
-          <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px] border-collapse text-sm">
-            <thead className="bg-gray-100 dark:bg-gray-800">
+        <div className="flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col overflow-hidden rounded-lg border border-black bg-white shadow-sm ring-1 ring-black/10 dark:bg-gray-900">
+          <div className="min-h-0 w-full min-w-0 flex-1 overflow-auto">
+          <table className={`w-full ${tableMinWidthClass} border-collapse text-sm`}>
+            <thead className="sticky top-0 z-10 bg-gray-100 dark:bg-gray-800">
               <tr className="border-b border-black">
                 <th className={`${tableHeaderCellClass} w-12`}>No</th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('title')}>
@@ -797,7 +804,7 @@ export default function EventsPage() {
         </div>
 
         {filteredAndSortedEvents.length > 0 && !loading && (
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-col gap-2 text-sm text-gray-500 sm:flex-row sm:items-center">
               <span>
                 Showing {showingStart} to {showingEnd} of {filteredAndSortedEvents.length} entries
@@ -819,6 +826,56 @@ export default function EventsPage() {
                   </SelectContent>
                 </Select>
                 <span>rows per page</span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 border-gray-300 bg-white text-gray-900 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
+                    >
+                      <Info className="mr-2 h-4 w-4" />
+                      Notes
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    align="start"
+                    side="bottom"
+                    className="w-[720px] max-w-[calc(100vw-2rem)] border-gray-200 bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                  >
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div className="rounded-md border border-gray-200 p-4 dark:border-gray-700">
+                        <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Event Status:</h4>
+                        <div className="space-y-1 text-xs">
+                          <div className="flex items-center">
+                            <span className="w-3 h-3 rounded-full bg-blue-500 mr-2"></span>
+                            <span className="text-gray-600 dark:text-gray-400">Upcoming - Future events</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="w-3 h-3 rounded-full bg-green-500 mr-2"></span>
+                            <span className="text-gray-600 dark:text-gray-400">Ongoing - Currently happening</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="mr-2 h-3 w-3 rounded-full border border-gray-300 [background-color:white]"></span>
+                            <span className="text-gray-600 dark:text-gray-400">Past - Completed events</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-md border border-gray-200 p-4 dark:border-gray-700">
+                        <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Staff Roles:</h4>
+                        <div className="space-y-1 text-xs">
+                          <div>
+                            <span className="text-gray-600 dark:text-gray-400"><strong>PIC</strong> (Person In Charge) - Single person responsible</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600 dark:text-gray-400"><strong>Support Staff</strong> - Multiple people can be assigned</span>
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
@@ -870,49 +927,6 @@ export default function EventsPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900 md:grid-cols-3">
-          <div>
-            <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Event Status:</h4>
-            <div className="space-y-1 text-xs">
-              <div className="flex items-center">
-                <span className="w-3 h-3 rounded-full bg-blue-500 mr-2"></span>
-                <span className="text-gray-600 dark:text-gray-400">Upcoming - Future events</span>
-              </div>
-              <div className="flex items-center">
-                <span className="w-3 h-3 rounded-full bg-green-500 mr-2"></span>
-                <span className="text-gray-600 dark:text-gray-400">Ongoing - Currently happening</span>
-              </div>
-              <div className="flex items-center">
-                <span className="mr-2 h-3 w-3 rounded-full border border-gray-300 [background-color:white]"></span>
-                <span className="text-gray-600 dark:text-gray-400">Past - Completed events</span>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Staff Roles:</h4>
-            <div className="space-y-1 text-xs">
-              <div>
-                <span className="text-gray-600 dark:text-gray-400"><strong>PIC</strong> (Person In Charge) - Single person responsible</span>
-              </div>
-              <div>
-                <span className="text-gray-600 dark:text-gray-400"><strong>Support Staff</strong> - Multiple people can be assigned</span>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Available Actions:</h4>
-            <div className="space-y-1 text-xs">
-              {isAdmin && (
-                <div className="flex items-center">
-                  <Trash2 className="h-3 w-3 mr-2 text-red-600" />
-                  <span className="text-gray-600 dark:text-gray-400">Delete Event - Permanently remove (Admin only)</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   )

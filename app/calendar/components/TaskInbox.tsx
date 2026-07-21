@@ -1254,7 +1254,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
   const { toast } = useToast()
   const supabase = useMemo(() => createClient(), [])
   const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const realtimeRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const realtimeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fetchAllData = useCallback(async (options: { silent?: boolean } = {}) => {
     if (!options.silent) {
@@ -1379,7 +1379,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
 
   useEffect(() => {
     fetchAllData()
-  }, [fetchAllData, refreshKey])
+  }, [fetchAllData, Key])
 
   useEffect(() => {
     const scheduleRealtimeRefresh = () => {

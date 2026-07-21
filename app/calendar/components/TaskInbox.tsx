@@ -1379,15 +1379,15 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
 
   useEffect(() => {
     fetchAllData()
-  }, [fetchAllData, Key])
+  }, [fetchAllData, refreshKey])
 
   useEffect(() => {
     const scheduleRealtimeRefresh = () => {
-      if (realtimeRefreshTimerRef.current) {
-        clearTimeout(realtimeRefreshTimerRef.current)
+      if (realtimeTimerRef.current) {
+        clearTimeout(realtimeTimerRef.current)
       }
 
-      realtimeRefreshTimerRef.current = setTimeout(() => {
+      realtimeTimerRef.current = setTimeout(() => {
         fetchAllData({ silent: true })
       }, 300)
     }
@@ -1410,9 +1410,9 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
       })
 
     return () => {
-      if (realtimeRefreshTimerRef.current) {
-        clearTimeout(realtimeRefreshTimerRef.current)
-        realtimeRefreshTimerRef.current = null
+      if (realtimeTimerRef.current) {
+        clearTimeout(realtimeTimerRef.current)
+        realtimeTimerRef.current = null
       }
       supabase.removeChannel(channel)
     }

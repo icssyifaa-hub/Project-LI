@@ -89,7 +89,6 @@ export async function POST(request: Request) {
         is_active: true,
         must_change_password: true,
         color: 'blue',
-        password: null,
       })
       .select(USER_SELECT)
       .single()

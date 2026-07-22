@@ -49,7 +49,6 @@ const getTaskDisplayElement = (item: any) => {
   const jobTask = item.jobTask || 'No Job Task'
   const clientName = item.clientName || 'No Client'
   const picText = item.task_pic_name || 'No PIC'
-  const picColor = item.task_pic_color || 'blue'
   const supportText = item.task_support_names && item.task_support_names.length > 0
     ? `, ${item.task_support_names.join(',')}`
     : ''
@@ -60,7 +59,7 @@ const getTaskDisplayElement = (item: any) => {
         {jobTask} - {clientName}
       </span>
       <div className="ml-2 flex min-w-0 flex-shrink items-center gap-1">
-        <span className={`calendar-staff-badge max-w-24 truncate rounded-full px-1.5 py-0.5 text-[10px] sm:max-w-32 ${getBadgeClass(picColor)}`}>
+        <span className="max-w-24 truncate text-right text-[10px] font-medium opacity-90 sm:max-w-32">
           {picText}{supportText}
         </span>
       </div>
@@ -78,7 +77,6 @@ const getEventDisplayText = (item: any) => {
 
 const getEventDisplayElement = (item: any) => {
   const hasPIC = item.event_pic_name || item.event_pic_id
-  const picColor = item.event_pic_color || 'purple'
   const picName = item.event_pic_name || 'No PIC'
   
   const supportNames = item.event_support_names || []
@@ -93,7 +91,7 @@ const getEventDisplayElement = (item: any) => {
       </span>
       {hasPIC && (
         <div className="flex min-w-0 flex-shrink items-center gap-1">
-          <span className={`calendar-staff-badge max-w-24 truncate rounded-full px-1.5 py-0.5 text-[10px] sm:max-w-32 ${getBadgeClass(picColor)}`}>
+          <span className="max-w-24 truncate text-right text-[10px] font-medium opacity-90 sm:max-w-32">
             {picName}{supportText}
           </span>
         </div>
@@ -1713,23 +1711,23 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                     return (
                       <div 
                         key={formatDateKey(date)} 
-                        className={`grid grid-cols-[64px_minmax(0,1fr)] gap-1 px-4 py-3 sm:grid-cols-[84px_minmax(150px,180px)_minmax(0,1fr)] sm:gap-6 sm:px-6 ${
+                        className={`grid grid-cols-[54px_minmax(0,1fr)] gap-1 px-3 py-2 sm:grid-cols-[76px_minmax(120px,160px)_minmax(0,1fr)] sm:gap-4 sm:px-5 ${
                           isToday ? 'bg-blue-50 dark:bg-white/[0.04]' : ''
                         }`}
                       >
                         <button
                           type="button"
-                          className="flex flex-col items-center gap-0.5 pt-1 text-left sm:grid sm:grid-cols-[28px_1fr] sm:items-start sm:gap-2"
+                          className="flex flex-col items-center gap-0.5 pt-0.5 text-left sm:grid sm:grid-cols-[24px_1fr] sm:items-start sm:gap-2"
                           onClick={() => handleDateClick(date)}
                         >
-                          <span className="text-xl font-medium leading-none text-gray-900 sm:text-lg sm:font-bold dark:text-gray-100">{date.getDate()}</span>
-                          <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 sm:pt-0.5 sm:text-xs dark:text-gray-400">
+                          <span className="text-lg font-medium leading-none text-gray-900 sm:text-base sm:font-bold dark:text-gray-100">{date.getDate()}</span>
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 sm:pt-0.5 sm:text-[11px] dark:text-gray-400">
                             <span className="hidden sm:inline">{months[date.getMonth()].slice(0, 3)}, </span>
                             {weekDays[date.getDay()]}
                           </span>
                         </button>
 
-                        <div className="col-start-2 space-y-2 sm:hidden">
+                        <div className="col-start-2 space-y-1 sm:hidden">
                           {scheduleItems.map(item => {
                             const colorClass = getScheduleItemColor(item)
                             const title = getScheduleItemTitle(item)
@@ -1739,7 +1737,7 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                                 key={`${item.type}-${item.id}`}
                                 data-task-id={item.type === 'task' ? item.id : undefined}
                                 data-event-id={item.type === 'event' ? item.id : undefined}
-                                className={`calendar-view-item-text block w-full rounded-md px-3 py-2 text-left text-[20px] font-medium leading-tight text-black shadow-sm ${colorClass}`}
+                                className={`calendar-view-item-text block w-full rounded-[5px] px-2.5 py-1.5 text-left text-[15px] font-semibold leading-snug text-black ${colorClass}`}
                                 onClick={(e) => {
                                   if (item.type === 'holiday') {
                                     handleHolidayClick(item, e)
@@ -1750,18 +1748,18 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                               >
                                 <span className="block break-words">{title}</span>
                                 {formatScheduleTime(item) !== 'All day' && (
-                                  <span className="mt-1 block text-[18px] font-normal leading-tight">{formatScheduleTime(item)}</span>
+                                  <span className="mt-0.5 block text-[13px] font-normal leading-snug">{formatScheduleTime(item)}</span>
                                 )}
                               </button>
                             )
                           })}
                         </div>
 
-                        <div className="hidden space-y-4 sm:col-start-2 sm:col-span-2 sm:block">
+                        <div className="hidden space-y-2 sm:col-start-2 sm:col-span-2 sm:block">
                           {scheduleItems.map(item => (
                             <button
                               key={`${item.type}-${item.id}-time`}
-                              className="grid w-full grid-cols-[18px_minmax(120px,170px)_minmax(0,1fr)] items-start gap-4 text-left"
+                              className="grid w-full grid-cols-[14px_minmax(104px,150px)_minmax(0,1fr)] items-start gap-3 text-left"
                               onClick={(e) => {
                                 if (item.type === 'holiday') {
                                   handleHolidayClick(item, e)
@@ -1770,9 +1768,9 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                                 }
                               }}
                             >
-                              <span className={`mt-1.5 h-3 w-3 rounded-full ${getScheduleItemColor(item)}`}></span>
-                              <span className="text-sm font-semibold leading-6 text-gray-800 dark:text-gray-100">{formatScheduleTime(item)}</span>
-                              <span className="break-words text-sm font-semibold leading-6 text-gray-900 dark:text-gray-100">{getScheduleItemTitle(item)}</span>
+                              <span className={`mt-1 h-2.5 w-2.5 rounded-full ${getScheduleItemColor(item)}`}></span>
+                              <span className="text-xs font-semibold leading-5 text-gray-800 dark:text-gray-100">{formatScheduleTime(item)}</span>
+                              <span className="break-words text-sm font-semibold leading-5 text-gray-900 dark:text-gray-100">{getScheduleItemTitle(item)}</span>
                             </button>
                           ))}
                         </div>

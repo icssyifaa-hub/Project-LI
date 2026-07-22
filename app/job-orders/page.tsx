@@ -117,10 +117,10 @@ const getStatusText = (status: string) => {
   }
 }
 
-const getReminderText = (dateStart: string | null, dateStop: string | null, hasFinalReport: boolean): string => {
+const getReminderText = (dateStart: string | null, hasFinalReport: boolean): string => {
   if (hasFinalReport) return 'N/A'
   
-  const baseDateStr = (dateStop && dateStop.trim() !== '') ? dateStop : dateStart
+  const baseDateStr = dateStart
   if (!baseDateStr) return 'N/A'
   
   const baseDate = new Date(baseDateStr)
@@ -174,7 +174,7 @@ const getReminderRowClass = (reminderText: string, status?: string) => {
 
 const tableHeaderCellClass = 'border-r border-black px-4 py-3 text-left text-[12px] font-semibold uppercase text-gray-700 dark:text-gray-200'
 const sortableHeaderCellClass = `${tableHeaderCellClass} cursor-pointer transition-colors hover:bg-gray-200/80 dark:hover:bg-gray-700/70`
-const tableCellClass = 'border-r border-black px-4 py-3'
+const tableCellClass = 'border-r border-b border-black px-4 py-3'
 const tableMinWidthClass = 'min-w-[1380px]'
 const paginationButtonClass = 'border-gray-300 bg-white text-gray-900 shadow-sm hover:bg-gray-100 disabled:border-gray-200 disabled:bg-gray-200 disabled:text-gray-500 disabled:opacity-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:disabled:border-gray-800 dark:disabled:bg-gray-800 dark:disabled:text-gray-500'
 const activePaginationButtonClass = 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-white dark:hover:bg-blue-400'
@@ -198,7 +198,7 @@ const isAdminRole = (role?: string | null) => {
 
 const getJobOrderSortValue = (job: JobOrder, field: JobOrderSortField) => {
   if (field === 'reminder') {
-    return getReminderSortValue(getReminderText(job.date_start, job.date_stop, !!job.final_report_number))
+    return getReminderSortValue(getReminderText(job.date_start, !!job.final_report_number))
   }
 
   if (field === 'support_staff') {
@@ -500,10 +500,7 @@ export default function JobOrdersPage() {
 
   const matchesStaffFilter = (job: JobOrder, filterStaffValue: string): boolean => {
     if (filterStaffValue === 'all') return true
-    if (job.task_pic_name === filterStaffValue) return true
-    if (job.task_support_names_array && job.task_support_names_array.includes(filterStaffValue)) return true
-    if (job.task_support_name && job.task_support_name.includes(filterStaffValue)) return true
-    return false
+    return job.task_pic_name === filterStaffValue
   }
 
   const filteredAndSortedJobs = jobOrders
@@ -696,10 +693,10 @@ export default function JobOrdersPage() {
           />
           <Select value={filterStaff} onValueChange={(value) => { setFilterStaff(value); setCurrentPage(1) }}>
             <SelectTrigger className="border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-900">
-              <SelectValue placeholder="Filter by Staff" />
+              <SelectValue placeholder="Filter by PIC" />
             </SelectTrigger>
             <SelectContent className="max-h-80 border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
-              <SelectItem value="all">All Staff ({staffList.length})</SelectItem>
+              <SelectItem value="all">All PIC ({staffList.length})</SelectItem>
               {staffList.map(staff => {
                 const isActive = staffStatusMap.get(staff)
                 return (
@@ -739,7 +736,7 @@ export default function JobOrdersPage() {
             {searchTerm && <span className="rounded-full bg-blue-100 px-2 py-0.5 text-blue-800 dark:bg-blue-950/60 dark:text-blue-200">Search: {searchTerm}</span>}
             {filterStaff !== 'all' && (
               <span className="rounded-full bg-purple-100 px-2 py-0.5 text-purple-800 dark:bg-purple-950/60 dark:text-purple-200">
-                Staff: {filterStaff} {!staffStatusMap.get(filterStaff) && '(inactive)'}
+                PIC: {filterStaff} {!staffStatusMap.get(filterStaff) && '(inactive)'}
               </span>
             )}
             {filterStatus !== 'all' && <span className="rounded-full bg-green-100 px-2 py-0.5 text-green-800 dark:bg-green-950/60 dark:text-green-200">Status: {filterStatus}</span>}
@@ -824,7 +821,7 @@ export default function JobOrdersPage() {
                 </tr>
               ) : (
                 paginatedJobs.map((job, index) => {
-                  const reminderText = getReminderText(job.date_start, job.date_stop, !!job.final_report_number)
+                  const reminderText = getReminderText(job.date_start, !!job.final_report_number)
                   
                   return (
                     <tr key={job.id} className={`group border-b border-black transition-colors ${getReminderRowClass(reminderText, job.job_status)}`}>

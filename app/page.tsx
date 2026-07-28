@@ -57,7 +57,7 @@ export default function MaintenancePage() {
               </h1>
 
               <p className="mt-5 max-w-xl text-base leading-7 text-slate-600 dark:text-slate-300">
-                currently performing maintenance on the system. Please check back late
+                Currently performing maintenance on the system. Please check back later.Thankyou 
               </p>
             </div>
           </div>

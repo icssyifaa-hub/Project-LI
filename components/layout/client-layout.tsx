@@ -40,7 +40,7 @@ export default function ClientLayout({
   const router = useRouter()
   const pathname = usePathname()
   const supabase = useMemo(() => createClient(), [])
-  const isStandaloneAuthPage = ['/login', '/change-password'].includes(pathname)
+  const isStandaloneAuthPage = ['/', '/login', '/change-password'].includes(pathname)
 
   useEffect(() => {
     try {

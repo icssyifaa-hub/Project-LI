@@ -2,9 +2,9 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 
-const MAINTENANCE_MODE = true
+const MAINTENANCE_MODE = false 
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   if (MAINTENANCE_MODE) {
     const { pathname } = request.nextUrl
 

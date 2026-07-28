@@ -13,6 +13,8 @@ import { useToast } from '@/components/ui/use-toast'
 import { Button } from '@/components/ui/button'
 import NotificationsPanel from './components/NotificationsPanel'
 import { createClient } from '@/lib/supabase/client'
+import { getTaskJobGroupId } from '@/lib/job-groups'
+import { getTaskClient, TASK_CLIENT_SELECT } from '@/lib/settings/task-client'
 import { 
   Inbox, 
   ChevronRight, 
@@ -286,6 +288,69 @@ export default function CalendarPage() {
       window.history.replaceState({}, '', `${window.location.pathname}${newQuery ? `?${newQuery}` : ''}`)
     }
   }, [isInitialized, searchParamString])
+
+  useEffect(() => {
+    if (!isInitialized) return
+
+    const urlParams = new URLSearchParams(searchParamString)
+    const followUpTaskId = urlParams.get('followUp')
+    if (!followUpTaskId) return
+
+    const openFollowUpModal = async () => {
+      try {
+        let { data, error } = await supabase
+          .from('tasks')
+          .select(TASK_CLIENT_SELECT)
+          .eq('id', followUpTaskId)
+          .maybeSingle()
+
+        if (error) {
+          const fallback = await supabase
+            .from('tasks')
+            .select('*')
+            .eq('id', followUpTaskId)
+            .maybeSingle()
+
+          data = fallback.data
+          error = fallback.error
+        }
+
+        if (error) throw error
+        if (!data) throw new Error('Source task not found.')
+
+        const client = getTaskClient(data)
+
+        setSelectedDate(null)
+        setSelectedEndDate(null)
+        setSelectedTask(null)
+        setSelectedEvent(null)
+        setSelectedItemType('task')
+        setPrefilledTaskData({
+          clientName: client.client_name || '',
+          clientId: client.id || '',
+          location: client.location || '',
+          address: client.address || '',
+          jobTask: data.job_task || '',
+          jobOrderNumber: data.job_order_number || '',
+          jobGroupId: getTaskJobGroupId(data),
+          followUpOfTaskId: data.id,
+        })
+        setShowItemModal(true)
+      } catch (error: any) {
+        toast({
+          title: 'Error',
+          description: error?.message || 'Failed to open follow-up task.',
+          variant: 'destructive',
+        })
+      } finally {
+        urlParams.delete('followUp')
+        const newQuery = urlParams.toString()
+        window.history.replaceState({}, '', `${window.location.pathname}${newQuery ? `?${newQuery}` : ''}`)
+      }
+    }
+
+    openFollowUpModal()
+  }, [isInitialized, searchParamString, toast])
 
   useEffect(() => {
     if (!focusedDateKey) return
@@ -667,6 +732,7 @@ export default function CalendarPage() {
         timeStart: draggedTask.timeStart || '',
         timeStop: draggedTask.timeStop || '',
         additionalRemark: draggedTask.additionalRemark || draggedTask.notes || '',
+        jobGroupId: draggedTask.jobGroupId,
         jobOrderNumber: draggedTask.jobOrderNumber || '',
         finalReportNumber: draggedTask.finalReportNumber || '',
         jobStatus: draggedTask.jobStatus || 'onhold',
@@ -709,6 +775,7 @@ export default function CalendarPage() {
           task_pic_id: data.task_pic_id || prefilledTaskData.task_pic_id,
           task_pic_name: data.task_pic_name || prefilledTaskData.task_pic_name,
           task_pic_color: data.task_pic_color || prefilledTaskData.task_pic_color,
+          job_group_id: data.job_group_id || prefilledTaskData.jobGroupId,
           job_order_number: data.job_order_number || prefilledTaskData.jobOrderNumber,
         }
       }
@@ -1050,6 +1117,7 @@ export default function CalendarPage() {
                       timeStart: task.timeStart || '',
                       timeStop: task.timeStop || '',
                       additionalRemark: task.additionalRemark || task.notes || '',
+                      jobGroupId: task.jobGroupId,
                       jobOrderNumber: task.jobOrderNumber || '',
                       finalReportNumber: task.finalReportNumber || '',
                       jobStatus: task.jobStatus || 'onhold',

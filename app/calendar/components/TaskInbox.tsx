@@ -74,6 +74,7 @@ import {
 } from '@/lib/reports/number-formats'
 import { getMissingSchemaColumn, getSupabaseSchemaErrorMessage } from '@/lib/supabase/schema-errors'
 import { getTaskClient, TASK_CLIENT_SELECT, type TaskClientRecord } from '@/lib/settings/task-client'
+import { createJobGroupId, getTaskJobGroupId } from '@/lib/job-groups'
 
 export interface UnscheduledTask {
   id: string
@@ -86,6 +87,7 @@ export interface UnscheduledTask {
   task_pic_name?: string
   task_pic_color?: string
   jobOrderNumber?: string
+  jobGroupId?: string
   createdAt: Date
   notes?: string
   timeStart?: string
@@ -1345,6 +1347,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
           task_pic_name: staffInfo?.name || task.task_pic_name || undefined,
           task_pic_color: staffInfo?.color || task.task_pic_color || 'blue',
           jobOrderNumber: task.job_order_number || undefined,
+          jobGroupId: getTaskJobGroupId(task),
           createdAt: new Date(task.created_at),
           notes: task.additional_remark || undefined,
           additionalRemark: task.additional_remark || undefined,
@@ -1512,6 +1515,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
       task_pic_name: selectedStaff?.name || taskData.task_pic_name,
       task_pic_color: selectedStaff?.color || taskData.task_pic_color || 'blue',
       job_order_number: taskData.jobOrderNumber || null,
+      job_group_id: taskData.jobGroupId || createJobGroupId(),
       job_status: 'onhold',
       date_start: null,
       date_stop: null,
@@ -1619,6 +1623,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
         location: savedTask.location || newTask.location,
         address: savedTask.address || newTask.address,
         jobOrderNumber: savedTask.job_order_number,
+        jobGroupId: getTaskJobGroupId(savedTask),
         task_pic_id: savedPic.id,
         task_pic_name: savedPic.name,
         task_pic_color: savedPic.color,
@@ -1675,6 +1680,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
         location: savedTask.location || updatedTask.location,
         address: savedTask.address || updatedTask.address,
         jobOrderNumber: savedTask.job_order_number,
+        jobGroupId: getTaskJobGroupId(savedTask),
         task_pic_id: savedPic.id,
         task_pic_name: savedPic.name,
         task_pic_color: savedPic.color,
@@ -1733,6 +1739,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
         task_pic_name: savedPic.name || task.task_pic_name,
         task_pic_color: savedPic.color,
         jobOrderNumber: data?.job_order_number || task.jobOrderNumber,
+        jobGroupId: getTaskJobGroupId(data || task),
         clientId: client?.id || task.clientId,
         location: client?.location || task.location,
         address: client?.address || task.address,
@@ -1830,12 +1837,10 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
             sensors={sensors}
             collisionDetection={closestCenter}
             onDragStart={handleDragStartEvent}
-            onDragEnd={handleDragEndEvent}
-          >
+            onDragEnd={handleDragEndEvent} >
             <SortableContext
               items={filteredTasks.map(t => t.id)}
-              strategy={verticalListSortingStrategy}
-            >
+              strategy={verticalListSortingStrategy} >
               {filteredTasks.map((task) => (
                 <SortableTaskItem 
                   key={task.id} 
@@ -1844,8 +1849,7 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
                   onEdit={handleEditTask}
                   onRequestDelete={setPendingDeleteTask}
                   isDeleting={deletingId === task.id}
-                  isFocused={activeFocusedTaskId === task.id}
-                />
+                  isFocused={activeFocusedTaskId === task.id}/>
               ))}
             </SortableContext>
           </DndContext>

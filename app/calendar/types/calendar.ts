@@ -24,6 +24,7 @@ export interface Task {
   timeStart?: string
   timeStop?: string
   additionalRemark?: string
+  jobGroupId?: string
   jobOrderNumber?: string
   finalReportNumber?: string
   jobStatus: 'onhold' | 'in-progress' | 'completed' | 'incomplete' | 'ongoing' | 'upcoming'
@@ -90,6 +91,7 @@ export interface UnscheduledTask {
   task_pic_name?: string         
   task_pic_color?: string        
   jobOrderNumber?: string
+  jobGroupId?: string
   finalReportNumber?: string
   createdAt: Date
 }

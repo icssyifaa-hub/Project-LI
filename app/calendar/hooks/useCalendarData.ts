@@ -11,6 +11,7 @@ import { getSupabaseSchemaErrorMessage } from '@/lib/supabase/schema-errors'
 import { notifyStaffForTask, notifyStaffForEvent } from '@/lib/supabase/notifications'
 import type { Task, Event, Holiday, ViewType, StaffInfo } from '@/app/calendar/types/calendar'
 import { getTaskClient, TASK_CLIENT_SELECT } from '@/lib/settings/task-client'
+import { createJobGroupId, getTaskJobGroupId } from '@/lib/job-groups'
 
 type FetchDataOptions = {
   silent?: boolean
@@ -40,7 +41,6 @@ const computeTaskStatus = (data: {
   if (isDueDatePassed && (!hasJobOrder || !hasFinalReport)) return 'incomplete'
   if (startDate > today) return 'upcoming'
   if (startDate <= today && dueDate >= today) return 'ongoing'
-
   return 'in-progress'
 }
 
@@ -222,11 +222,9 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
       if (eventsError) throw eventsError
       
       const holidaysData = await getHolidays(start, end)
-      
       const tasksInRange = tasksData?.filter((task: any) => 
         task.date_start && task.date_start >= start && task.date_start <= end
       ) || []
-
       console.log('📊 Data received:', {
         allTasks: tasksData?.length || 0,
         tasksInRange: tasksInRange.length,
@@ -278,6 +276,7 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
           timeStart: task.time_start,
           timeStop: task.time_stop,
           additionalRemark: task.additional_remark,
+          jobGroupId: getTaskJobGroupId(task),
           jobOrderNumber: task.job_order_number || '',
           task_pic_id: task.task_pic_id || '',
           task_pic_name: picInfo?.name || task.task_pic_name || '',
@@ -451,6 +450,7 @@ export function useCalendarData(currentDate: Date, view: ViewType) {
         time_start: taskData.time_start || taskData.timeStart || null,
         time_stop: taskData.time_stop || taskData.timeStop || null,
         additional_remark: taskData.additional_remark || taskData.additionalRemark || null,
+        job_group_id: taskData.job_group_id || taskData.jobGroupId || selectedTask?.jobGroupId || createJobGroupId(),
         job_order_number: jobOrderNumber,
         task_pic_id: taskData.task_pic_id || null,
         task_pic_name: taskData.task_pic_name || null,

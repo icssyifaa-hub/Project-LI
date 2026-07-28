@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar as CalendarIcon,
+  ChevronDown,
+  Plus,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -47,6 +49,7 @@ import {
 import { getDotClass } from '@/lib/colors'
 import { downloadExcelReport, downloadPdfReport } from '@/lib/reports/report-export'
 import { FINAL_REPORT_NUMBER_EXAMPLE, JOB_ORDER_NUMBER_EXAMPLE } from '@/lib/reports/number-formats'
+import { getTaskJobGroupId } from '@/lib/job-groups'
 import { getTaskClient, TASK_CLIENT_SELECT } from '@/lib/settings/task-client'
 
 interface JobOrder {
@@ -60,6 +63,7 @@ interface JobOrder {
   time_start?: string
   time_stop?: string
   additional_remark?: string
+  job_group_id?: string | null
   job_order_number?: string | null
   task_pic_staff: string
   task_pic_name?: string
@@ -78,6 +82,20 @@ interface JobOrder {
 }
 
 type JobOrderSortField = keyof JobOrder | 'reminder' | 'support_staff'
+
+interface JobOrderGroup {
+  key: string
+  summary: JobOrder
+  tasks: JobOrder[]
+  taskCount: number
+  hasMultipleTasks: boolean
+  earliestStart: string | null
+  latestStop: string | null
+  nextTask: JobOrder | null
+  latestTask: JobOrder | null
+  unscheduledCount: number
+  overallStatus: JobOrder['job_status']
+}
 
 const getStatusColor = (status: string) => {
   switch(status) {
@@ -244,6 +262,101 @@ const computeTaskStatus = (data: {
   return 'in-progress'
 }
 
+const getDateTimeValue = (date?: string | null) => {
+  if (!date) return null
+  const parsedDate = new Date(date)
+  if (Number.isNaN(parsedDate.getTime())) return null
+  return parsedDate.getTime()
+}
+
+const getTaskGroupKey = (job: JobOrder) => getTaskJobGroupId({
+  id: job.id,
+  job_group_id: job.job_group_id,
+  job_order_number: job.job_order_number,
+})
+
+const getOverallStatus = (tasks: JobOrder[]): JobOrder['job_status'] => {
+  if (tasks.some((task) => task.job_status === 'incomplete')) return 'incomplete'
+  if (tasks.some((task) => ['ongoing', 'in-progress'].includes(task.job_status))) return 'in-progress'
+  if (tasks.some((task) => task.job_status === 'upcoming')) return 'upcoming'
+  if (tasks.every((task) => task.job_status === 'completed')) return 'completed'
+  if (tasks.some((task) => task.job_status === 'onhold')) return 'onhold'
+  return tasks[0]?.job_status || 'in-progress'
+}
+
+const pickGroupSummaryTask = (tasks: JobOrder[]) => {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const scheduledTasks = tasks.filter((task) => !!task.date_start)
+  const upcomingTask = scheduledTasks
+    .filter((task) => {
+      const start = getDateTimeValue(task.date_start)
+      return start !== null && start >= today.getTime()
+    })
+    .sort((a, b) => (getDateTimeValue(a.date_start) || 0) - (getDateTimeValue(b.date_start) || 0))[0]
+
+  if (upcomingTask) return upcomingTask
+
+  return [...scheduledTasks]
+    .sort((a, b) => {
+      const aDate = getDateTimeValue(a.date_stop || a.date_start) || 0
+      const bDate = getDateTimeValue(b.date_stop || b.date_start) || 0
+      return bDate - aDate
+    })[0] || tasks[0]
+}
+
+const buildJobOrderGroups = (jobs: JobOrder[]): JobOrderGroup[] => {
+  const groups = new Map<string, JobOrder[]>()
+
+  jobs.forEach((job) => {
+    const key = getTaskGroupKey(job)
+    const current = groups.get(key) || []
+    current.push(job)
+    groups.set(key, current)
+  })
+
+  return Array.from(groups.entries()).map(([key, tasks]) => {
+    const sortedTasks = [...tasks].sort((a, b) => {
+      const aDate = getDateTimeValue(a.date_start || a.created_at) || 0
+      const bDate = getDateTimeValue(b.date_start || b.created_at) || 0
+      return aDate - bDate
+    })
+    const summarySource = pickGroupSummaryTask(sortedTasks)
+    const earliestStart = sortedTasks
+      .map((task) => task.date_start)
+      .filter(Boolean)
+      .sort()[0] || null
+    const stopDates = sortedTasks
+      .map((task) => task.date_stop || task.date_start)
+      .filter(Boolean)
+      .sort()
+    const latestStop = stopDates.length > 0 ? stopDates[stopDates.length - 1] : null
+
+    return {
+      key,
+      summary: {
+        ...summarySource,
+        date_start: earliestStart,
+        date_stop: latestStop,
+        job_status: getOverallStatus(sortedTasks),
+        final_report_number:
+          sortedTasks.find((task) => task.final_report_number)?.final_report_number ||
+          summarySource.final_report_number,
+      },
+      tasks: sortedTasks,
+      taskCount: sortedTasks.length,
+      hasMultipleTasks: sortedTasks.length > 1,
+      earliestStart,
+      latestStop,
+      nextTask: pickGroupSummaryTask(sortedTasks),
+      latestTask: summarySource,
+      unscheduledCount: sortedTasks.filter((task) => !task.date_start).length,
+      overallStatus: getOverallStatus(sortedTasks),
+    }
+  })
+}
+
 export default function JobOrdersPage() {
   const [user, setUser] = useState<any>(null)
   const [jobOrders, setJobOrders] = useState<JobOrder[]>([])
@@ -258,6 +371,7 @@ export default function JobOrdersPage() {
   const [staffStatusMap, setStaffStatusMap] = useState<Map<string, boolean>>(new Map())
   const [unscheduledJob, setUnscheduledJob] = useState<JobOrder | null>(null)
   const [updatingDocumentStatus, setUpdatingDocumentStatus] = useState<Record<string, boolean>>({})
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
   const [rowsPerPage, setRowsPerPage] = useState('10')
   const router = useRouter()
   const { toast } = useToast()
@@ -433,6 +547,7 @@ export default function JobOrdersPage() {
           time_start: task.time_start,
           time_stop: task.time_stop,
           additional_remark: task.additional_remark,
+          job_group_id: getTaskJobGroupId(task),
           job_order_number: task.job_order_number || task.jobOrderNumber || null,
           task_pic_staff: picId || picName || '',
           task_pic_name: picInfo?.name || picName || task.task_pic_name || 'Unassigned',
@@ -496,6 +611,17 @@ export default function JobOrdersPage() {
 
     const formattedDate = date.split('T')[0]
     router.push(`/calendar?date=${formattedDate}&view=month&focus=${formattedDate}`)
+  }
+
+  const handleToggleGroup = (groupKey: string) => {
+    setExpandedGroups((current) => ({
+      ...current,
+      [groupKey]: !current[groupKey],
+    }))
+  }
+
+  const handleAddFollowUp = (job: JobOrder) => {
+    router.push(`/calendar?followUp=${encodeURIComponent(job.id)}`)
   }
 
   const matchesStaffFilter = (job: JobOrder, filterStaffValue: string): boolean => {
@@ -568,20 +694,21 @@ export default function JobOrdersPage() {
     }
   }
 
-  const itemsPerPage = rowsPerPage === 'all' ? filteredAndSortedJobs.length || 1 : Number(rowsPerPage)
+  const filteredAndSortedGroups = buildJobOrderGroups(filteredAndSortedJobs)
+  const itemsPerPage = rowsPerPage === 'all' ? filteredAndSortedGroups.length || 1 : Number(rowsPerPage)
   const totalPages = rowsPerPage === 'all'
     ? 1
-    : Math.max(1, Math.ceil(filteredAndSortedJobs.length / itemsPerPage))
-  const paginatedJobs = rowsPerPage === 'all'
-    ? filteredAndSortedJobs
-    : filteredAndSortedJobs.slice(
+    : Math.max(1, Math.ceil(filteredAndSortedGroups.length / itemsPerPage))
+  const paginatedJobGroups = rowsPerPage === 'all'
+    ? filteredAndSortedGroups
+    : filteredAndSortedGroups.slice(
       (currentPage - 1) * itemsPerPage,
       currentPage * itemsPerPage
     )
-  const showingStart = filteredAndSortedJobs.length === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1
+  const showingStart = filteredAndSortedGroups.length === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1
   const showingEnd = rowsPerPage === 'all'
-    ? filteredAndSortedJobs.length
-    : Math.min(currentPage * itemsPerPage, filteredAndSortedJobs.length)
+    ? filteredAndSortedGroups.length
+    : Math.min(currentPage * itemsPerPage, filteredAndSortedGroups.length)
 
   if (!user) return null
 
@@ -800,16 +927,16 @@ export default function JobOrdersPage() {
             <tbody className="divide-y divide-black">
               {loading ? (
                 <tr>
-                  <td colSpan={16} className="border-t border-black px-4 py-12 text-center">
+                  <td colSpan={15} className="border-t border-black px-4 py-12 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Loading job orders...</p>
                     </div>
                   </td>
                 </tr>
-              ) : paginatedJobs.length === 0 ? (
+              ) : paginatedJobGroups.length === 0 ? (
                 <tr>
-                  <td colSpan={16} className="border-t border-black px-4 py-12 text-center">
+                  <td colSpan={15} className="border-t border-black px-4 py-12 text-center">
                     <div className="text-gray-400 text-4xl mb-2">📋</div>
                     <p className="text-gray-500 dark:text-gray-300">No job orders found</p>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
@@ -820,19 +947,25 @@ export default function JobOrdersPage() {
                   </td>
                 </tr>
               ) : (
-                paginatedJobs.map((job, index) => {
+                paginatedJobGroups.map((group, index) => {
+                  const job = group.summary
+                  const isExpanded = !!expandedGroups[group.key]
+                  const deliveryDoneCount = group.tasks.filter((task) => task.delivery_order).length
+                  const invoiceDoneCount = group.tasks.filter((task) => task.invoice).length
                   const reminderText = getReminderText(job.date_start, !!job.final_report_number)
                   
                   return (
-                    <tr key={job.id} className={`group border-b border-black transition-colors ${getReminderRowClass(reminderText, job.job_status)}`}>
+                    <Fragment key={group.key}>
+                    <tr className={`group border-b border-black transition-colors ${getReminderRowClass(reminderText, job.job_status)}`}>
                       <td className={`${tableCellClass} text-black`}>{rowsPerPage === 'all' ? index + 1 : (currentPage - 1) * itemsPerPage + index + 1}</td>
                       <td className={tableCellClass}>
                         <div className="flex items-center gap-2">
-                          <button onClick={() => handleDateClick(job.date_start, job)} className="job-order-client-button max-w-xs truncate text-left font-bold text-blue-900 hover:text-blue-900 hover:underline">
-                            {job.client_name}
-                          </button>
-                          <button onClick={() => handleDateClick(job.date_start, job)} className="job-order-calendar-button opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 hover:text-blue-700">
-                            <CalendarIcon className="h-3 w-3" />
+                          <button onClick={() => handleToggleGroup(group.key)} className="job-order-client-button flex max-w-xs items-center gap-2 truncate text-left font-bold text-blue-900 hover:text-blue-900 hover:underline">
+                            <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                            <span className="truncate">{job.client_name}</span>
+                            <span className="shrink-0 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                              {group.taskCount} task{group.taskCount > 1 ? 's' : ''}
+                            </span>
                           </button>
                         </div>
                       </td>
@@ -843,10 +976,10 @@ export default function JobOrdersPage() {
                         <span className="text-black">{job.job_task}</span>
                       </td>
                       <td className={tableCellClass}>
-                        <span>{formatListDate(job.date_start)}</span>
+                        <span>{formatListDate(group.earliestStart)}</span>
                       </td>
                       <td className={tableCellClass}>
-                        <span>{formatListDate(job.date_stop)}</span>
+                        <span>{formatListDate(group.latestStop)}</span>
                       </td>
                       <td className={tableCellClass}>
                         <span className="font-medium text-black">
@@ -890,26 +1023,10 @@ export default function JobOrdersPage() {
                         ) : <span className="text-black">-</span>}
                       </td>
                       <td className={tableCellClass}>
-                        <div className="flex items-center justify-center">
-                          <Checkbox
-                            checked={job.delivery_order}
-                            disabled={!isAdmin || updatingDocumentStatus[`${job.id}-delivery_order`]}
-                            onCheckedChange={(checked) => handleDocumentStatusChange(job, 'delivery_order', checked === true)}
-                            aria-label={`Delivery order for ${job.client_name}`}
-                            className="border-gray-500 bg-white dark:border-gray-300 dark:bg-white/20 data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600 dark:data-[state=checked]:border-blue-500 dark:data-[state=checked]:bg-blue-500"
-                          />
-                        </div>
+                        <span className="text-sm font-medium text-black">{deliveryDoneCount}/{group.taskCount}</span>
                       </td>
                       <td className={tableCellClass}>
-                        <div className="flex items-center justify-center">
-                          <Checkbox
-                            checked={job.invoice}
-                            disabled={!isAdmin || updatingDocumentStatus[`${job.id}-invoice`]}
-                            onCheckedChange={(checked) => handleDocumentStatusChange(job, 'invoice', checked === true)}
-                            aria-label={`Invoice for ${job.client_name}`}
-                            className="border-gray-500 bg-white dark:border-gray-300 dark:bg-white/20 data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600 dark:data-[state=checked]:border-blue-500 dark:data-[state=checked]:bg-blue-500"
-                          />
-                        </div>
+                        <span className="text-sm font-medium text-black">{invoiceDoneCount}/{group.taskCount}</span>
                       </td>
                       <td className={tableCellClass}>
                         <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm ${getStatusColor(job.job_status)}`}>
@@ -917,15 +1034,79 @@ export default function JobOrdersPage() {
                         </span>
                       </td>
                       <td className={`${tableCellClass} min-w-[320px] max-w-[420px] align-top`}>
-                        {job.additional_remark ? (
-                          <span className="block whitespace-pre-wrap break-words text-black" title={job.additional_remark}>
-                            {job.additional_remark}
-                          </span>
-                        ) : (
-                          <span className="text-black">-</span>
-                        )}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {group.unscheduledCount > 0 && (
+                            <span className="rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 text-xs font-semibold text-gray-700">
+                              {group.unscheduledCount} unscheduled
+                            </span>
+                          )}
+                          <Button size="sm" variant="outline" className="h-8 border-blue-200 bg-white text-blue-700 hover:bg-blue-50" onClick={() => handleAddFollowUp(job)}>
+                            <Plus className="mr-1 h-3.5 w-3.5" />
+                            Follow-up
+                          </Button>
+                        </div>
                       </td>
                     </tr>
+                    {isExpanded && (
+                      <tr className="border-b border-black bg-white">
+                        <td colSpan={15} className="border-b border-black px-4 py-3">
+                          <div className="space-y-2">
+                            {group.tasks.map((task, taskIndex) => {
+                              const taskReminderText = getReminderText(task.date_start, !!task.final_report_number)
+
+                              return (
+                                <div key={task.id} className="grid gap-3 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-black md:grid-cols-[72px_1.1fr_1fr_1fr_1fr_1fr_auto] md:items-center">
+                                  <div className="font-semibold text-gray-500">Task {taskIndex + 1}</div>
+                                  <div>
+                                    <div className="font-semibold">{formatListDate(task.date_start)} - {formatListDate(task.date_stop)}</div>
+                                    <div className="text-xs text-gray-500">Reminder: {taskReminderText}</div>
+                                  </div>
+                                  <div className="flex items-center">
+                                    <span className={`w-3 h-3 rounded-full mr-2 flex-shrink-0 ${getDotClass(task.task_pic_color)}`}></span>
+                                    <span>{task.task_pic_name || 'Unassigned'}</span>
+                                  </div>
+                                  <div>
+                                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm ${getStatusColor(task.job_status)}`}>{getStatusText(task.job_status)}</span>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <label className="flex items-center gap-2 text-xs">
+                                      <Checkbox
+                                        checked={task.delivery_order}
+                                        disabled={!isAdmin || updatingDocumentStatus[`${task.id}-delivery_order`]}
+                                        onCheckedChange={(checked) => handleDocumentStatusChange(task, 'delivery_order', checked === true)}
+                                        aria-label={`Delivery order for ${task.client_name}`}
+                                        className="border-gray-500 bg-white data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600"
+                                      />
+                                      DO
+                                    </label>
+                                    <label className="flex items-center gap-2 text-xs">
+                                      <Checkbox
+                                        checked={task.invoice}
+                                        disabled={!isAdmin || updatingDocumentStatus[`${task.id}-invoice`]}
+                                        onCheckedChange={(checked) => handleDocumentStatusChange(task, 'invoice', checked === true)}
+                                        aria-label={`Invoice for ${task.client_name}`}
+                                        className="border-gray-500 bg-white data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600"
+                                      />
+                                      Invoice
+                                    </label>
+                                  </div>
+                                  <div className="min-w-0 text-xs text-gray-600">
+                                    {task.additional_remark ? (
+                                      <span className="line-clamp-2" title={task.additional_remark}>{task.additional_remark}</span>
+                                    ) : '-'}
+                                  </div>
+                                  <Button size="sm" variant="outline" className="h-8 border-gray-300 bg-white text-gray-900 hover:bg-gray-100" onClick={() => handleDateClick(task.date_start, task)}>
+                                    <CalendarIcon className="mr-1 h-3.5 w-3.5" />
+                                    Calendar
+                                  </Button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   )
                 })
               )}
@@ -935,11 +1116,11 @@ export default function JobOrdersPage() {
         </div>
 
         {/* Pagination */}
-        {filteredAndSortedJobs.length > 0 && !loading && (
+        {filteredAndSortedGroups.length > 0 && !loading && (
           <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-col gap-2 text-sm text-gray-500 sm:flex-row sm:items-center">
               <span>
-                Showing {showingStart} to {showingEnd} of {filteredAndSortedJobs.length} entries
+                Showing {showingStart} to {showingEnd} of {filteredAndSortedGroups.length} job groups
               </span>
               <div className="flex items-center gap-2">
                 <Select value={rowsPerPage} onValueChange={(value) => {

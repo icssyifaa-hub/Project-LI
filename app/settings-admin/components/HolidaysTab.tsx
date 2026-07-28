@@ -215,8 +215,7 @@ export function HolidaysTab() {
   }
 
   return (
-    <>
-      <Card className={settingsCardClass}>
+    <><Card className={settingsCardClass}>
         <CardHeader className={settingsHeaderClass}>
           <div className={settingsHeaderRowClass}>
             <div>
@@ -381,7 +380,7 @@ export function HolidaysTab() {
         </CardContent>
       </Card>
 
-      {/* Add/Edit Dialog */}
+      {/* Add/Edit Dialog holiday*/}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className={`sm:max-w-md ${settingsDialogContentClass}`}>
           <DialogHeader>

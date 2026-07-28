@@ -1,5 +1,6 @@
 import { createClient } from './client'
 import { getMissingSchemaColumn } from './schema-errors'
+import { createJobGroupId, getTaskJobGroupId } from '@/lib/job-groups'
 import { getTaskClient, TASK_CLIENT_SELECT } from '@/lib/settings/task-client'
 
 const getCurrentUserId = (): string | null => {
@@ -92,6 +93,7 @@ export async function getTasks(startDate: string, endDate: string) {
         timeStart: task.time_start,
         timeStop: task.time_stop,
         additionalRemark: task.additional_remark,
+        jobGroupId: getTaskJobGroupId(task),
         jobOrderNumber: task.job_order_number || '',
         task_pic_id: task.task_pic_id || '',
         task_pic_name: task.task_pic_name || '',
@@ -150,6 +152,7 @@ export async function createTask(taskData: any) {
       time_start: taskData.time_start || taskData.timeStart || null,
       time_stop: taskData.time_stop || taskData.timeStop || null,
       additional_remark: taskData.additional_remark || taskData.additionalRemark || null,
+      job_group_id: taskData.job_group_id || taskData.jobGroupId || createJobGroupId(),
       job_order_number: taskData.job_order_number || taskData.jobOrderNumber || null,
       task_pic_id: taskData.task_pic_id || null,
       task_pic_name: taskData.task_pic_name || taskData.taskPicName || null,
@@ -213,6 +216,7 @@ export async function updateTask(id: string, taskData: any) {
         time_start: pickValue('time_start', 'timeStart'),
         time_stop: pickValue('time_stop', 'timeStop'),
         additional_remark: pickValue('additional_remark', 'additionalRemark'),
+        job_group_id: pickValue('job_group_id', 'jobGroupId'),
         job_order_number: pickValue('job_order_number', 'jobOrderNumber'),
         task_pic_id: taskData.task_pic_id || null,
         task_pic_name: pickValue('task_pic_name', 'taskPicName'),

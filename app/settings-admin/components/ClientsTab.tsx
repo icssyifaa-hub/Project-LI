@@ -129,7 +129,7 @@ export function ClientsTab() {
       }
       setIsDialogOpen(false)
     } catch {
-      // The hook shows the correct toast, including setup-required messages.
+      //The hook shows the correct toast , including setup-required messages.
     } finally {
       setSaving(false)
     }
@@ -141,7 +141,7 @@ export function ClientsTab() {
       await deleteClient(pendingDeleteClient.id)
       setPendingDeleteClient(null)
     } catch {
-      // The hook shows the error toast.
+      // The hook shows the error toast. 
     }
   }
 

@@ -44,6 +44,7 @@ import { useCallback, useEffect, useState, useRef } from 'react'
 // PDF upload/delete removed - using job order number/final report number instead
 import { Combobox } from '@/components/ui/combobox'
 import { getDotClass } from '@/lib/colors'
+import { createJobGroupId, isSameJobOrderFollowUp } from '@/lib/job-groups'
 import {
   Client,
   fetchClients,
@@ -89,6 +90,8 @@ interface AddCalendarItemModalProps {
     task_pic_name?: string
     task_pic_color?: string
     jobOrderNumber?: string
+    jobGroupId?: string
+    followUpOfTaskId?: string
   } | null
   onSuccess?: () => void
   onSave?: (data: any, type: 'event' | 'task') => Promise<any>
@@ -190,6 +193,7 @@ const initialTaskData = {
   timeStart: '',
   timeStop: '',
   additionalRemark: '',
+  jobGroupId: '',
   jobOrderNumber: '',
   task_pic_id: '',            
   task_support_ids: [] as string[],  
@@ -239,6 +243,7 @@ export default function AddCalendarItemModal({
   const [eventData, setEventData] = useState(initialEventData)
   const [taskData, setTaskData] = useState(initialTaskData)
   const [currentUser, setCurrentUser] = useState<any>(null)
+  const isFollowUpMode = activeTab === 'task' && !selectedItem && !!prefilledData?.followUpOfTaskId
   
   const initialLoadDone = useRef(false)
   
@@ -566,6 +571,7 @@ export default function AddCalendarItemModal({
       timeStart: item.time_start || item.timeStart || '',
       timeStop: item.time_stop || item.timeStop || '',
       additionalRemark: item.additional_remark || item.additionalRemark || '',
+      jobGroupId: item.job_group_id || item.jobGroupId || '',
       jobOrderNumber: item.job_order_number || item.jobOrderNumber || '',
       task_pic_id: taskPicId,
       task_support_ids: normalizedTaskSupportIds,
@@ -671,11 +677,13 @@ export default function AddCalendarItemModal({
         setActiveTab('task')
       }
 
-      if (!selectedItem && selectedDate) {
-        const dateStr = formatDateToString(selectedDate)
+      if (!selectedItem && (selectedDate || prefilledData)) {
+        const dateStr = selectedDate ? formatDateToString(selectedDate) : ''
         const endDateStr = selectedEndDate ? formatDateToString(selectedEndDate) : ''
-        
-        setEventData(prev => ({ ...prev, dateStart: dateStr, dateStop: endDateStr }))
+
+        if (selectedDate) {
+          setEventData(prev => ({ ...prev, dateStart: dateStr, dateStop: endDateStr }))
+        }
         setTaskData(prev => ({
           ...prev,
           clientName: prefilledData?.clientName || prev.clientName,
@@ -683,6 +691,7 @@ export default function AddCalendarItemModal({
           location: prefilledData?.location || prev.location,
           address: prefilledData?.address || prev.address,
           jobTask: prefilledData?.jobTask || prev.jobTask,
+          jobGroupId: prefilledData?.jobGroupId || prev.jobGroupId || createJobGroupId(),
           task_pic_id: prefilledData?.task_pic_id || prev.task_pic_id,
           task_pic_name: prefilledData?.task_pic_name || prev.task_pic_name,
           task_pic_color: prefilledData?.task_pic_color || prev.task_pic_color,
@@ -714,7 +723,11 @@ export default function AddCalendarItemModal({
       const currentTaskId = selectedItem?.id
       const duplicateErrors: {[key: string]: string} = {}
 
-      if (jobOrderNumber && validateJobOrderNumberFormat(jobOrderNumber)) {
+      if (
+        jobOrderNumber &&
+        validateJobOrderNumberFormat(jobOrderNumber) &&
+        !isSameJobOrderFollowUp(jobOrderNumber, prefilledData?.jobOrderNumber)
+      ) {
         const exists = await checkTaskNumberExists('job_order_number', jobOrderNumber, currentTaskId)
         if (exists) {
           duplicateErrors.jobOrderNumber = `Job Order Number "${jobOrderNumber}" already exists. Please use a different number.`
@@ -746,6 +759,7 @@ export default function AddCalendarItemModal({
     isOpen,
     activeTab,
     selectedItem,
+    prefilledData,
     taskData.jobOrderNumber,
     taskData.finalReportNumber,
     taskData.jobTask,
@@ -1172,7 +1186,9 @@ export default function AddCalendarItemModal({
       const duplicateErrors: {[key: string]: string} = {}
 
       const [jobOrderExists, finalReportExists] = await Promise.all([
-        jobOrderNumber ? checkTaskNumberExists('job_order_number', jobOrderNumber, currentTaskId) : Promise.resolve(false),
+        jobOrderNumber && !isSameJobOrderFollowUp(jobOrderNumber, prefilledData?.jobOrderNumber)
+          ? checkTaskNumberExists('job_order_number', jobOrderNumber, currentTaskId)
+          : Promise.resolve(false),
         finalReportNumber ? checkTaskNumberExists('final_report_number', finalReportNumber, currentTaskId) : Promise.resolve(false),
       ])
 
@@ -1281,6 +1297,7 @@ export default function AddCalendarItemModal({
             time_start: taskData.timeStart || '',
             time_stop: taskData.timeStop || '',
             additional_remark: taskData.additionalRemark || '',
+            job_group_id: taskData.jobGroupId || prefilledData?.jobGroupId || createJobGroupId(),
             job_order_number: jobOrderNumber || null,
             task_pic_id: taskData.task_pic_id || null,
             task_pic_name: taskData.task_pic_name || '',
@@ -1453,7 +1470,9 @@ export default function AddCalendarItemModal({
             <CardHeader className="shrink-0 border-b border-gray-200 bg-gray-50 px-4 py-3 sm:px-6 sm:py-4">
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="min-w-0 truncate text-lg">
-                  {selectedItem ? 'Edit' : 'Add New'} {activeTab === 'event' ? 'Event' : 'Job Task'}
+                  {isFollowUpMode
+                    ? 'Add Follow-up Job Task'
+                    : `${selectedItem ? 'Edit' : 'Add New'} ${activeTab === 'event' ? 'Event' : 'Job Task'}`}
                 </CardTitle>
                 <Button variant="ghost" size="icon" onClick={() => { resetForm(); onClose() }} type="button" disabled={isSaving}>
                   <X className="h-4 w-4" />

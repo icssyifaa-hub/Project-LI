@@ -58,27 +58,9 @@ export default function MaintenancePage() {
               <h1 className="text-4xl font-extrabold leading-tight tracking-normal text-slate-950 dark:text-white sm:text-5xl lg:text-6xl">
                 We are improving the system for a smoother workflow.
               </h1>
-
-              <p className="mt-5 max-w-xl text-base leading-7 text-slate-600 dark:text-slate-300">
-                Access to the CMS is temporarily limited while maintenance is in progress.
-                Please try again later or contact the administrator if you need urgent access.
-              </p>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Button asChild className="h-11 bg-slate-950 px-5 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
-                <Link href="/login">
-                  <LogIn className="mr-2 h-4 w-4" />
-                  Go to Login
-                </Link>
-              </Button>
-
-              <Button asChild variant="outline" className="h-11 border-slate-300 bg-white px-5 text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800">
-                <a href="mailto:admin@ics.com">
-                  <Mail className="mr-2 h-4 w-4" />
-                  Contact Admin
-                </a>
-              </Button>
             </div>
           </div>
 
@@ -92,11 +74,6 @@ export default function MaintenancePage() {
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     CMS service update in progress
                   </p>
-                </div>
-
-                <div className="flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-                  <span className="h-2 w-2 rounded-full bg-amber-500" />
-                  Active
                 </div>
               </div>
 

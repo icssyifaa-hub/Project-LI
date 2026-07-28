@@ -1,8 +1,5 @@
 import Image from 'next/image'
-import Link from 'next/link'
-import { CalendarClock, CircleAlert, Clock3, LogIn, Mail, ShieldCheck } from 'lucide-react'
-
-import { Button } from '@/components/ui/button'
+import { CalendarClock, CircleAlert, Clock3, ShieldCheck } from 'lucide-react'
 
 const maintenanceItems = [
   {
@@ -56,11 +53,12 @@ export default function MaintenancePage() {
               </div>
 
               <h1 className="text-4xl font-extrabold leading-tight tracking-normal text-slate-950 dark:text-white sm:text-5xl lg:text-6xl">
-                We are improving the system for a smoother workflow.
+                System access temporarily unavailable
               </h1>
-            </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
+              <p className="mt-5 max-w-xl text-base leading-7 text-slate-600 dark:text-slate-300">
+                currently performing maintenance on the system. Please check back late
+              </p>
             </div>
           </div>
 
@@ -72,7 +70,7 @@ export default function MaintenancePage() {
                     Maintenance Status
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    CMS service update in progress
+                    Full system lock
                   </p>
                 </div>
               </div>
@@ -80,7 +78,6 @@ export default function MaintenancePage() {
               <div className="space-y-3">
                 {maintenanceItems.map((item) => {
                   const Icon = item.icon
-
                   return (
                     <div
                       key={item.label}
@@ -101,7 +98,6 @@ export default function MaintenancePage() {
                   )
                 })}
               </div>
-
               <div className="mt-5 border-t border-slate-200 pt-4 text-sm leading-6 text-slate-600 dark:border-slate-800 dark:text-slate-300">
                 Thank you for your patience while we update the system.
               </div>

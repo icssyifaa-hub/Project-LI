@@ -710,7 +710,6 @@ export default function CalendarPage() {
           task_pic_name: data.task_pic_name || prefilledTaskData.task_pic_name,
           task_pic_color: data.task_pic_color || prefilledTaskData.task_pic_color,
           job_order_number: data.job_order_number || prefilledTaskData.jobOrderNumber,
-          // PDFs removed: job order URL no longer used
         }
       }
       

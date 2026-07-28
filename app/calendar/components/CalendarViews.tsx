@@ -253,7 +253,7 @@ const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, position,
       const eventPicColor = item.event_pic_color || 'purple'
       const eventPicPanelClass = eventPicColor === 'gray'
         ? 'bg-gray-200 text-gray-900 dark:bg-gray-800 dark:text-gray-100'
-        : `${getBadgeClass(eventPicColor)} dark:bg-gray-800 dark:text-gray-100`
+        : getBadgeClass(eventPicColor)
 
       return (
         <div className="space-y-2">
@@ -300,7 +300,7 @@ const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, position,
       const taskPicColor = item.task_pic_color || 'blue'
       const taskPicPanelClass = taskPicColor === 'gray'
         ? 'bg-gray-200 text-gray-900 dark:bg-gray-800 dark:text-gray-100'
-        : `${getBadgeClass(taskPicColor)} dark:bg-gray-800 dark:text-gray-100`
+        : getBadgeClass(taskPicColor)
 
       return (
         <div className="space-y-3">

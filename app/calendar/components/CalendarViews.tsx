@@ -27,7 +27,7 @@ const getItemStyle = (item: any) => {
   return getItemStyleClasses(colorKey)
 }
 
-const holidayStyle = 'bg-emerald-600 text-black cursor-pointer hover:bg-emerald-700 transition-colors dark:bg-emerald-500 dark:text-white dark:hover:bg-emerald-400'
+const holidayStyle = 'bg-emerald-600 text-white cursor-pointer hover:bg-emerald-700 transition-colors dark:bg-emerald-500 dark:text-black dark:hover:bg-emerald-400'
 
 const shouldDisableTouchRangeDrag = () =>
   typeof window !== 'undefined' &&

@@ -55,6 +55,11 @@ const staffColors = [
   { name: 'Lime', value: 'lime', bgClass: 'bg-lime-500' },
   { name: 'Gray', value: 'gray', bgClass: 'bg-gray-500' },
   { name: 'Peach', value: 'peach', bgClass: 'bg-orange-300' },
+  { name: 'Navy', value: 'navy', bgClass: '[background-color:#1e3a8a]' },
+  { name: 'Maroon', value: 'maroon', bgClass: '[background-color:#7f1d1d]' },
+  { name: 'Gold', value: 'gold', bgClass: '[background-color:#ca8a04]' },
+  { name: 'Mint', value: 'mint', bgClass: '[background-color:#5eead4]' },
+  { name: 'Charcoal', value: 'charcoal', bgClass: '[background-color:#111827]' },
 ]
 
 const getColorByValue = (value: string) => {

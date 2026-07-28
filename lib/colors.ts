@@ -151,6 +151,56 @@ export const colorClasses = {
     solid: 'bg-orange-500',
     solidHover: 'hover:bg-orange-600',
   },
+  navy: {
+    text: '[color:#1e3a8a]',
+    border: '[border-color:#1e3a8a]',
+    lightBg: '[background-color:#dbeafe]',
+    badge: '[background-color:#dbeafe] [color:#1e3a8a]',
+    dot: '[background-color:#1e3a8a]',
+    ring: 'ring-blue-200',
+    solid: '[background-color:#1e3a8a] dark:[background-color:#60a5fa]',
+    solidHover: 'hover:[background-color:#1e40af] dark:hover:[background-color:#93c5fd]',
+  },
+  maroon: {
+    text: '[color:#7f1d1d]',
+    border: '[border-color:#7f1d1d]',
+    lightBg: '[background-color:#fee2e2]',
+    badge: '[background-color:#fee2e2] [color:#7f1d1d]',
+    dot: '[background-color:#7f1d1d]',
+    ring: 'ring-red-200',
+    solid: '[background-color:#7f1d1d] dark:[background-color:#f87171]',
+    solidHover: 'hover:[background-color:#991b1b] dark:hover:[background-color:#fca5a5]',
+  },
+  gold: {
+    text: '[color:#854d0e]',
+    border: '[border-color:#ca8a04]',
+    lightBg: '[background-color:#fef3c7]',
+    badge: '[background-color:#fef3c7] [color:#854d0e]',
+    dot: '[background-color:#ca8a04]',
+    ring: 'ring-amber-200',
+    solid: '[background-color:#ca8a04] dark:[background-color:#facc15]',
+    solidHover: 'hover:[background-color:#b45309] dark:hover:[background-color:#fde047]',
+  },
+  mint: {
+    text: '[color:#0f766e]',
+    border: '[border-color:#5eead4]',
+    lightBg: '[background-color:#ccfbf1]',
+    badge: '[background-color:#ccfbf1] [color:#0f766e]',
+    dot: '[background-color:#5eead4]',
+    ring: 'ring-teal-200',
+    solid: '[background-color:#0f766e] dark:[background-color:#5eead4]',
+    solidHover: 'hover:[background-color:#115e59] dark:hover:[background-color:#99f6e4]',
+  },
+  charcoal: {
+    text: '[color:#111827]',
+    border: '[border-color:#111827]',
+    lightBg: '[background-color:#e5e7eb]',
+    badge: '[background-color:#e5e7eb] [color:#111827]',
+    dot: '[background-color:#111827]',
+    ring: 'ring-gray-300',
+    solid: '[background-color:#111827] dark:[background-color:#9ca3af]',
+    solidHover: 'hover:[background-color:#374151] dark:hover:[background-color:#d1d5db]',
+  },
 };
 
 export type ColorKey = keyof typeof colorClasses;
@@ -164,7 +214,7 @@ export const getColorClass = (color: string | undefined | null, type: ColorType)
 
 export const getItemStyleClasses = (color: string | undefined | null): string => {
   const safeColor = color || 'blue';
-  return `${getColorClass(safeColor, 'solid')} text-black dark:text-white ${getColorClass(safeColor, 'solidHover')} shadow-sm`;
+  return `${getColorClass(safeColor, 'solid')} text-white dark:text-black ${getColorClass(safeColor, 'solidHover')} shadow-sm`;
 };
 
 export const getItemBgClass = (color: string | undefined | null): string => {

@@ -419,7 +419,9 @@
   }
 
   .dark .calendar-view-item-text,
-  .dark .calendar-view-item-text :where(:not(svg):not(svg *)) {
+  .dark .calendar-view-item-text :where(:not(svg):not(svg *)),
+  .dark button.calendar-view-item-text,
+  .dark button.calendar-view-item-text :where(:not(svg):not(svg *)) {
     color: rgb(0 0 0) !important;
   }
 
@@ -702,6 +704,38 @@
   .dark .border-cyan-200,
   .dark .border-cyan-300 { border-color: rgb(34 211 238 / 0.45); }
 
+  .dark .bg-sky-50 { background-color: rgb(12 74 110 / 0.3); }
+  .dark .bg-sky-100 { background-color: rgb(2 132 199 / 0.24); }
+  .dark .hover\:bg-sky-50:hover,
+  .dark .hover\:bg-sky-100:hover,
+  .dark .hover\:bg-sky-200:hover { background-color: rgb(2 132 199 / 0.32); }
+  .dark .text-sky-600,
+  .dark .text-sky-700,
+  .dark .text-sky-800 { color: rgb(125 211 252); }
+  .dark .border-sky-200,
+  .dark .border-sky-300 { border-color: rgb(14 165 233 / 0.45); }
+
+  .dark .bg-violet-50,
+  .dark .bg-fuchsia-50 { background-color: rgb(88 28 135 / 0.3); }
+  .dark .bg-violet-100,
+  .dark .bg-fuchsia-100 { background-color: rgb(168 85 247 / 0.24); }
+  .dark .hover\:bg-violet-50:hover,
+  .dark .hover\:bg-violet-100:hover,
+  .dark .hover\:bg-violet-200:hover,
+  .dark .hover\:bg-fuchsia-50:hover,
+  .dark .hover\:bg-fuchsia-100:hover,
+  .dark .hover\:bg-fuchsia-200:hover { background-color: rgb(168 85 247 / 0.32); }
+  .dark .text-violet-600,
+  .dark .text-violet-700,
+  .dark .text-violet-800,
+  .dark .text-fuchsia-600,
+  .dark .text-fuchsia-700,
+  .dark .text-fuchsia-800 { color: rgb(216 180 254); }
+  .dark .border-violet-200,
+  .dark .border-violet-300,
+  .dark .border-fuchsia-200,
+  .dark .border-fuchsia-300 { border-color: rgb(168 85 247 / 0.45); }
+
   .dark .bg-lime-50 { background-color: rgb(63 98 18 / 0.3); }
   .dark .bg-lime-100 { background-color: rgb(101 163 13 / 0.24); }
   .dark .hover\:bg-lime-50:hover,
@@ -712,4 +746,15 @@
   .dark .text-lime-800 { color: rgb(217 249 157); }
   .dark .border-lime-200,
   .dark .border-lime-300 { border-color: rgb(132 204 22 / 0.45); }
+
+  .dark .bg-slate-50 { background-color: rgb(15 23 42 / 0.72); }
+  .dark .bg-slate-100 { background-color: rgb(51 65 85 / 0.62); }
+  .dark .hover\:bg-slate-50:hover,
+  .dark .hover\:bg-slate-100:hover,
+  .dark .hover\:bg-slate-200:hover { background-color: rgb(71 85 105 / 0.64); }
+  .dark .text-slate-600,
+  .dark .text-slate-700,
+  .dark .text-slate-800 { color: rgb(203 213 225); }
+  .dark .border-slate-200,
+  .dark .border-slate-300 { border-color: rgb(100 116 139 / 0.5); }
 }

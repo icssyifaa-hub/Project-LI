@@ -59,7 +59,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
             </Button>
             <Button variant="outline" size="sm">
               <History className="h-4 w-4 mr-2" />
-              Activity Log
+              Activity
             </Button>
           </div>
           <div className="flex lg:hidden items-center space-x-2">

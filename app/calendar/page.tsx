@@ -618,6 +618,16 @@ export default function CalendarPage() {
     }
   }, [view, isInitialized])
 
+  const handleViewChange = useCallback((nextView: ViewType) => {
+    const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
+
+    if (nextView === 'schedule' && view !== 'schedule' && isMobile) {
+      setCurrentDate(createStableDate(new Date()))
+    }
+
+    setView(nextView)
+  }, [view])
+
   const handlePrev = useCallback(() => {
     const newDate = new Date(currentDate)
     switch (view) {
@@ -952,8 +962,8 @@ export default function CalendarPage() {
   const title = getTitle()
 
   return (
-    <div className="calendar-page-shell flex min-h-[calc(100vh-4rem)] flex-col overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100 lg:h-[calc(100vh-4rem)]">
-      <div className="calendar-header-surface border-b border-gray-200 bg-white px-2 py-2 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:px-4">
+    <div className="calendar-page-shell flex h-[calc(100dvh-4rem)] min-h-0 flex-col overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100">
+      <div className="calendar-header-surface sticky top-0 z-30 shrink-0 border-b border-gray-200 bg-white px-2 py-2 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:px-4">
         <div className="flex flex-col gap-2 sm:gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="grid min-w-0 grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-2 sm:gap-4">
             <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100 sm:text-xl">Calendar</h1>
@@ -992,7 +1002,7 @@ export default function CalendarPage() {
                 {viewOptions.map((option) => (
                   <DropdownMenuItem
                     key={option.value}
-                    onClick={() => setView(option.value as ViewType)}
+                    onClick={() => handleViewChange(option.value as ViewType)}
                     className={`cursor-pointer ${
                       view === option.value ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-200' : 'text-gray-700 dark:text-gray-200'
                     } hover:bg-gray-100 dark:hover:bg-gray-800`}
@@ -1056,12 +1066,12 @@ export default function CalendarPage() {
           </ResponsiveCalendarPanel>
         )}
 
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 py-3 lg:flex-row lg:gap-4 lg:overflow-hidden lg:px-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-3 py-3 lg:flex-row lg:gap-4 lg:px-4">
           <div className={`flex min-w-0 flex-col min-h-0 transition-all duration-300 ${
             showTaskInbox && showNotifications ? 'flex-[2]' : 
             showTaskInbox || showNotifications ? 'flex-[2.5]' : 'flex-1'
           }`}>
-            <div className="min-h-[520px] flex-1 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-950 sm:min-h-[560px] lg:min-h-0">
+            <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-950">
               {!isInitialized ? (
                 <div className="h-full flex items-center justify-center">
                   <div className="text-center">

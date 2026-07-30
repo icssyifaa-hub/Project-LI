@@ -336,10 +336,10 @@ function AddTaskModal({
         .from('tasks')
         .select('id')
         .eq(column, value.trim())
-        .maybeSingle()
+        .limit(1)
       
       if (error) throw error
-      return !!data
+      return (data || []).length > 0
     } catch (error) {
       console.error(`Error checking ${column}:`, error)
       return false
@@ -870,12 +870,16 @@ function EditTaskModal({
     try {
       const { data, error } = await supabase
         .from('tasks')
-        .select('id')
+        .select('id, job_group_id')
         .eq('job_order_number', jobOrderNumber)
-        .maybeSingle()
+        .limit(10)
 
       if (error) throw error
-      return !!data && data.id !== task.id
+      return (data || []).some((matchingTask) => {
+        if (matchingTask.id === task.id) return false
+        if (task.jobGroupId && matchingTask.job_group_id === task.jobGroupId) return false
+        return true
+      })
     } catch (error) {
       console.error('Error checking job order number:', error)
       return false

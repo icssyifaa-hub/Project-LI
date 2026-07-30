@@ -1272,7 +1272,7 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
               })}
             </div>
 
-            {Array.from({ length: 12 }, (_, i) => i + 8).map((hour) => (
+            {Array.from({ length: 24 }, (_, i) => i).map((hour) => (
               <div key={hour} className="grid grid-cols-8 divide-x min-h-[60px] border-b dark:divide-gray-800 dark:border-gray-800">
                 <div className="p-1 text-right text-xs text-gray-500 bg-gray-50 dark:bg-gray-900 dark:text-gray-400">
                   {hour.toString().padStart(2, '0')}:00

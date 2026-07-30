@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { CalendarViews } from './components/CalendarViews'
 import { useCalendarData } from '@/app/calendar/hooks/useCalendarData'
 import AddCalendarItemModal from './components/AddCalendarItemModal'
@@ -116,6 +116,7 @@ const isMobileViewport = () =>
 
 export default function CalendarPage() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const [currentDate, setCurrentDate] = useState(createStableDate(new Date()))
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedEndDate, setSelectedEndDate] = useState<Date | null>(null)
@@ -295,6 +296,7 @@ export default function CalendarPage() {
     const urlParams = new URLSearchParams(searchParamString)
     const followUpTaskId = urlParams.get('followUp')
     if (!followUpTaskId) return
+    const shouldReturnToJobOrders = urlParams.get('returnTo') === 'job-orders'
 
     const openFollowUpModal = async () => {
       try {
@@ -334,6 +336,10 @@ export default function CalendarPage() {
           jobOrderNumber: data.job_order_number || '',
           jobGroupId: getTaskJobGroupId(data),
           followUpOfTaskId: data.id,
+          sourceDateStart: data.date_start || null,
+          sourceDateStop: data.date_stop || null,
+          sourcePicName: data.task_pic_name || null,
+          returnToJobOrders: shouldReturnToJobOrders,
         })
         setShowItemModal(true)
       } catch (error: any) {
@@ -344,6 +350,7 @@ export default function CalendarPage() {
         })
       } finally {
         urlParams.delete('followUp')
+        urlParams.delete('returnTo')
         const newQuery = urlParams.toString()
         window.history.replaceState({}, '', `${window.location.pathname}${newQuery ? `?${newQuery}` : ''}`)
       }
@@ -657,7 +664,7 @@ export default function CalendarPage() {
       case 'year':
         return currentDate.getFullYear().toString()
       case 'schedule':
-        return 'Schedule'
+        return currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })
       default:
         return ''
     }
@@ -779,6 +786,9 @@ export default function CalendarPage() {
           job_order_number: data.job_order_number || prefilledTaskData.jobOrderNumber,
         }
       }
+      const returnToJobOrdersGroupId = type === 'task' && prefilledTaskData?.returnToJobOrders
+        ? finalData.job_group_id || prefilledTaskData.jobGroupId
+        : null
       
       if (type === 'event') {
         await saveEvent(finalData, selectedEvent)
@@ -795,6 +805,10 @@ export default function CalendarPage() {
       if (type === 'task') {
         setTaskInboxRefreshKey((key) => key + 1)
       }
+
+      if (returnToJobOrdersGroupId) {
+        router.push(`/job-orders?group=${encodeURIComponent(returnToJobOrdersGroupId)}&flash=1`)
+      }
       
     } catch (error: any) {
       console.error('Error in handleSaveItem:', error)
@@ -806,7 +820,7 @@ export default function CalendarPage() {
     } finally {
       setIsSaving(false)
     }
-  }, [isSaving, prefilledTaskData, saveEvent, saveTask, selectedEvent, selectedTask, refresh, toast])
+  }, [isSaving, prefilledTaskData, saveEvent, saveTask, selectedEvent, selectedTask, refresh, router, toast])
 
   const handleDeleteItem = useCallback(async (id: string, type: 'event' | 'task') => {
     if (isDeleting) return

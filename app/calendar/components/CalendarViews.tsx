@@ -1,7 +1,7 @@
 'use client'
 import React, { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { Plus, CalendarCheck, X, Edit2, PartyPopper, UserRound } from 'lucide-react'
+import { Plus, CalendarCheck, X, Edit2, PartyPopper, UserRound, Briefcase } from 'lucide-react'
 import type { Task, Event } from '@/app/calendar/types/calendar'
 import { MALAYSIA_STATES } from '@/app/settings-admin/types'
 import { getItemStyleClasses, getItemBgClass, getBadgeClass, getDotClass, getSolidClass } from '@/lib/colors'
@@ -227,9 +227,10 @@ interface ItemDetailPopupProps {
   position?: { x: number; y: number } | null
   onClose: () => void
   onEdit: () => void
+  onFollowUp?: () => void
 }
 
-const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, position, onClose, onEdit }) => {
+const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, position, onClose, onEdit, onFollowUp }) => {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString('en-GB', { 
@@ -360,6 +361,7 @@ const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, position,
         transform: 'translate(-50%, -50%)',
       }
     : undefined
+  const canAddFollowUp = type === 'task' && item.jobStatus !== 'completed' && !!onFollowUp
 
   return (
     <div
@@ -407,18 +409,33 @@ const ItemDetailPopup: React.FC<ItemDetailPopupProps> = ({ item, type, position,
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>
-          <Button 
-            onClick={() => {
-              onEdit()
-              onClose()
-            }}
-            className={type === 'event'
-              ? 'bg-purple-600 text-white hover:bg-purple-700 dark:bg-purple-500 dark:text-purple-950 dark:hover:bg-purple-400'
-              : 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-400'}
-          >
-            <Edit2 className="h-4 w-4 mr-2" />
-            Edit
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            {canAddFollowUp && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  onFollowUp?.()
+                  onClose()
+                }}
+                className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-300 dark:bg-blue-50 dark:text-blue-700 dark:hover:bg-blue-100"
+              >
+                <Briefcase className="h-4 w-4 mr-2" />
+                Follow-up
+              </Button>
+            )}
+            <Button 
+              onClick={() => {
+                onEdit()
+                onClose()
+              }}
+              className={type === 'event'
+                ? 'bg-purple-600 text-white hover:bg-purple-700 dark:bg-purple-500 dark:text-purple-950 dark:hover:bg-purple-400'
+                : 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-400'}
+            >
+              <Edit2 className="h-4 w-4 mr-2" />
+              Edit
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -434,6 +451,7 @@ interface CalendarViewsProps {
   loading: boolean
   onAddClick: (date: Date, endDate?: Date | null) => void
   onEditTask: (task: Task) => void
+  onFollowUpTask?: (task: Task) => void
   onEditEvent: (event: Event) => void
   onViewChange?: (view: 'day' | 'week' | 'month' | 'year' | 'schedule') => void
   onMonthSelect?: (date: Date) => void
@@ -454,6 +472,7 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
   loading,
   onAddClick,
   onEditTask,
+  onFollowUpTask,
   onEditEvent,
   onViewChange,
   onMonthSelect,
@@ -1076,6 +1095,11 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
             setSelectedItem(null)
             setSelectedMoreItems(null)
           }}
+          onFollowUp={selectedItem.type === 'task' && onFollowUpTask ? () => {
+            onFollowUpTask(selectedItem.item)
+            setSelectedItem(null)
+            setSelectedMoreItems(null)
+          } : undefined}
         />
       )}
 

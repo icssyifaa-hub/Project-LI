@@ -1126,7 +1126,7 @@ export default function JobOrdersPage() {
                                     {group.hasMultipleTasks ? (
                                       <button
                                         type="button"
-                                        className="rounded p-0.5 text-blue-900 hover:bg-blue-50"
+                                        className="rounded p-0.5 !text-black hover:bg-black/5 dark:!text-black dark:hover:bg-black/5"
                                         onClick={() => handleToggleGroup(group.key)}
                                         aria-label={isExpanded ? 'Hide follow-up rows' : 'Show follow-up rows'}
                                       >
@@ -1154,7 +1154,7 @@ export default function JobOrdersPage() {
                               <div className="flex min-w-[220px] items-center gap-2">
                                 <span className="truncate font-medium text-black" title={task.client_name}>{task.client_name}</span>
                                 {isFirstTask && group.hasMultipleTasks && (
-                                  <span className="shrink-0 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                                  <span className="shrink-0 rounded-full border ![border-color:#bfdbfe] ![background-color:#dbeafe] px-2 py-0.5 text-[11px] font-semibold !text-black dark:![border-color:#bfdbfe] dark:![background-color:#dbeafe] dark:!text-black">
                                     {group.taskCount} tasks
                                   </span>
                                 )}

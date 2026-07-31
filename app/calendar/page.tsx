@@ -51,6 +51,14 @@ const createStableDate = (date: Date): Date => {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0)
 }
 
+const createStableMonthDate = (date: Date, monthOffset: number): Date => {
+  return new Date(date.getFullYear(), date.getMonth() + monthOffset, 1, 12, 0, 0)
+}
+
+const createStableYearDate = (date: Date, yearOffset: number): Date => {
+  return new Date(date.getFullYear() + yearOffset, 0, 1, 12, 0, 0)
+}
+
 const formatDateKey = (date: Date): string => {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -635,9 +643,9 @@ export default function CalendarPage() {
     switch (view) {
       case 'day': newDate.setDate(currentDate.getDate() - 1); break
       case 'week': newDate.setDate(currentDate.getDate() - 7); break
-      case 'month': newDate.setMonth(currentDate.getMonth() - 1); break
-      case 'year': newDate.setFullYear(currentDate.getFullYear() - 1); break
-      case 'schedule': newDate.setMonth(currentDate.getMonth() - 1); break
+      case 'month': setCurrentDate(createStableMonthDate(currentDate, -1)); return
+      case 'year': setCurrentDate(createStableYearDate(currentDate, -1)); return
+      case 'schedule': setCurrentDate(createStableMonthDate(currentDate, -1)); return
     }
     newDate.setHours(12, 0, 0, 0)
     setCurrentDate(newDate)
@@ -648,9 +656,9 @@ export default function CalendarPage() {
     switch (view) {
       case 'day': newDate.setDate(currentDate.getDate() + 1); break
       case 'week': newDate.setDate(currentDate.getDate() + 7); break
-      case 'month': newDate.setMonth(currentDate.getMonth() + 1); break
-      case 'year': newDate.setFullYear(currentDate.getFullYear() + 1); break
-      case 'schedule': newDate.setMonth(currentDate.getMonth() + 1); break
+      case 'month': setCurrentDate(createStableMonthDate(currentDate, 1)); return
+      case 'year': setCurrentDate(createStableYearDate(currentDate, 1)); return
+      case 'schedule': setCurrentDate(createStableMonthDate(currentDate, 1)); return
     }
     newDate.setHours(12, 0, 0, 0)
     setCurrentDate(newDate)
@@ -704,6 +712,32 @@ export default function CalendarPage() {
     setSelectedEndDate(null)
     setSelectedItemType('task')
     setPrefilledTaskData(null)
+    setShowItemModal(true)
+  }, [])
+
+  const handleFollowUpTask = useCallback((task: Task) => {
+    setSelectedTask(null)
+    setSelectedEvent(null)
+    setSelectedDate(null)
+    setSelectedEndDate(null)
+    setSelectedItemType('task')
+    setPrefilledTaskData({
+      clientName: task.clientName || '',
+      clientId: task.clientId || '',
+      location: task.location || '',
+      address: task.address || '',
+      jobTask: task.jobTask || '',
+      jobOrderNumber: task.jobOrderNumber || '',
+      jobGroupId: task.jobGroupId || getTaskJobGroupId({
+        id: task.id,
+        job_group_id: task.jobGroupId,
+        job_order_number: task.jobOrderNumber,
+      }),
+      followUpOfTaskId: task.id,
+      sourceDateStart: task.dateStart || null,
+      sourceDateStop: task.dateStop || null,
+      sourcePicName: task.task_pic_name || null,
+    })
     setShowItemModal(true)
   }, [])
 
@@ -1091,6 +1125,7 @@ export default function CalendarPage() {
                   loading={loading}
                   onAddClick={handleAddClick}
                   onEditTask={handleEditTask}
+                  onFollowUpTask={handleFollowUpTask}
                   onEditEvent={handleEditEvent}
                   onDragOver={handleDragOver}
                   onDrop={handleDrop}

@@ -1698,7 +1698,9 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
               return (
                 <div className="divide-y divide-gray-200 dark:divide-white/10">
                   {datesWithItems.map(({ date, items, holidays: dayHolidays }) => {
+                    const dateKey = formatDateKey(date)
                     const isToday = formatDateKey(date) === formatDateKey(new Date())
+                    const isFocusedDate = dateKey === focusedDateKey
                     const scheduleItems = sortScheduleItems([
                       ...items,
                       ...dayHolidays.map((holiday: any) => ({
@@ -1710,9 +1712,11 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                     
                     return (
                       <div 
-                        key={formatDateKey(date)} 
+                        key={dateKey} 
                         className={`grid grid-cols-[54px_minmax(0,1fr)] gap-1 px-3 py-2 sm:grid-cols-[76px_minmax(120px,160px)_minmax(0,1fr)] sm:gap-4 sm:px-5 ${
                           isToday ? 'bg-blue-50 dark:bg-white/[0.04]' : ''
+                        } ${
+                          isFocusedDate ? 'bg-blue-100 ring-2 ring-blue-600 ring-inset dark:bg-blue-950/50 dark:ring-blue-500' : ''
                         }`}
                       >
                         <button
@@ -1720,7 +1724,11 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                           className="flex flex-col items-center gap-0.5 pt-0.5 text-left sm:grid sm:grid-cols-[24px_1fr] sm:items-start sm:gap-2"
                           onClick={() => handleDateClick(date)}
                         >
-                          <span className="text-lg font-medium leading-none text-gray-900 sm:text-base sm:font-bold dark:text-gray-100">{date.getDate()}</span>
+                          <span className={`flex h-8 w-8 items-center justify-center rounded-full text-lg font-medium leading-none sm:h-7 sm:w-7 sm:text-base sm:font-bold ${
+                            isFocusedDate ? 'bg-blue-600 text-white dark:bg-blue-600 dark:text-white' : 'text-gray-900 dark:text-gray-100'
+                          }`}>
+                            {date.getDate()}
+                          </span>
                           <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 sm:pt-0.5 sm:text-[11px] dark:text-gray-400">
                             <span className="hidden sm:inline">{months[date.getMonth()].slice(0, 3)}, </span>
                             {weekDays[date.getDay()]}

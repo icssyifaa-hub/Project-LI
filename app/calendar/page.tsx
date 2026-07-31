@@ -371,9 +371,11 @@ export default function CalendarPage() {
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
+    const inboxFromUrl = urlParams.get('inbox')
     const taskIdFromUrl = urlParams.get('task')
     const eventIdFromUrl = urlParams.get('event')
-    const highlightTaskId = localStorage.getItem('highlight_task_id') || taskIdFromUrl
+    const storedHighlightTaskId = localStorage.getItem('highlight_task_id')
+    const highlightTaskId = storedHighlightTaskId || (inboxFromUrl === '1' ? null : taskIdFromUrl)
     const highlightEventId = localStorage.getItem('highlight_event_id') || eventIdFromUrl
     
     if (highlightTaskId) {

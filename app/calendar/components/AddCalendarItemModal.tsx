@@ -36,7 +36,6 @@ import {
     Trash2,
     UserPlus,
     Users,
-    Search,
     X,
     ExternalLink,
     Eye
@@ -45,7 +44,7 @@ import { useCallback, useEffect, useState, useRef } from 'react'
 // PDF upload/delete removed - using job order number/final report number instead
 import { Combobox } from '@/components/ui/combobox'
 import { getDotClass } from '@/lib/colors'
-import { createJobGroupId, getTaskJobGroupId, isSameJobOrderFollowUp } from '@/lib/job-groups'
+import { createJobGroupId, isSameJobOrderFollowUp } from '@/lib/job-groups'
 import {
   Client,
   fetchClients,
@@ -54,7 +53,6 @@ import {
   getUniqueClientNames,
 } from '@/lib/settings/clients'
 import { fetchJobTaskNames } from '@/lib/settings/job-tasks'
-import { getTaskClient, TASK_CLIENT_SELECT, type TaskClientRecord } from '@/lib/settings/task-client'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -105,26 +103,6 @@ interface AddCalendarItemModalProps {
 }
 
 type TaskPrefillData = NonNullable<AddCalendarItemModalProps['prefilledData']>
-
-type FollowUpSourceTask = {
-  id: string
-  client_name?: string | null
-  client_id?: string | null
-  location?: string | null
-  address?: string | null
-  job_task?: string | null
-  job_group_id?: string | null
-  job_order_number?: string | null
-  date_start?: string | null
-  date_stop?: string | null
-  task_pic_id?: string | null
-  task_pic_name?: string | null
-  task_pic_color?: string | null
-  final_report_number?: string | null
-  updated_at?: string | null
-  created_at?: string | null
-  client?: TaskClientRecord | TaskClientRecord[] | null
-}
 
 const formatDateToString = (date: Date): string => {
   const year = date.getFullYear()
@@ -272,14 +250,9 @@ export default function AddCalendarItemModal({
   const [taskData, setTaskData] = useState(initialTaskData)
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [modalFollowUpData, setModalFollowUpData] = useState<TaskPrefillData | null>(null)
-  const [showFollowUpPicker, setShowFollowUpPicker] = useState(false)
-  const [followUpSourceQuery, setFollowUpSourceQuery] = useState('')
-  const [followUpSourceTasks, setFollowUpSourceTasks] = useState<FollowUpSourceTask[]>([])
-  const [loadingFollowUpSources, setLoadingFollowUpSources] = useState(false)
   const effectivePrefilledData = modalFollowUpData || prefilledData
   const isFollowUpMode = activeTab === 'task' && !selectedItem && !!effectivePrefilledData?.followUpOfTaskId
   const isInheritedJobOrderLocked = isFollowUpMode && !!effectivePrefilledData?.jobOrderNumber
-  const canChooseFollowUpSource = activeTab === 'task' && !selectedItem && !isFollowUpMode
   
   const initialLoadDone = useRef(false)
   
@@ -507,9 +480,6 @@ export default function AddCalendarItemModal({
     setShowEventPic(false)
     setShowEventSupport(false)
     setModalFollowUpData(null)
-    setShowFollowUpPicker(false)
-    setFollowUpSourceQuery('')
-    setFollowUpSourceTasks([])
     setErrors({})
     setTouched({})
     
@@ -566,88 +536,6 @@ export default function AddCalendarItemModal({
       setLoadingStaff(false)
     }
   }, [supabase])
-
-  const fetchFollowUpSourceTasks = useCallback(async () => {
-    setLoadingFollowUpSources(true)
-    try {
-      const query = followUpSourceQuery.trim().replace(/[(),]/g, ' ')
-      let request = supabase
-        .from('tasks')
-        .select(TASK_CLIENT_SELECT)
-        .order('date_start', { ascending: false, nullsFirst: false })
-        .order('updated_at', { ascending: false })
-        .limit(query ? 30 : 15)
-
-      if (query) {
-        request = request.or(
-          [
-            `client_name.ilike.%${query}%`,
-            `location.ilike.%${query}%`,
-            `job_order_number.ilike.%${query}%`,
-            `job_task.ilike.%${query}%`,
-            `task_pic_name.ilike.%${query}%`,
-          ].join(',')
-        )
-      }
-
-      const { data, error } = await request
-      if (error) throw error
-
-      setFollowUpSourceTasks((data || []) as FollowUpSourceTask[])
-    } catch (error) {
-      console.error('Error fetching follow-up source tasks:', error)
-      setFollowUpSourceTasks([])
-    } finally {
-      setLoadingFollowUpSources(false)
-    }
-  }, [followUpSourceQuery, supabase])
-
-  const handleSelectFollowUpSource = (task: FollowUpSourceTask) => {
-    const client = getTaskClient(task)
-    const nextFollowUpData: TaskPrefillData = {
-      clientName: client.client_name || '',
-      clientId: client.id || '',
-      location: client.location || '',
-      address: client.address || '',
-      jobTask: task.job_task || '',
-      jobOrderNumber: task.job_order_number || '',
-      jobGroupId: getTaskJobGroupId(task),
-      followUpOfTaskId: task.id,
-      sourceDateStart: task.date_start || null,
-      sourceDateStop: task.date_stop || null,
-      sourcePicName: task.task_pic_name || null,
-    }
-
-    setModalFollowUpData(nextFollowUpData)
-    setShowFollowUpPicker(false)
-    setTaskData((prev) => ({
-      ...prev,
-      clientName: nextFollowUpData.clientName || '',
-      clientId: nextFollowUpData.clientId || '',
-      location: nextFollowUpData.location || '',
-      address: nextFollowUpData.address || '',
-      jobTask: nextFollowUpData.jobTask || '',
-      jobGroupId: nextFollowUpData.jobGroupId || createJobGroupId(),
-      jobOrderNumber: nextFollowUpData.jobOrderNumber || '',
-      finalReportNumber: '',
-      task_pic_id: '',
-      task_pic_name: '',
-      task_pic_color: '',
-      task_support_ids: [],
-      task_support_names: [],
-      task_support_colors: [],
-    }))
-    setShowSupport(false)
-    setShowFinalReport(false)
-    setErrors((prev) => ({
-      ...prev,
-      clientName: '',
-      location: '',
-      jobTask: '',
-      jobOrderNumber: '',
-      finalReportNumber: '',
-    }))
-  }
 
   const populateTaskForm = useCallback((item: any) => {
     let taskSupportIdsArray: string[] = []
@@ -842,16 +730,6 @@ export default function AddCalendarItemModal({
   }, [isOpen, selectedItem, selectedDate, selectedEndDate, selectedType, prefilledData, populateEventForm, populateTaskForm, resetForm, fetchJobTasks, fetchTaskClients, fetchStaff])
 
   useEffect(() => {
-    if (!isOpen || !showFollowUpPicker) return
-
-    const timer = setTimeout(() => {
-      fetchFollowUpSourceTasks()
-    }, 250)
-
-    return () => clearTimeout(timer)
-  }, [fetchFollowUpSourceTasks, isOpen, showFollowUpPicker])
-
-  useEffect(() => {
     if (!isOpen || activeTab !== 'task') return
 
     const jobOrderNumber = normalizeJobOrderNumber(taskData.jobOrderNumber)
@@ -873,13 +751,6 @@ export default function AddCalendarItemModal({
         }
       }
 
-      if (finalReportNumber && validateFinalReportNumberForJobTask(finalReportNumber, taskData.jobTask)) {
-        const exists = await checkTaskNumberExists('final_report_number', finalReportNumber, currentTaskId)
-        if (exists) {
-          duplicateErrors.finalReportNumber = `Final Report Number "${finalReportNumber}" already exists. Please use a different number.`
-        }
-      }
-
       setTouched(prev => ({
         ...prev,
         ...(jobOrderNumber ? { jobOrderNumber: true } : {}),
@@ -888,7 +759,6 @@ export default function AddCalendarItemModal({
       setErrors(prev => {
         const next = { ...prev }
         if (next.jobOrderNumber?.includes('already exists')) delete next.jobOrderNumber
-        if (next.finalReportNumber?.includes('already exists')) delete next.finalReportNumber
         return { ...next, ...duplicateErrors }
       })
     }, 800)
@@ -1321,21 +1191,14 @@ export default function AddCalendarItemModal({
     if (activeTab === 'task') {
       const currentTaskId = selectedItem?.id
       const jobOrderNumber = normalizeJobOrderNumber(taskData.jobOrderNumber)
-      const finalReportNumber = normalizeFinalReportNumber(taskData.finalReportNumber)
       const duplicateErrors: {[key: string]: string} = {}
 
-      const [jobOrderExists, finalReportExists] = await Promise.all([
-        jobOrderNumber && !isSameJobOrderFollowUp(jobOrderNumber, effectivePrefilledData?.jobOrderNumber)
-          ? checkTaskNumberExists('job_order_number', jobOrderNumber, currentTaskId)
-          : Promise.resolve(false),
-        finalReportNumber ? checkTaskNumberExists('final_report_number', finalReportNumber, currentTaskId) : Promise.resolve(false),
-      ])
+      const jobOrderExists = jobOrderNumber && !isSameJobOrderFollowUp(jobOrderNumber, effectivePrefilledData?.jobOrderNumber)
+        ? await checkTaskNumberExists('job_order_number', jobOrderNumber, currentTaskId)
+        : false
 
       if (jobOrderExists) {
         duplicateErrors.jobOrderNumber = `Job Order Number "${jobOrderNumber}" already exists. Please use a different number.`
-      }
-      if (finalReportExists) {
-        duplicateErrors.finalReportNumber = `Final Report Number "${finalReportNumber}" already exists. Please use a different number.`
       }
 
       if (Object.keys(duplicateErrors).length > 0) {
@@ -1671,32 +1534,30 @@ export default function AddCalendarItemModal({
                 {activeTab === 'task' && (
                   <>
                     {isFollowUpMode && (
-                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">
-                        <div className="mb-2 flex items-center gap-2 font-semibold">
-                          <Briefcase className="h-4 w-4 text-blue-700" />
+                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950 dark:border-blue-500/70 dark:bg-blue-950/60 dark:text-blue-50">
+                        <div className="mb-2 flex items-center gap-2 font-semibold text-blue-950 dark:text-blue-50">
+                          <Briefcase className="h-4 w-4 text-blue-700 dark:text-blue-300" />
                           Follow-up task
                         </div>
                         <div className="grid gap-2 sm:grid-cols-2">
                           <div>
-                            <span className="block text-xs font-semibold uppercase text-blue-700">Client</span>
-                            <span className="block truncate">{effectivePrefilledData?.clientName || '-'}</span>
+                            <span className="block text-xs font-semibold uppercase text-blue-700 dark:text-blue-200">Client</span>
+                            <span className="block truncate text-blue-950 dark:text-blue-50">{effectivePrefilledData?.clientName || '-'}</span>
                           </div>
                           <div>
-                            <span className="block text-xs font-semibold uppercase text-blue-700">Source date</span>
-                            <span className="block truncate">{followUpSourceDate}</span>
+                            <span className="block text-xs font-semibold uppercase text-blue-700 dark:text-blue-200">Previous date</span>
+                            <span className="block truncate text-blue-950 dark:text-blue-50">{followUpSourceDate}</span>
                           </div>
                           <div>
-                            <span className="block text-xs font-semibold uppercase text-blue-700">Job order</span>
-                            <span className="block truncate font-mono">{effectivePrefilledData?.jobOrderNumber || 'No job order number'}</span>
+                            <span className="block text-xs font-semibold uppercase text-blue-700 dark:text-blue-200">Job order</span>
+                            <span className="block truncate text-blue-950 dark:text-blue-50">{effectivePrefilledData?.jobOrderNumber || 'No job order number'}</span>
                           </div>
                           <div>
-                            <span className="block text-xs font-semibold uppercase text-blue-700">Previous PIC</span>
-                            <span className="block truncate">{effectivePrefilledData?.sourcePicName || effectivePrefilledData?.task_pic_name || '-'}</span>
+                            <span className="block text-xs font-semibold uppercase text-blue-700 dark:text-blue-200">Previous PIC</span>
+                            <span className="block truncate text-blue-950 dark:text-blue-50">{effectivePrefilledData?.sourcePicName || effectivePrefilledData?.task_pic_name || '-'}</span>
                           </div>
                         </div>
-                        <p className="mt-2 text-xs text-blue-700">
-                          Client, location, and job order stay linked to the same follow-up group. Set the new date, reminder, and PIC for this visit.
-                        </p>
+
                       </div>
                     )}
 
@@ -1711,21 +1572,9 @@ export default function AddCalendarItemModal({
                     <div className="space-y-2">
                       <div className="flex items-center justify-between gap-2">
                         <Label className="font-medium text-gray-900">Job Order Number</Label>
-                        {canChooseFollowUpSource ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-7 border-blue-200 bg-blue-50 px-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-                            onClick={() => setShowFollowUpPicker((current) => !current)}
-                            disabled={isSaving}
-                          >
-                            <Briefcase className="mr-1 h-3.5 w-3.5" />
-                            Follow-up
-                          </Button>
-                        ) : isInheritedJobOrderLocked && (
+                        {isInheritedJobOrderLocked && (
                           <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
-                            Inherited
+                            Linked
                           </span>
                         )}
                       </div>
@@ -1745,69 +1594,8 @@ export default function AddCalendarItemModal({
                       />
                       {isInheritedJobOrderLocked && (
                         <p className="text-xs text-gray-500">
-                          This follow-up uses the same job order number as the source task.
+                          This follow-up uses the same job order number with previous tasks.
                         </p>
-                      )}
-                      {showFollowUpPicker && canChooseFollowUpSource && (
-                        <div className="rounded-lg border border-blue-200 bg-blue-50/60 p-3">
-                          <div className="relative">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                            <Input
-                              value={followUpSourceQuery}
-                              onChange={(e) => setFollowUpSourceQuery(e.target.value)}
-                              placeholder="Search client, job order, job task, PIC..."
-                              className={`${inputClass} pl-9`}
-                              disabled={loadingFollowUpSources}
-                            />
-                          </div>
-                          <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
-                            {loadingFollowUpSources ? (
-                              <div className="flex items-center gap-2 rounded-md border border-blue-100 bg-white p-3 text-sm text-gray-600">
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                Loading tasks...
-                              </div>
-                            ) : followUpSourceTasks.length > 0 ? (
-                              followUpSourceTasks.map((task) => {
-                                const client = getTaskClient(task)
-                                const sourceDate = task.date_start
-                                  ? `${task.date_start}${task.date_stop ? ` - ${task.date_stop}` : ''}`
-                                  : 'Unscheduled'
-
-                                return (
-                                  <button
-                                    key={task.id}
-                                    type="button"
-                                    className="w-full rounded-md border border-blue-100 bg-white p-3 text-left text-sm transition-colors hover:border-blue-300 hover:bg-blue-50"
-                                    onClick={() => handleSelectFollowUpSource(task)}
-                                  >
-                                    <div className="flex items-start justify-between gap-3">
-                                      <div className="min-w-0">
-                                        <div className="truncate font-semibold text-gray-900">
-                                          {client.client_name || task.client_name || 'No client'}
-                                        </div>
-                                        <div className="mt-1 truncate text-xs text-gray-600">
-                                          {task.job_task || 'No job task'} - {client.location || task.location || 'No location'}
-                                        </div>
-                                      </div>
-                                      <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
-                                        Select
-                                      </span>
-                                    </div>
-                                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
-                                      <span className="font-mono">{task.job_order_number || 'No JO'}</span>
-                                      <span>{sourceDate}</span>
-                                      <span>{task.task_pic_name || 'No PIC'}</span>
-                                    </div>
-                                  </button>
-                                )
-                              })
-                            ) : (
-                              <div className="rounded-md border border-blue-100 bg-white p-3 text-sm text-gray-600">
-                                No existing task found.
-                              </div>
-                            )}
-                          </div>
-                        </div>
                       )}
                       <ErrorMessage field="jobOrderNumber" />
                     </div>
@@ -1817,7 +1605,7 @@ export default function AddCalendarItemModal({
                         <Label className={labelClass}>Client Name <span className={requiredClass}>*</span></Label>
                         {isFollowUpMode && (
                           <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
-                            Group linked
+                            Linked
                           </span>
                         )}
                       </div>
@@ -1840,7 +1628,7 @@ export default function AddCalendarItemModal({
                       )}
                       {isFollowUpMode && (
                         <p className="text-xs text-gray-500">
-                          Client is locked so this task stays inside the same follow-up group.
+                          This follow-up uses the same client name with previous tasks..
                         </p>
                       )}
                       <ErrorMessage field="clientName" />
@@ -1884,7 +1672,7 @@ export default function AddCalendarItemModal({
                       </Select>
                       {isFollowUpMode && (
                         <p className="text-xs text-gray-500">
-                          Location is inherited from the source task.
+                          Location is linked from the previous task.
                         </p>
                       )}
                       <ErrorMessage field="location" />
@@ -1910,9 +1698,14 @@ export default function AddCalendarItemModal({
                           }}
                           placeholder="Select job task"
                           emptyMessage="No job tasks found."
-                          disabled={isSaving}
+                          disabled={isSaving || isFollowUpMode}
                           className={touched.jobTask && errors.jobTask ? invalidInputClass : ''}
                         />
+                      )}
+                      {isFollowUpMode && (
+                        <p className="text-xs text-gray-500">
+                          Job task is linked from the previous task.
+                        </p>
                       )}
                       <ErrorMessage field="jobTask" />
                     </div>

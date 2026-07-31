@@ -116,7 +116,7 @@ const getStatusColor = (status: string) => {
       return 'border [border-color:#2563eb] [background-color:#dbeafe] [color:#1d4ed8]'
     case 'in-progress':
       return 'border [border-color:#eab308] [background-color:#fef08a] [color:#854d0e]'
-    case 'follow-up-required':
+    case 'follow-up':
       return 'border [border-color:#7c3aed] [background-color:#ede9fe] [color:#6d28d9]'
     case 'incomplete':
       return 'border [border-color:#ef4444] [background-color:#fecaca] [color:#b91c1c]'
@@ -137,8 +137,8 @@ const getStatusText = (status: string) => {
       return 'Upcoming'
     case 'in-progress':
       return 'In Progress'
-    case 'follow-up-required':
-      return 'Follow-up Required'
+    case 'follow-up':
+      return 'Follow-up'
     case 'incomplete':
       return 'Incomplete'
     case 'onhold':
@@ -209,7 +209,9 @@ const tableCellClass = 'border-r border-b border-black px-4 py-3'
 const tableMinWidthClass = 'min-w-[1380px]'
 const paginationButtonClass = 'border-gray-300 bg-white text-gray-900 shadow-sm hover:bg-gray-100 disabled:border-gray-200 disabled:bg-gray-200 disabled:text-gray-500 disabled:opacity-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:disabled:border-gray-800 dark:disabled:bg-gray-800 dark:disabled:text-gray-500'
 const activePaginationButtonClass = 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-white dark:hover:bg-blue-400'
+const documentCheckboxClass = '![border-color:#94a3b8] ![background-color:#f8fafc] ![color:#ffffff] shadow-sm data-[state=checked]:![border-color:#2563eb] data-[state=checked]:![background-color:#2563eb] data-[state=checked]:![color:#ffffff] dark:![border-color:#94a3b8] dark:![background-color:#f8fafc] dark:![color:#ffffff] dark:data-[state=checked]:![border-color:#2563eb] dark:data-[state=checked]:![background-color:#2563eb] dark:data-[state=checked]:![color:#ffffff]'
 const rowsPerPageOptions = ['10', '25', '50', '100', 'all']
+const GROUP_FOCUS_HIGHLIGHT_DURATION_MS = 5000
 
 const getUniqueStaffEntries = (entries: { name?: string | null; color?: string | null }[]) => {
   const staffMap = new Map<string, { name: string; color?: string }>()
@@ -694,7 +696,7 @@ export default function JobOrdersPage() {
   const getTaskRowStatus = (task: JobOrder, taskIndex: number, group: JobOrderGroup) => {
     const hasLaterFollowUp = group.hasMultipleTasks && taskIndex < group.tasks.length - 1
     if (hasLaterFollowUp && task.job_status !== 'completed' && !task.final_report_number) {
-      return 'follow-up-required'
+      return 'follow-up'
     }
 
     return task.job_status
@@ -734,12 +736,22 @@ export default function JobOrdersPage() {
           : bText.localeCompare(aText, undefined, { numeric: true, sensitivity: 'base' })
     })
 
-  const handleDocumentStatusChange = async (job: JobOrder, field: 'delivery_order' | 'invoice', checked: boolean) => {
+  const handleDocumentGroupStatusChange = async (group: JobOrderGroup, field: 'delivery_order' | 'invoice', checked: boolean) => {
     if (!isAdmin) return
 
-    setUpdatingDocumentStatus((current) => ({ ...current, [`${job.id}-${field}`]: true }))
+    const taskIds = group.tasks.map((task) => task.id)
+    if (taskIds.length === 0) return
+
+    setUpdatingDocumentStatus((current) => {
+      const next = { ...current }
+      taskIds.forEach((id) => {
+        next[`${id}-${field}`] = true
+      })
+      return next
+    })
+
     setJobOrders((current) =>
-      current.map((item) => item.id === job.id ? { ...item, [field]: checked } : item)
+      current.map((item) => taskIds.includes(item.id) ? { ...item, [field]: checked } : item)
     )
 
     try {
@@ -749,12 +761,15 @@ export default function JobOrdersPage() {
           [field]: checked,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', job.id)
+        .in('id', taskIds)
 
       if (error) throw error
     } catch (error: any) {
       setJobOrders((current) =>
-        current.map((item) => item.id === job.id ? { ...item, [field]: job[field] } : item)
+        current.map((item) => {
+          const originalTask = group.tasks.find((task) => task.id === item.id)
+          return originalTask ? { ...item, [field]: originalTask[field] } : item
+        })
       )
       toast({
         title: 'Error',
@@ -764,11 +779,23 @@ export default function JobOrdersPage() {
     } finally {
       setUpdatingDocumentStatus((current) => {
         const next = { ...current }
-        delete next[`${job.id}-${field}`]
+        taskIds.forEach((id) => {
+          delete next[`${id}-${field}`]
+        })
         return next
       })
     }
   }
+
+  const getGroupDocumentState = (group: JobOrderGroup, field: 'delivery_order' | 'invoice') => {
+    const checkedCount = group.tasks.filter((task) => task[field]).length
+    if (checkedCount === 0) return false
+    if (checkedCount === group.tasks.length) return true
+    return 'indeterminate' as const
+  }
+
+  const isGroupDocumentUpdating = (group: JobOrderGroup, field: 'delivery_order' | 'invoice') =>
+    group.tasks.some((task) => updatingDocumentStatus[`${task.id}-${field}`])
 
   const filteredAndSortedGroups = buildJobOrderGroups(filteredAndSortedJobs)
   const itemsPerPage = rowsPerPage === 'all' ? filteredAndSortedGroups.length || 1 : Number(rowsPerPage)
@@ -815,12 +842,17 @@ export default function JobOrdersPage() {
       })
     }
 
+  }, [filteredAndSortedGroups, itemsPerPage, rowsPerPage, toast])
+
+  useEffect(() => {
+    if (!focusedGroupKey || typeof window === 'undefined') return
+
     const timeoutId = window.setTimeout(() => {
-      setFocusedGroupKey((current) => current === groupKey ? null : current)
-    }, 4000)
+      setFocusedGroupKey(null)
+    }, GROUP_FOCUS_HIGHLIGHT_DURATION_MS)
 
     return () => window.clearTimeout(timeoutId)
-  }, [filteredAndSortedGroups, itemsPerPage, rowsPerPage, toast])
+  }, [focusedGroupKey])
 
   if (!user) return null
 
@@ -1063,6 +1095,12 @@ export default function JobOrdersPage() {
                   const groupNumber = rowsPerPage === 'all' ? index + 1 : (currentPage - 1) * itemsPerPage + index + 1
                   const isExpanded = expandedGroups[group.key] ?? true
                   const visibleTasks = isExpanded ? group.tasks : group.tasks.slice(0, 1)
+                  const mergedRowSpan = visibleTasks.length
+                  const groupJobOrderNumbers = Array.from(new Set(
+                    group.tasks
+                      .map((task) => task.job_order_number?.trim())
+                      .filter((value): value is string => !!value)
+                  ))
                   
                   return (
                     <Fragment key={group.key}>
@@ -1107,7 +1145,7 @@ export default function JobOrdersPage() {
                                   )}
                                 </div>
                               ) : (
-                                <span className="inline-flex rounded-sm border border-green-300 bg-green-50 px-1.5 py-0.5 text-[11px] font-semibold text-green-700">
+                                <span className="inline-flex rounded-sm border ![border-color:#86efac] ![background-color:#f0fdf4] px-1.5 py-0.5 text-[11px] font-semibold ![color:#15803d] dark:![border-color:#86efac] dark:![background-color:#f0fdf4] dark:![color:#15803d]">
                                   follow-up
                                 </span>
                               )}
@@ -1139,7 +1177,14 @@ export default function JobOrdersPage() {
                                   {formatListDate(task.date_start)}
                                 </button>
                               ) : (
-                                <span>-</span>
+                                <button
+                                  type="button"
+                                  className="font-semibold ![color:#003fd1] underline ![text-decoration-color:#003fd1] underline-offset-2 hover:![color:#002a9e] dark:![color:#003fd1] dark:![text-decoration-color:#003fd1] dark:hover:![color:#002a9e]"
+                                  onClick={() => handleDateClick(task.date_start, task)}
+                                  title="Open in unscheduled tasks"
+                                >
+                                  N/A
+                                </button>
                               )}
                             </td>
                             <td className={tableCellClass}>
@@ -1172,15 +1217,21 @@ export default function JobOrdersPage() {
                                 <span className="text-sm text-black">-</span>
                               )}
                             </td>
-                            <td className={tableCellClass}>
-                              {task.job_order_number ? (
-                                <span className="inline-flex min-w-[72px] items-center justify-center rounded-md border px-2.5 py-1 font-mono text-xs font-semibold shadow-sm [border-color:#2563eb] [background-color:#eff6ff] [color:#1d4ed8]">
-                                  {task.job_order_number}
-                                </span>
-                              ) : (
-                                <span className="text-black">-</span>
+                            {isFirstTask && (
+                              <td rowSpan={mergedRowSpan} className={`${tableCellClass} align-middle`}>
+                                <div className="flex min-w-[92px] flex-col items-center justify-center gap-1">
+                                  {groupJobOrderNumbers.length > 0 ? (
+                                    groupJobOrderNumbers.map((jobOrderNumber) => (
+                                      <span key={jobOrderNumber} className="inline-flex min-w-[72px] items-center justify-center rounded-md border px-2.5 py-1 font-mono text-xs font-semibold shadow-sm [border-color:#2563eb] [background-color:#eff6ff] [color:#1d4ed8]">
+                                        {jobOrderNumber}
+                                      </span>
+                                    ))
+                                  ) : (
+                                    <span className="text-black">-</span>
+                                  )}
+                                </div>
+                              </td>
                               )}
-                            </td>
                             <td className={tableCellClass}>
                               {task.final_report_number ? (
                                 <span className="inline-flex min-w-[72px] items-center justify-center rounded-md border px-2.5 py-1 font-mono text-xs font-semibold shadow-sm [border-color:#16a34a] [background-color:#f0fdf4] [color:#15803d]">
@@ -1190,28 +1241,32 @@ export default function JobOrdersPage() {
                                 <span className="text-black">-</span>
                               )}
                             </td>
-                            <td className={tableCellClass}>
-                              <div className="flex justify-center">
-                                <Checkbox
-                                  checked={task.delivery_order}
-                                  disabled={!isAdmin || updatingDocumentStatus[`${task.id}-delivery_order`]}
-                                  onCheckedChange={(checked) => handleDocumentStatusChange(task, 'delivery_order', checked === true)}
-                                  aria-label={`Delivery order for ${task.client_name}`}
-                                  className="border-gray-500 bg-white data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600"
-                                />
-                              </div>
-                            </td>
-                            <td className={tableCellClass}>
-                              <div className="flex justify-center">
-                                <Checkbox
-                                  checked={task.invoice}
-                                  disabled={!isAdmin || updatingDocumentStatus[`${task.id}-invoice`]}
-                                  onCheckedChange={(checked) => handleDocumentStatusChange(task, 'invoice', checked === true)}
-                                  aria-label={`Invoice for ${task.client_name}`}
-                                  className="border-gray-500 bg-white data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600"
-                                />
-                              </div>
-                            </td>
+                            {isFirstTask && (
+                              <td rowSpan={mergedRowSpan} className={`${tableCellClass} align-middle`}>
+                                <div className="flex justify-center">
+                                  <Checkbox
+                                    checked={getGroupDocumentState(group, 'delivery_order')}
+                                    disabled={!isAdmin || isGroupDocumentUpdating(group, 'delivery_order')}
+                                    onCheckedChange={(checked) => handleDocumentGroupStatusChange(group, 'delivery_order', checked === true)}
+                                    aria-label={`Delivery order for ${group.summary.client_name}`}
+                                    className={documentCheckboxClass}
+                                  />
+                                </div>
+                              </td>
+                            )}
+                            {isFirstTask && (
+                              <td rowSpan={mergedRowSpan} className={`${tableCellClass} align-middle`}>
+                                <div className="flex justify-center">
+                                  <Checkbox
+                                    checked={getGroupDocumentState(group, 'invoice')}
+                                    disabled={!isAdmin || isGroupDocumentUpdating(group, 'invoice')}
+                                    onCheckedChange={(checked) => handleDocumentGroupStatusChange(group, 'invoice', checked === true)}
+                                    aria-label={`Invoice for ${group.summary.client_name}`}
+                                    className={documentCheckboxClass}
+                                  />
+                                </div>
+                              </td>
+                            )}
                             <td className={tableCellClass}>
                               <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm ${getStatusColor(rowStatus)}`}>
                                 {getStatusText(rowStatus)}

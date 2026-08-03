@@ -35,6 +35,7 @@ import {
   isMissingClientTableError,
 } from '@/lib/settings/clients'
 import { SettingsPagination, useSettingsPagination } from '@/app/settings-admin/components/SettingsPagination'
+import { SortableHeader, compareSortValues, type SortDirection } from '@/app/settings-admin/components/SortableHeader'
 
 const tableHeaderCellClass = 'border-r border-black px-4 py-3 text-left text-[12px] font-semibold uppercase text-gray-700 dark:text-gray-200'
 const tableCellClass = 'border-r border-black px-4 py-3 text-black dark:text-gray-100'
@@ -45,6 +46,8 @@ type ClientFormData = {
   location: string
   address: string
 }
+
+type ClientSortField = 'client_name' | 'location' | 'address'
 
 const initialFormData: ClientFormData = {
   client_name: '',
@@ -77,6 +80,8 @@ export default function ClientPage() {
   const [saving, setSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
+  const [sortField, setSortField] = useState<ClientSortField>('client_name')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [pendingDeleteClient, setPendingDeleteClient] = useState<Client | null>(null)
@@ -122,7 +127,19 @@ export default function ClientPage() {
       (client.address || '').toLowerCase().includes(keyword)
     )
   })
-  const clientsPagination = useSettingsPagination(filteredClients)
+  const sortedClients = [...filteredClients].sort((a, b) =>
+    compareSortValues(a[sortField], b[sortField], sortDirection)
+  )
+  const handleSort = (field: ClientSortField) => {
+    if (sortField === field) {
+      setSortDirection((current) => current === 'asc' ? 'desc' : 'asc')
+      return
+    }
+
+    setSortField(field)
+    setSortDirection('asc')
+  }
+  const clientsPagination = useSettingsPagination(sortedClients)
   const clientTableRows = getClientTableRows(
     clientsPagination.paginatedRows,
     clientsPagination.pageStart
@@ -273,9 +290,9 @@ export default function ClientPage() {
               <thead className="bg-gray-100 dark:bg-gray-800">
                 <tr className="border-b border-black">
                   <th className={`${tableHeaderCellClass} w-20`}>No</th>
-                  <th className={tableHeaderCellClass}>Client Name</th>
-                  <th className={tableHeaderCellClass}>Location</th>
-                  <th className={tableHeaderCellClass}>Address</th>
+                  <SortableHeader label="Client Name" field="client_name" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={tableHeaderCellClass} />
+                  <SortableHeader label="Location" field="location" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={tableHeaderCellClass} />
+                  <SortableHeader label="Address" field="address" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={tableHeaderCellClass} />
                   <th className={`${tableHeaderCellClass} w-28`}>Actions</th>
                 </tr>
               </thead>

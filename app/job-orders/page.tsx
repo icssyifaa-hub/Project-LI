@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
 import {
   Calendar,
+  ArrowDown,
+  ArrowUp,
   ArrowUpDown,
   Download,
   FileText,
@@ -670,6 +672,13 @@ export default function JobOrdersPage() {
     }
   }
 
+  const renderSortIcon = (field: JobOrderSortField) => {
+    if (sortField !== field) return <ArrowUpDown className="h-3 w-3 shrink-0 text-gray-500" />
+    return sortDirection === 'asc'
+      ? <ArrowUp className="h-3 w-3 shrink-0 text-blue-700" />
+      : <ArrowDown className="h-3 w-3 shrink-0 text-blue-700" />
+  }
+
   const handleDateClick = (date: string | null, job?: JobOrder) => {
     if (!date) {
       if (job) {
@@ -1025,46 +1034,46 @@ export default function JobOrdersPage() {
               <tr className="border-b border-black">
                 <th className={`${tableHeaderCellClass} w-28 min-w-[112px]`}>No</th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('client_name')}>
-                  <div className="flex items-center space-x-1">Client Name <ArrowUpDown className="h-3 w-3" /></div>
+                  <div className="flex w-full items-center justify-between gap-2">Client Name {renderSortIcon('client_name')}</div>
                 </th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('location')}>
-                  <div className="flex items-center space-x-1">Location <ArrowUpDown className="h-3 w-3" /></div>
+                  <div className="flex w-full items-center justify-between gap-2">Location {renderSortIcon('location')}</div>
                 </th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('job_task')}>
-                  <div className="flex items-center space-x-1">Job Task <ArrowUpDown className="h-3 w-3" /></div>
+                  <div className="flex w-full items-center justify-between gap-2">Job Task {renderSortIcon('job_task')}</div>
                 </th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('date_start')}>
-                  <div className="flex items-center space-x-1">Start Date <ArrowUpDown className="h-3 w-3" /></div>
+                  <div className="flex w-full items-center justify-between gap-2">Start Date {renderSortIcon('date_start')}</div>
                 </th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('date_stop')}>
-                  <div className="flex items-center space-x-1">End Date <ArrowUpDown className="h-3 w-3" /></div>
+                  <div className="flex w-full items-center justify-between gap-2">End Date {renderSortIcon('date_stop')}</div>
                 </th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('reminder')}>
-                  <div className="flex items-center space-x-1">Reminder (25d) <ArrowUpDown className="h-3 w-3" /></div>
+                  <div className="flex w-full items-center justify-between gap-2">Reminder (25d) {renderSortIcon('reminder')}</div>
                 </th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('task_pic_name')}>
-                  <div className="flex items-center space-x-1">PIC <ArrowUpDown className="h-3 w-3" /></div>
+                  <div className="flex w-full items-center justify-between gap-2">PIC {renderSortIcon('task_pic_name')}</div>
                 </th>
                 <th className={`${sortableHeaderCellClass} min-w-[240px]`} onClick={() => handleSort('support_staff')}>
-                  <div className="flex items-center space-x-1">Support Staff <ArrowUpDown className="h-3 w-3" /></div>
+                  <div className="flex w-full items-center justify-between gap-2">Support Staff {renderSortIcon('support_staff')}</div>
                 </th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('job_order_number')}>
-                  <div className="flex items-center space-x-1">Job Order <ArrowUpDown className="h-3 w-3" /></div>
+                  <div className="flex w-full items-center justify-between gap-2">Job Order {renderSortIcon('job_order_number')}</div>
                 </th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('final_report_number')}>
-                  <div className="flex items-center space-x-1">Final Report <ArrowUpDown className="h-3 w-3" /></div>
+                  <div className="flex w-full items-center justify-between gap-2">Final Report {renderSortIcon('final_report_number')}</div>
                 </th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('delivery_order')}>
-                  <div className="flex items-center space-x-1">Delivery Order <ArrowUpDown className="h-3 w-3" /></div>
+                  <div className="flex w-full items-center justify-between gap-2">Delivery Order {renderSortIcon('delivery_order')}</div>
                 </th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('invoice')}>
-                  <div className="flex items-center space-x-1">Invoice <ArrowUpDown className="h-3 w-3" /></div>
+                  <div className="flex w-full items-center justify-between gap-2">Invoice {renderSortIcon('invoice')}</div>
                 </th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('job_status')}>
-                  <div className="flex items-center space-x-1">Status <ArrowUpDown className="h-3 w-3" /></div>
+                  <div className="flex w-full items-center justify-between gap-2">Status {renderSortIcon('job_status')}</div>
                 </th>
                 <th className={`${sortableHeaderCellClass} min-w-[280px]`} onClick={() => handleSort('additional_remark')}>
-                  <div className="flex items-center space-x-1">Additional Remark <ArrowUpDown className="h-3 w-3" /></div>
+                  <div className="flex w-full items-center justify-between gap-2">Additional Remark {renderSortIcon('additional_remark')}</div>
                 </th>
               </tr>
             </thead>

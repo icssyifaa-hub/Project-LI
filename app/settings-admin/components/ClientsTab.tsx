@@ -55,6 +55,9 @@ import {
   settingsTitleClass,
 } from './settings-styles'
 import { SettingsPagination, useSettingsPagination } from './SettingsPagination'
+import { SortableHeader, compareSortValues, type SortDirection } from './SortableHeader'
+
+type ClientSortField = 'client_name' | 'location' | 'address'
 
 const initialFormData: ClientFormData = {
   client_name: '',
@@ -76,6 +79,8 @@ export function ClientsTab() {
   const [pendingDeleteClient, setPendingDeleteClient] = useState<Client | null>(null)
   const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [sortField, setSortField] = useState<ClientSortField>('client_name')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [formData, setFormData] = useState<ClientFormData>(initialFormData)
 
   const filteredClient = client.filter((item) => {
@@ -88,7 +93,19 @@ export function ClientsTab() {
       (item.address || '').toLowerCase().includes(keyword)
     )
   })
-  const clientPagination = useSettingsPagination(filteredClient)
+  const sortedClient = [...filteredClient].sort((a, b) =>
+    compareSortValues(a[sortField], b[sortField], sortDirection)
+  )
+  const handleSort = (field: ClientSortField) => {
+    if (sortField === field) {
+      setSortDirection((current) => current === 'asc' ? 'desc' : 'asc')
+      return
+    }
+
+    setSortField(field)
+    setSortDirection('asc')
+  }
+  const clientPagination = useSettingsPagination(sortedClient)
   const clientTableRows = getClientTableRows(
     clientPagination.paginatedRows,
     clientPagination.pageStart
@@ -185,9 +202,9 @@ export function ClientsTab() {
                 <thead className={settingsTableHeaderClass}>
                   <tr>
                     <th className={`${settingsHeaderCellClass} w-16`}>No</th>
-                    <th className={settingsHeaderCellClass}>Client Name</th>
-                    <th className={settingsHeaderCellClass}>Location</th>
-                    <th className={settingsHeaderCellClass}>Address</th>
+                    <SortableHeader label="Client Name" field="client_name" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={settingsHeaderCellClass} />
+                    <SortableHeader label="Location" field="location" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={settingsHeaderCellClass} />
+                    <SortableHeader label="Address" field="address" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={settingsHeaderCellClass} />
                     <th className={`${settingsHeaderCellClass} w-24`}>Actions</th>
                   </tr>
                 </thead>

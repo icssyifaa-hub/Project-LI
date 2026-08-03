@@ -30,6 +30,7 @@ import {
   settingsInputClass,
 } from './settings-styles'
 import { SettingsPagination, useSettingsPagination } from './SettingsPagination'
+import { SortableHeader, compareSortValues, type SortDirection } from './SortableHeader'
 
 type TaskNumberRow = {
   id: string
@@ -42,6 +43,8 @@ type TaskNumberRow = {
   date_start: string | null
 }
 
+type NumberFileSortField = 'client_name' | 'job_task' | 'job_order_number' | 'final_report_number' | 'date_start'
+
 function formatDate(date: string | null) {
   if (!date) return '-'
   return new Date(date).toLocaleDateString('en-GB')
@@ -53,6 +56,8 @@ export function NumberFileTab() {
   const [, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [sortField, setSortField] = useState<NumberFileSortField>('date_start')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
 
   const filteredRows = useMemo(() => {
     const query = searchTerm.trim().toLowerCase()
@@ -71,7 +76,23 @@ export function NumberFileTab() {
     })
   }, [rows, searchTerm])
 
-  const numberPagination = useSettingsPagination(filteredRows)
+  const sortedRows = useMemo(
+    () => [...filteredRows].sort((a, b) =>
+      compareSortValues(a[sortField], b[sortField], sortDirection)
+    ),
+    [filteredRows, sortDirection, sortField]
+  )
+  const handleSort = (field: NumberFileSortField) => {
+    if (sortField === field) {
+      setSortDirection((current) => current === 'asc' ? 'desc' : 'asc')
+      return
+    }
+
+    setSortField(field)
+    setSortDirection('asc')
+  }
+
+  const numberPagination = useSettingsPagination(sortedRows)
 
   useEffect(() => {
     let isMounted = true
@@ -169,11 +190,11 @@ export function NumberFileTab() {
               <thead className={settingsTableHeaderClass}>
                 <tr>
                   <th className={`${settingsHeaderCellClass} w-16`}>No</th>
-                  <th className={settingsHeaderCellClass}>Client</th>
-                  <th className={settingsHeaderCellClass}>Job Task</th>
-                  <th className={settingsHeaderCellClass}>Job Order Number</th>
-                  <th className={settingsHeaderCellClass}>Final Report Number</th>
-                  <th className={settingsHeaderCellClass}>Date</th>
+                  <SortableHeader label="Client" field="client_name" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={settingsHeaderCellClass} />
+                  <SortableHeader label="Job Task" field="job_task" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={settingsHeaderCellClass} />
+                  <SortableHeader label="Job Order Number" field="job_order_number" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={settingsHeaderCellClass} />
+                  <SortableHeader label="Final Report Number" field="final_report_number" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={settingsHeaderCellClass} />
+                  <SortableHeader label="Date" field="date_start" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={settingsHeaderCellClass} />
                 </tr>
               </thead>
               <tbody className={settingsTableBodyClass}>

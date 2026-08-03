@@ -8,12 +8,15 @@ import { Input } from '@/components/ui/input'
 import { createClient } from '@/lib/supabase/client'
 import { getJobTaskFullName } from '@/lib/settings/job-tasks'
 import { SettingsPagination, useSettingsPagination } from '@/app/settings-admin/components/SettingsPagination'
+import { SortableHeader, compareSortValues, type SortDirection } from '@/app/settings-admin/components/SortableHeader'
 
 type JobTask = {
   id: string
   name: string
   full_name: string
 }
+
+type JobTaskSortField = 'name' | 'full_name'
 
 const tableHeaderCellClass = 'border-r border-black px-4 py-3 text-left text-[12px] font-semibold uppercase text-gray-700 dark:text-gray-200'
 const tableCellClass = 'border-r border-black px-4 py-3 text-black dark:text-gray-100'
@@ -23,6 +26,8 @@ export default function JobTasksPage() {
   const [jobTasks, setJobTasks] = useState<JobTask[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [sortField, setSortField] = useState<JobTaskSortField>('name')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
 
@@ -73,7 +78,19 @@ export default function JobTasksPage() {
       task.full_name.toLowerCase().includes(keyword)
     )
   })
-  const jobTasksPagination = useSettingsPagination(filteredJobTasks)
+  const sortedJobTasks = [...filteredJobTasks].sort((a, b) =>
+    compareSortValues(a[sortField], b[sortField], sortDirection)
+  )
+  const handleSort = (field: JobTaskSortField) => {
+    if (sortField === field) {
+      setSortDirection((current) => current === 'asc' ? 'desc' : 'asc')
+      return
+    }
+
+    setSortField(field)
+    setSortDirection('asc')
+  }
+  const jobTasksPagination = useSettingsPagination(sortedJobTasks)
 
   if (!user) return null
 
@@ -119,8 +136,8 @@ export default function JobTasksPage() {
               <thead className="bg-gray-100 dark:bg-gray-800">
                 <tr className="border-b border-black">
                   <th className={`${tableHeaderCellClass} w-20`}>No</th>
-                  <th className={`${tableHeaderCellClass} w-40`}>Job Task</th>
-                  <th className={tableHeaderCellClass}>Full Name</th>
+                  <SortableHeader label="Job Task" field="name" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={`${tableHeaderCellClass} w-40`} />
+                  <SortableHeader label="Full Name" field="full_name" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={tableHeaderCellClass} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-black">

@@ -11,6 +11,8 @@ import {
   FileText,
   Users,
   Clock,
+  ArrowDown,
+  ArrowUp,
   ArrowUpDown,
   Download,
   ChevronLeft,
@@ -418,6 +420,13 @@ export default function EventsPage() {
     }
   }
 
+  const renderSortIcon = (field: EventSortField) => {
+    if (sortField !== field) return <ArrowUpDown className="h-3 w-3 shrink-0 text-gray-500" />
+    return sortDirection === 'asc'
+      ? <ArrowUp className="h-3 w-3 shrink-0 text-blue-700" />
+      : <ArrowDown className="h-3 w-3 shrink-0 text-blue-700" />
+  }
+
   const handleViewInCalendar = (date: string | null) => {
     if (!date) {
       toast({
@@ -668,22 +677,22 @@ export default function EventsPage() {
               <tr className="border-b border-black">
                 <th className={`${tableHeaderCellClass} w-12`}>No</th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('title')}>
-                  <div className="flex items-center space-x-1">Event Title <ArrowUpDown className="h-3 w-3" /></div>
+                  <div className="flex w-full items-center justify-between gap-2">Event Title {renderSortIcon('title')}</div>
                 </th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('date_start')}>
-                  <div className="flex items-center space-x-1">Start Date <ArrowUpDown className="h-3 w-3" /></div>
+                  <div className="flex w-full items-center justify-between gap-2">Start Date {renderSortIcon('date_start')}</div>
                 </th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('date_stop')}>
-                  <div className="flex items-center space-x-1">End Date <ArrowUpDown className="h-3 w-3" /></div>
+                  <div className="flex w-full items-center justify-between gap-2">End Date {renderSortIcon('date_stop')}</div>
                 </th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('event_pic_name')}>
-                  <div className="flex items-center space-x-1">PIC <ArrowUpDown className="h-3 w-3" /></div>
+                  <div className="flex w-full items-center justify-between gap-2">PIC {renderSortIcon('event_pic_name')}</div>
                 </th>
                 <th className={`${sortableHeaderCellClass} min-w-[240px]`} onClick={() => handleSort('support_staff')}>
-                  <div className="flex items-center space-x-1">Support Staff <ArrowUpDown className="h-3 w-3" /></div>
+                  <div className="flex w-full items-center justify-between gap-2">Support Staff {renderSortIcon('support_staff')}</div>
                 </th>
                 <th className={sortableHeaderCellClass} onClick={() => handleSort('status')}>
-                  <div className="flex items-center space-x-1">Status <ArrowUpDown className="h-3 w-3" /></div>
+                  <div className="flex w-full items-center justify-between gap-2">Status {renderSortIcon('status')}</div>
                 </th>
                 {isAdmin && (
                   <th className="px-4 py-3 text-left text-[12px] font-semibold uppercase text-gray-700 dark:text-gray-200">Actions</th>

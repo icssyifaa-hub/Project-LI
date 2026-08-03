@@ -17,6 +17,7 @@ import type { AppUser } from '@/lib/auth/client'
 import { MALAYSIA_STATES } from '@/app/settings-admin/types'
 import type { Holiday } from '@/app/settings-admin/types'
 import { SettingsPagination, useSettingsPagination } from '@/app/settings-admin/components/SettingsPagination'
+import { SortableHeader, compareSortValues, type SortDirection } from '@/app/settings-admin/components/SortableHeader'
 
 const tableHeaderCellClass = 'border-r border-black px-4 py-3 text-left text-[12px] font-semibold uppercase text-gray-700 dark:text-gray-200'
 const tableCellClass = 'border-r border-black px-4 py-3 text-black dark:text-gray-100'
@@ -46,6 +47,8 @@ const formatHolidayDate = (date: string) =>
     year: 'numeric',
   })
 
+type HolidaySortField = 'date' | 'name' | 'states'
+
 export default function HolidaysPage() {
   const [user, setUser] = useState<AppUser | null>(null)
   const [holidays, setHolidays] = useState<Holiday[]>([])
@@ -53,6 +56,8 @@ export default function HolidaysPage() {
   const [filterYear, setFilterYear] = useState(new Date().getFullYear())
   const [filterState, setFilterState] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [sortField, setSortField] = useState<HolidaySortField>('date')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
 
@@ -104,7 +109,23 @@ export default function HolidaysPage() {
 
     return isAllStatesHoliday || Boolean(holiday.states?.includes(filterState))
   })
-  const holidaysPagination = useSettingsPagination(filteredHolidays)
+  const getHolidaySortValue = (holiday: Holiday, field: HolidaySortField) => {
+    if (field === 'states') return getStatesLabel(holiday.states)
+    return holiday[field]
+  }
+  const sortedHolidays = [...filteredHolidays].sort((a, b) =>
+    compareSortValues(getHolidaySortValue(a, sortField), getHolidaySortValue(b, sortField), sortDirection)
+  )
+  const handleSort = (field: HolidaySortField) => {
+    if (sortField === field) {
+      setSortDirection((current) => current === 'asc' ? 'desc' : 'asc')
+      return
+    }
+
+    setSortField(field)
+    setSortDirection('asc')
+  }
+  const holidaysPagination = useSettingsPagination(sortedHolidays)
 
   if (!user) return null
 
@@ -179,9 +200,9 @@ export default function HolidaysPage() {
               <thead className="bg-gray-100 dark:bg-gray-800">
                 <tr className="border-b border-black">
                   <th className={`${tableHeaderCellClass} w-20`}>No</th>
-                  <th className={`${tableHeaderCellClass} w-44`}>Date</th>
-                  <th className={tableHeaderCellClass}>Holiday Name</th>
-                  <th className={tableHeaderCellClass}>States</th>
+                  <SortableHeader label="Date" field="date" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={`${tableHeaderCellClass} w-44`} />
+                  <SortableHeader label="Holiday Name" field="name" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={tableHeaderCellClass} />
+                  <SortableHeader label="States" field="states" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={tableHeaderCellClass} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-black">

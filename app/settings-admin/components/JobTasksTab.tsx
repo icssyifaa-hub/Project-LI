@@ -66,6 +66,9 @@ import {
   settingsTitleClass,
 } from './settings-styles'
 import { SettingsPagination, useSettingsPagination } from './SettingsPagination'
+import { SortableHeader, compareSortValues, type SortDirection } from './SortableHeader'
+
+type JobTaskSortField = 'name' | 'full_name'
 
 export function JobTasksTab() {
   const { jobTasks, addJobTask, updateJobTask, deleteJobTask } = useJobTasks()
@@ -76,6 +79,8 @@ export function JobTasksTab() {
   const [pendingDeleteTask, setPendingDeleteTask] = useState<JobTask | null>(null)
   const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [sortField, setSortField] = useState<JobTaskSortField>('name')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [formData, setFormData] = useState({
     name: '',
     full_name: '',
@@ -149,7 +154,23 @@ export function JobTasksTab() {
       (task.full_name || getJobTaskFullName(task.name) || '').toLowerCase().includes(keyword)
     )
   })
-  const jobTasksPagination = useSettingsPagination(filteredJobTasks)
+  const getJobTaskSortValue = (task: JobTask, field: JobTaskSortField) => {
+    if (field === 'full_name') return task.full_name || getJobTaskFullName(task.name) || ''
+    return task.name
+  }
+  const sortedJobTasks = [...filteredJobTasks].sort((a, b) =>
+    compareSortValues(getJobTaskSortValue(a, sortField), getJobTaskSortValue(b, sortField), sortDirection)
+  )
+  const handleSort = (field: JobTaskSortField) => {
+    if (sortField === field) {
+      setSortDirection((current) => current === 'asc' ? 'desc' : 'asc')
+      return
+    }
+
+    setSortField(field)
+    setSortDirection('asc')
+  }
+  const jobTasksPagination = useSettingsPagination(sortedJobTasks)
 
   return (
     <>
@@ -191,8 +212,8 @@ export function JobTasksTab() {
               <thead className={settingsTableHeaderClass}>
                 <tr>
                   <th className={`${settingsHeaderCellClass} w-16`}>No</th>
-                  <th className={`${settingsHeaderCellClass} w-40`}>Job Task</th>
-                  <th className={settingsHeaderCellClass}>Full Name</th>
+                  <SortableHeader label="Job Task" field="name" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={`${settingsHeaderCellClass} w-40`} />
+                  <SortableHeader label="Full Name" field="full_name" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={settingsHeaderCellClass} />
                   <th className={`${settingsHeaderCellClass} w-24`}>Actions</th>
                 </tr>
               </thead>

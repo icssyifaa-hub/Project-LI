@@ -28,10 +28,15 @@ import {
   settingsTitleClass,
 } from './settings-styles'
 import { SettingsPagination, useSettingsPagination } from './SettingsPagination'
+import { SortableHeader, compareSortValues, type SortDirection } from './SortableHeader'
+
+type StaffSortField = 'name' | 'email'
 
 export function StaffTab() {
   const { users } = useUsers()
   const [searchTerm, setSearchTerm] = useState('')
+  const [sortField, setSortField] = useState<StaffSortField>('name')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const staff = users.filter(user => user.role === 'staff' && user.is_active)
   const filteredStaff = staff.filter((member) => {
     const keyword = searchTerm.trim().toLowerCase()
@@ -42,7 +47,19 @@ export function StaffTab() {
       member.email.toLowerCase().includes(keyword)
     )
   })
-  const staffPagination = useSettingsPagination(filteredStaff)
+  const sortedStaff = [...filteredStaff].sort((a, b) =>
+    compareSortValues(a[sortField], b[sortField], sortDirection)
+  )
+  const handleSort = (field: StaffSortField) => {
+    if (sortField === field) {
+      setSortDirection((current) => current === 'asc' ? 'desc' : 'asc')
+      return
+    }
+
+    setSortField(field)
+    setSortDirection('asc')
+  }
+  const staffPagination = useSettingsPagination(sortedStaff)
 
   return (
     <Card className={settingsCardClass}>
@@ -81,8 +98,8 @@ export function StaffTab() {
             <thead className={settingsTableHeaderClass}>
               <tr>
                 <th className={`${settingsHeaderCellClass} w-16`}>No</th>
-                <th className={settingsHeaderCellClass}>Name</th>
-                <th className={settingsHeaderCellClass}>Email</th>
+                <SortableHeader label="Name" field="name" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={settingsHeaderCellClass} />
+                <SortableHeader label="Email" field="email" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={settingsHeaderCellClass} />
               </tr>
             </thead>
             <tbody className={settingsTableBodyClass}>

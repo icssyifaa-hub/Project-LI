@@ -70,6 +70,7 @@ import {
   settingsTitleClass,
 } from './settings-styles'
 import { SettingsPagination, useSettingsPagination } from './SettingsPagination'
+import { SortableHeader, compareSortValues, type SortDirection } from './SortableHeader'
 
 const HOLIDAY_YEAR_START = 2022
 const HOLIDAY_YEAR_END = 2035
@@ -79,6 +80,8 @@ const holidayYears = Array.from(
 )
 const holidaySelectItemClass =
   'text-gray-900 focus:bg-gray-100 focus:text-gray-900 dark:text-gray-100 dark:focus:bg-gray-800 dark:focus:text-gray-100'
+
+type HolidaySortField = 'date' | 'name' | 'states'
 
 export function HolidaysTab() {
   const { holidays, addHoliday, updateHoliday, deleteHoliday } = useHolidays()
@@ -91,6 +94,8 @@ export function HolidaysTab() {
   const [filterYear, setFilterYear] = useState(new Date().getFullYear())
   const [filterState, setFilterState] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [sortField, setSortField] = useState<HolidaySortField>('date')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [formData, setFormData] = useState({
     name: '',
     date: '',
@@ -130,7 +135,29 @@ export function HolidaysTab() {
 
     return matchesYear && matchesState && matchesSearch
   })
-  const holidaysPagination = useSettingsPagination(filteredHolidays)
+  const getHolidayStatesSortLabel = (stateCodes?: string[] | null) =>
+    !stateCodes || stateCodes.length === 0 || stateCodes.length === MALAYSIA_STATES.length
+      ? 'All States'
+      : stateCodes
+          .map((stateCode) => MALAYSIA_STATES.find((state) => state.value === stateCode)?.label || stateCode)
+          .join(', ')
+  const getHolidaySortValue = (holiday: Holiday, field: HolidaySortField) => {
+    if (field === 'states') return getHolidayStatesSortLabel(holiday.states)
+    return holiday[field]
+  }
+  const sortedHolidays = [...filteredHolidays].sort((a, b) =>
+    compareSortValues(getHolidaySortValue(a, sortField), getHolidaySortValue(b, sortField), sortDirection)
+  )
+  const handleSort = (field: HolidaySortField) => {
+    if (sortField === field) {
+      setSortDirection((current) => current === 'asc' ? 'desc' : 'asc')
+      return
+    }
+
+    setSortField(field)
+    setSortDirection('asc')
+  }
+  const holidaysPagination = useSettingsPagination(sortedHolidays)
 
   const handleAdd = () => {
     setEditingHoliday(null)
@@ -295,9 +322,9 @@ export function HolidaysTab() {
               <thead className={settingsTableHeaderClass}>
                 <tr>
                   <th className={`${settingsHeaderCellClass} w-16`}>No</th>
-                  <th className={settingsHeaderCellClass}>Date</th>
-                  <th className={settingsHeaderCellClass}>Holiday Name</th>
-                  <th className={settingsHeaderCellClass}>States</th>
+                  <SortableHeader label="Date" field="date" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={settingsHeaderCellClass} />
+                  <SortableHeader label="Holiday Name" field="name" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={settingsHeaderCellClass} />
+                  <SortableHeader label="States" field="states" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={settingsHeaderCellClass} />
                   <th className={`${settingsHeaderCellClass} w-24`}>Actions</th>
                 </tr>
               </thead>

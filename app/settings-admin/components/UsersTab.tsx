@@ -52,6 +52,9 @@ import {
   settingsTitleClass,
 } from './settings-styles'
 import { SettingsPagination, useSettingsPagination } from './SettingsPagination'
+import { SortableHeader, compareSortValues, type SortDirection } from './SortableHeader'
+
+type UserSortField = 'name' | 'email' | 'account' | 'role' | 'status'
 
 const copyTextToClipboard = async (text: string) => {
   if (navigator.clipboard?.writeText) {
@@ -85,6 +88,8 @@ export function UsersTab() {
   const [resettingUserId, setResettingUserId] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [sortField, setSortField] = useState<UserSortField>('name')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [temporaryCredentials, setTemporaryCredentials] = useState<{
     email: string
     password: string
@@ -214,7 +219,24 @@ export function UsersTab() {
       (user.is_active ? 'active' : 'inactive').includes(keyword)
     )
   })
-  const usersPagination = useSettingsPagination(filteredUsers)
+  const getUserSortValue = (user: User, field: UserSortField) => {
+    if (field === 'account') return user.auth_status || ''
+    if (field === 'status') return user.role === 'admin' ? 'admin' : user.is_active ? 'active' : 'inactive'
+    return user[field]
+  }
+  const sortedUsers = [...filteredUsers].sort((a, b) =>
+    compareSortValues(getUserSortValue(a, sortField), getUserSortValue(b, sortField), sortDirection)
+  )
+  const handleSort = (field: UserSortField) => {
+    if (sortField === field) {
+      setSortDirection((current) => current === 'asc' ? 'desc' : 'asc')
+      return
+    }
+
+    setSortField(field)
+    setSortDirection('asc')
+  }
+  const usersPagination = useSettingsPagination(sortedUsers)
 
   return (
     <>
@@ -256,11 +278,11 @@ export function UsersTab() {
               <thead className={settingsTableHeaderClass}>
                 <tr>
                   <th className={`${settingsHeaderCellClass} w-16`}>No</th>
-                  <th className={settingsHeaderCellClass}>Name</th>
-                  <th className={settingsHeaderCellClass}>Email</th>
-                  <th className={settingsHeaderCellClass}>Account</th>
-                  <th className={settingsHeaderCellClass}>Role</th>
-                  <th className={settingsHeaderCellClass}>Status</th>
+                  <SortableHeader label="Name" field="name" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={settingsHeaderCellClass} />
+                  <SortableHeader label="Email" field="email" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={settingsHeaderCellClass} />
+                  <SortableHeader label="Account" field="account" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={settingsHeaderCellClass} />
+                  <SortableHeader label="Role" field="role" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={settingsHeaderCellClass} />
+                  <SortableHeader label="Status" field="status" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} className={settingsHeaderCellClass} />
                   <th className={`${settingsHeaderCellClass} w-24`}>Actions</th>
                 </tr>
               </thead>

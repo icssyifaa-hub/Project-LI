@@ -1515,7 +1515,7 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                             <button
                               type="button"
                               data-month-cell-action
-                              className="absolute left-1 right-1 z-30 flex h-5 items-center justify-center overflow-visible whitespace-nowrap rounded bg-blue-50 px-1 text-center text-[13px] font-semibold leading-5 text-blue-700 shadow-sm [--month-more-offset:6px] hover:bg-blue-100 sm:h-[16px] sm:justify-start sm:text-left sm:text-[12px] sm:font-medium sm:leading-[16px] sm:[--month-more-offset:0px] dark:bg-blue-950/70 dark:text-blue-200 dark:hover:bg-blue-900/80"
+                              className="absolute left-1 right-1 z-30 flex h-8 items-start justify-center overflow-visible whitespace-nowrap rounded bg-blue-50 px-1 pt-1 text-center text-[13px] font-semibold leading-5 text-blue-700 shadow-sm [--month-more-offset:6px] hover:bg-blue-100 sm:h-[16px] sm:items-center sm:justify-start sm:pt-0 sm:text-left sm:text-[12px] sm:font-medium sm:leading-[16px] sm:[--month-more-offset:0px] dark:bg-blue-950/70 dark:text-blue-200 dark:hover:bg-blue-900/80"
                               style={{
                                 top: `calc(${MONTH_CELL_CONTENT_TOP + 2 * MONTH_RANGE_LANE_HEIGHT}px + var(--month-more-offset))`,
                               }}

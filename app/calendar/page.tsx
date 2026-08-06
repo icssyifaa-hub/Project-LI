@@ -163,6 +163,7 @@ export default function CalendarPage() {
   const [focusedDateKey, setFocusedDateKey] = useState<string | null>(null)
   const [focusedInboxTaskId, setFocusedInboxTaskId] = useState<string | null>(null)
   const [taskInboxRefreshKey, setTaskInboxRefreshKey] = useState(0)
+  const calendarSearchInputRef = useRef<HTMLInputElement | null>(null)
   
   const { toast } = useToast()
   const supabase = createClient()
@@ -205,6 +206,11 @@ export default function CalendarPage() {
   useEffect(() => {
     refreshSilentlyRef.current = refreshSilently
   }, [refreshSilently])
+
+  useEffect(() => {
+    if (!showSearch) return
+    calendarSearchInputRef.current?.focus()
+  }, [showSearch])
 
   useEffect(() => {
     if (!isInitialized || showItemModal) return
@@ -1153,6 +1159,7 @@ export default function CalendarPage() {
             <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
               <Input
+                ref={calendarSearchInputRef}
                 value={calendarSearch}
                 onChange={(event) => setCalendarSearch(event.target.value)}
                 placeholder="Search tasks, events, staff, client, location, JO/FR..."

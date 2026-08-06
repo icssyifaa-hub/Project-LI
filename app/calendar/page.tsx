@@ -11,6 +11,7 @@ import type { Task, Event, ViewType} from '@/app/calendar/types/calendar'
 import type { UnscheduledTask } from './components/TaskInbox'
 import { useToast } from '@/components/ui/use-toast'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import NotificationsPanel from './components/NotificationsPanel'
 import { createClient } from '@/lib/supabase/client'
 import { getTaskJobGroupId } from '@/lib/job-groups'
@@ -23,6 +24,7 @@ import {
   ChevronDown,
   Bell,
   Filter,
+  Search,
   X,
 } from 'lucide-react'
 import {
@@ -69,6 +71,15 @@ const formatDateKey = (date: Date): string => {
 const isAdminUser = (user: any) => {
   const role = String(user?.role || '').toLowerCase()
   return role === 'admin' || role === 'superadmin'
+}
+
+const matchesSearchText = (query: string, values: Array<string | null | undefined | string[]>) => {
+  if (!query) return true
+
+  return values
+    .flatMap(value => Array.isArray(value) ? value : [value])
+    .filter((value): value is string => Boolean(value))
+    .some(value => value.toLowerCase().includes(query))
 }
 
 interface StaffFilters {
@@ -138,6 +149,8 @@ export default function CalendarPage() {
   const [showTaskInbox, setShowTaskInbox] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [showFilter, setShowFilter] = useState(false)
+  const [showSearch, setShowSearch] = useState(false)
+  const [calendarSearch, setCalendarSearch] = useState('')
   const [isInitialized, setIsInitialized] = useState(false)
   const [staffFilters, setStaffFilters] = useState<StaffFilters>({})
   const [showHolidays, setShowHolidays] = useState(false)
@@ -453,6 +466,8 @@ export default function CalendarPage() {
   }, [tasks, events, view, currentDate])
 
   const filteredTasks = useMemo(() => {
+    const searchQuery = calendarSearch.trim().toLowerCase()
+
     return tasks.filter(task => {
       const assignedStaffIds = [
         task.task_pic_id,
@@ -461,13 +476,33 @@ export default function CalendarPage() {
         ...(task.task_support_names || []).map(name => userIdByName.get(name.trim().toLowerCase())),
       ].filter((staffId): staffId is string => Boolean(staffId))
 
+      const matchesSearch = matchesSearchText(searchQuery, [
+        task.clientName,
+        task.location,
+        task.address,
+        task.jobTask,
+        task.additionalRemark,
+        task.jobOrderNumber,
+        task.finalReportNumber,
+        task.jobStatus,
+        task.dateStart,
+        task.dateStop,
+        task.timeStart,
+        task.timeStop,
+        task.task_pic_name,
+        task.task_support_names,
+      ])
+
+      if (!matchesSearch) return false
       if (assignedStaffIds.length === 0) return true
 
       return assignedStaffIds.some(staffId => staffFilters[staffId]?.tasks !== false)
     })
-  }, [tasks, staffFilters, userIdByName])
+  }, [tasks, staffFilters, userIdByName, calendarSearch])
 
   const filteredEvents = useMemo(() => {
+    const searchQuery = calendarSearch.trim().toLowerCase()
+
     return events.filter(event => {
       const assignedStaffIds = [
         event.event_pic_id,
@@ -476,22 +511,41 @@ export default function CalendarPage() {
         ...(event.event_support_names || []).map(name => userIdByName.get(name.trim().toLowerCase())),
       ].filter((staffId): staffId is string => Boolean(staffId))
 
+      const matchesSearch = matchesSearchText(searchQuery, [
+        event.title,
+        event.description,
+        event.dateStart,
+        event.dateStop,
+        event.timeStart,
+        event.timeStop,
+        event.event_pic_name,
+        event.event_support_names,
+      ])
+
+      if (!matchesSearch) return false
       if (assignedStaffIds.length === 0) return true
 
       return assignedStaffIds.some(staffId => staffFilters[staffId]?.events !== false)
     })
-  }, [events, staffFilters, userIdByName])
+  }, [events, staffFilters, userIdByName, calendarSearch])
 
   const filteredHolidays = useMemo(() => {
     if (!showHolidays) return []
+    const searchQuery = calendarSearch.trim().toLowerCase()
     
-    return allHolidays.map(holiday => ({
-      id: holiday.id,
-      name: holiday.name,
-      date: holiday.date,
-      states: holiday.states || undefined
-    }))
-  }, [allHolidays, showHolidays])
+    return allHolidays
+      .filter(holiday => matchesSearchText(searchQuery, [
+        holiday.name,
+        holiday.date,
+        holiday.states || [],
+      ]))
+      .map(holiday => ({
+        id: holiday.id,
+        name: holiday.name,
+        date: holiday.date,
+        states: holiday.states || undefined
+      }))
+  }, [allHolidays, showHolidays, calendarSearch])
 
   const viewOptions = useMemo(() => [
     { value: 'day', label: 'Day' },
@@ -952,6 +1006,10 @@ export default function CalendarPage() {
     })
   }, [])
 
+  const handleSearchToggle = useCallback(() => {
+    setShowSearch(prev => !prev)
+  }, [])
+
   const handleNotificationsToggle = useCallback(() => {
     setShowNotifications(prev => {
       const next = !prev
@@ -1016,6 +1074,16 @@ export default function CalendarPage() {
 
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
             <Button
+              variant={showSearch ? "default" : "outline"}
+              onClick={handleSearchToggle}
+              aria-label="Search"
+              className={`calendar-toolbar-button relative flex h-9 min-w-0 w-full items-center justify-center gap-2 px-2 sm:w-auto sm:px-4 ${showSearch || calendarSearch.trim() ? 'calendar-toolbar-button-active' : ''}`}
+            >
+              <Search className="h-4 w-4 shrink-0" />
+              <span className="truncate">Search</span>
+            </Button>
+
+            <Button
               variant={showFilter ? "default" : "outline"}
               onClick={handleFilterToggle}
               aria-label="Filter"
@@ -1079,6 +1147,34 @@ export default function CalendarPage() {
             </Button>
           </div>
         </div>
+
+        {showSearch && (
+          <div className="mt-2 flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 p-2 dark:border-gray-800 dark:bg-gray-950 sm:flex-row sm:items-center">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
+              <Input
+                value={calendarSearch}
+                onChange={(event) => setCalendarSearch(event.target.value)}
+                placeholder="Search tasks, events, staff, client, location, JO/FR..."
+                className="h-9 border-gray-300 bg-white pl-9 pr-9 text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+              />
+              {calendarSearch && (
+                <button
+                  type="button"
+                  onClick={() => setCalendarSearch('')}
+                  className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+                  aria-label="Clear calendar search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            <div className="shrink-0 text-xs text-gray-500 dark:text-gray-400">
+              {filteredTasks.length} tasks, {filteredEvents.length} events
+              {showHolidays ? `, ${filteredHolidays.length} holidays` : ''}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">

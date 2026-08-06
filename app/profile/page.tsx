@@ -60,6 +60,36 @@ const staffColors = [
   { name: 'Gold', value: 'gold', bgClass: '[background-color:#ca8a04]' },
   { name: 'Mint', value: 'mint', bgClass: '[background-color:#5eead4]' },
   { name: 'Charcoal', value: 'charcoal', bgClass: '[background-color:#111827]' },
+  { name: 'Sky', value: 'sky', bgClass: '[background-color:#0ea5e9]' },
+  { name: 'Emerald', value: 'emerald', bgClass: '[background-color:#10b981]' },
+  { name: 'Violet', value: 'violet', bgClass: '[background-color:#8b5cf6]' },
+  { name: 'Fuchsia', value: 'fuchsia', bgClass: '[background-color:#d946ef]' },
+  { name: 'Amber', value: 'amber', bgClass: '[background-color:#f59e0b]' },
+  { name: 'Slate', value: 'slate', bgClass: '[background-color:#475569]' },
+  { name: 'Zinc', value: 'zinc', bgClass: '[background-color:#52525b]' },
+  { name: 'Stone', value: 'stone', bgClass: '[background-color:#57534e]' },
+  { name: 'Magenta', value: 'magenta', bgClass: '[background-color:#c026d3]' },
+  { name: 'Lavender', value: 'lavender', bgClass: '[background-color:#7c3aed]' },
+  { name: 'Plum', value: 'plum', bgClass: '[background-color:#9333ea]' },
+  { name: 'Coral', value: 'coral', bgClass: '[background-color:#f9735b]' },
+  { name: 'Salmon', value: 'salmon', bgClass: '[background-color:#fb7185]' },
+  { name: 'Apricot', value: 'apricot', bgClass: '[background-color:#fbbf24]' },
+  { name: 'Tangerine', value: 'tangerine', bgClass: '[background-color:#f97316]' },
+  { name: 'Bronze', value: 'bronze', bgClass: '[background-color:#a16207]' },
+  { name: 'Copper', value: 'copper', bgClass: '[background-color:#b45309]' },
+  { name: 'Olive', value: 'olive', bgClass: '[background-color:#65a30d]' },
+  { name: 'Forest', value: 'forest', bgClass: '[background-color:#166534]' },
+  { name: 'Seafoam', value: 'seafoam', bgClass: '[background-color:#14b8a6]' },
+  { name: 'Aqua', value: 'aqua', bgClass: '[background-color:#06b6d4]' },
+  { name: 'Turquoise', value: 'turquoise', bgClass: '[background-color:#2dd4bf]' },
+  { name: 'Steel', value: 'steel', bgClass: '[background-color:#64748b]' },
+  { name: 'Denim', value: 'denim', bgClass: '[background-color:#2563eb]' },
+  { name: 'Royal', value: 'royal', bgClass: '[background-color:#4f46e5]' },
+  { name: 'Sapphire', value: 'sapphire', bgClass: '[background-color:#1d4ed8]' },
+  { name: 'Periwinkle', value: 'periwinkle', bgClass: '[background-color:#6366f1]' },
+  { name: 'Orchid', value: 'orchid', bgClass: '[background-color:#c084fc]' },
+  { name: 'Raspberry', value: 'raspberry', bgClass: '[background-color:#be123c]' },
+  { name: 'Moss', value: 'moss', bgClass: '[background-color:#3f6212]' },
 ]
 
 const getColorByValue = (value: string) => {
@@ -517,7 +547,7 @@ export default function ProfilePage() {
               <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-blue-700">
                 <Palette className="h-5 w-5" />
                 <span className="font-medium">
-                  {getAvailableColorsCount()}/15 colors available
+                  {getAvailableColorsCount()}/{staffColors.length} colors available
                 </span>
               </div>
             )}
@@ -902,7 +932,7 @@ export default function ProfilePage() {
                     </div>
                   ) : (
                     <>
-                      <div className="grid grid-cols-5 gap-3 sm:grid-cols-8 lg:grid-cols-[repeat(15,minmax(0,1fr))]">
+                      <div className="grid grid-cols-5 gap-3 sm:grid-cols-8 lg:grid-cols-10 xl:grid-cols-[repeat(10,minmax(0,1fr))]">
                         {staffColors.map((color) => {
                           const isAvailable = isColorAvailable(color.value)
                           const isCurrentColor = profileData.color === color.value

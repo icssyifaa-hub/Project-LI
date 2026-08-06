@@ -74,6 +74,7 @@ interface Event {
 }
 
 type EventSortField = keyof Event | 'support_staff' | 'status'
+type ReportDateScope = 'all' | 'month' | 'year'
 
 const formatDate = (dateString: string | null) => {
   if (!dateString) return 'N/A'
@@ -128,6 +129,20 @@ const tableMinWidthClass = 'min-w-[1080px]'
 const paginationButtonClass = 'border-gray-300 bg-white text-gray-900 shadow-sm hover:bg-gray-100 disabled:border-gray-200 disabled:bg-gray-200 disabled:text-gray-500 disabled:opacity-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:disabled:border-gray-800 dark:disabled:bg-gray-800 dark:disabled:text-gray-500'
 const activePaginationButtonClass = 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:text-white dark:hover:bg-blue-400'
 const rowsPerPageOptions = ['10', '25', '50', '100', 'all']
+const reportMonthOptions = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
 
 const getSortedStaffEntries = (names?: string[], colors?: string[]) =>
   (names || [])
@@ -161,6 +176,64 @@ const getEventRowClass = (statusLabel: string) => {
   }
 }
 
+const toDateKey = (date?: string | null) => {
+  if (!date) return null
+
+  const rawDate = date.split('T')[0]
+  if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) return rawDate
+
+  const parsedDate = new Date(date)
+  if (Number.isNaN(parsedDate.getTime())) return null
+
+  const year = parsedDate.getFullYear()
+  const month = String(parsedDate.getMonth() + 1).padStart(2, '0')
+  const day = String(parsedDate.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const makeDateKey = (year: number, monthIndex: number, day: number) =>
+  `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+
+const getReportDatePeriod = (scope: ReportDateScope, yearValue: string, monthValue: string) => {
+  if (scope === 'all') return null
+
+  const year = Number(yearValue)
+  const month = Number(monthValue)
+  if (!Number.isFinite(year)) return null
+
+  if (scope === 'year') {
+    return {
+      start: makeDateKey(year, 0, 1),
+      end: makeDateKey(year, 11, 31),
+      label: `${year}`,
+      filenamePart: `${year}`,
+    }
+  }
+
+  if (!Number.isFinite(month)) return null
+
+  const lastDay = new Date(year, month + 1, 0).getDate()
+  const monthName = reportMonthOptions[month] || 'Month'
+  return {
+    start: makeDateKey(year, month, 1),
+    end: makeDateKey(year, month, lastDay),
+    label: `${monthName} ${year}`,
+    filenamePart: `${monthName.toLowerCase()}-${year}`,
+  }
+}
+
+const eventOverlapsReportPeriod = (event: Event, period: { start: string; end: string } | null) => {
+  if (!period) return true
+
+  const startDate = toDateKey(event.date_start)
+  const endDate = toDateKey(event.date_stop) || startDate
+  if (!startDate && !endDate) return false
+
+  const rangeStart = startDate || endDate
+  const rangeEnd = endDate || startDate
+  return !!rangeStart && !!rangeEnd && rangeStart <= period.end && rangeEnd >= period.start
+}
+
 const parseTextArray = (textValue: string | null | undefined): string[] => {
   if (!textValue) return []
   
@@ -176,6 +249,7 @@ const parseTextArray = (textValue: string | null | undefined): string[] => {
 }
 
 export default function EventsPage() {
+  const today = new Date()
   const [user, setUser] = useState<any>(null)
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
@@ -190,6 +264,9 @@ export default function EventsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null)
   const [rowsPerPage, setRowsPerPage] = useState('10')
+  const [reportDateScope, setReportDateScope] = useState<ReportDateScope>('all')
+  const [reportMonth, setReportMonth] = useState(String(today.getMonth()))
+  const [reportYear, setReportYear] = useState(String(today.getFullYear()))
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClient()
@@ -448,6 +525,9 @@ export default function EventsPage() {
     return false
   }
 
+  const reportDatePeriod = getReportDatePeriod(reportDateScope, reportYear, reportMonth)
+  const reportDateLabel = reportDatePeriod?.label || 'All dates'
+
   const filteredAndSortedEvents = events
     .filter(event => {
       const matchesSearch = 
@@ -458,8 +538,9 @@ export default function EventsPage() {
       
       const status = getEventStatus(event.date_start, event.date_stop)
       const matchesStatus = filterStatus === 'all' || status.label.toLowerCase() === filterStatus.toLowerCase()
+      const matchesReportDate = eventOverlapsReportPeriod(event, reportDatePeriod)
       
-      return matchesSearch && matchesStaff && matchesStatus
+      return matchesSearch && matchesStaff && matchesStatus && matchesReportDate
     })
     .sort((a, b) => {
       const aValue = String(getEventSortValue(a, sortField))
@@ -489,6 +570,14 @@ export default function EventsPage() {
 
   const activeStaffCount = Array.from(staffStatusMap.values()).filter(isActive => isActive === true).length
   const inactiveStaffCount = staffList.length - activeStaffCount
+  const reportYearOptions = Array.from(new Set([
+    new Date().getFullYear(),
+    Number(reportYear),
+    ...events.flatMap((event) => [toDateKey(event.date_start), toDateKey(event.date_stop)])
+      .filter((dateKey): dateKey is string => !!dateKey)
+      .map((dateKey) => Number(dateKey.slice(0, 4)))
+      .filter((year) => Number.isFinite(year)),
+  ])).sort((a, b) => b - a)
   const reportHeaders = ['No', 'Title', 'Start Date', 'End Date', 'Start Time', 'End Time', 'PIC', 'Support Staff', 'Status']
   const reportRows = filteredAndSortedEvents.map((event, index) => {
     const status = getEventStatus(event.date_start, event.date_stop)
@@ -508,10 +597,10 @@ export default function EventsPage() {
   const reportDate = new Date().toISOString().split('T')[0]
   const exportReport = (format: 'pdf' | 'excel') => {
     const options = {
-      title: 'Events List',
+      title: reportDateScope === 'all' ? 'Events List' : `Events List (${reportDateLabel})`,
       headers: reportHeaders,
       rows: reportRows,
-      filename: `events-list-${reportDate}`,
+      filename: `events-list-${reportDatePeriod?.filenamePart || 'all-dates'}-${reportDate}`,
     }
 
     if (format === 'pdf') {
@@ -520,7 +609,10 @@ export default function EventsPage() {
       downloadExcelReport(options)
     }
 
-    toast({ title: `Events exported as ${format === 'pdf' ? 'PDF' : 'Excel'}` })
+    toast({
+      title: `Events exported as ${format === 'pdf' ? 'PDF' : 'Excel'}`,
+      description: `${reportDateLabel} | ${reportRows.length} events`,
+    })
   }
 
   return (
@@ -565,6 +657,58 @@ export default function EventsPage() {
             >
               {loading ? 'Loading...' : 'Refresh'}
             </Button>
+            <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-flow-col sm:grid-cols-none">
+              <Select
+                value={reportDateScope}
+                onValueChange={(value) => {
+                  setReportDateScope(value as ReportDateScope)
+                  setCurrentPage(1)
+                }}
+              >
+                <SelectTrigger className="min-w-[128px] border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-900">
+                  <SelectValue placeholder="Report date" />
+                </SelectTrigger>
+                <SelectContent className="border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                  <SelectItem value="all">All dates</SelectItem>
+                  <SelectItem value="month">By month</SelectItem>
+                  <SelectItem value="year">By year</SelectItem>
+                </SelectContent>
+              </Select>
+              {reportDateScope === 'month' && (
+                <Select value={reportMonth} onValueChange={(value) => {
+                  setReportMonth(value)
+                  setCurrentPage(1)
+                }}>
+                  <SelectTrigger className="min-w-[132px] border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-900">
+                    <SelectValue placeholder="Month" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-80 border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                    {reportMonthOptions.map((month, index) => (
+                      <SelectItem key={month} value={String(index)}>
+                        {month}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {reportDateScope !== 'all' && (
+                <Select value={reportYear} onValueChange={(value) => {
+                  setReportYear(value)
+                  setCurrentPage(1)
+                }}>
+                  <SelectTrigger className="min-w-[104px] border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-900">
+                    <SelectValue placeholder="Year" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-80 border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                    {reportYearOptions.map((year) => (
+                      <SelectItem key={year} value={String(year)}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -637,9 +781,14 @@ export default function EventsPage() {
           </Select>
         </div>
 
-        {(searchTerm || filterStaff !== 'all' || filterStatus !== 'all') && (
+        {(searchTerm || filterStaff !== 'all' || filterStatus !== 'all' || reportDateScope !== 'all') && (
           <div className="flex shrink-0 flex-wrap items-center gap-2 text-sm">
             <span className="text-gray-500 dark:text-gray-400">Filters active:</span>
+            {reportDateScope !== 'all' && (
+              <span className="rounded-full px-2 py-0.5 [background-color:#fef3c7] [color:#92400e]">
+                Date: {reportDateLabel}
+              </span>
+            )}
             {searchTerm && (
               <span className="rounded-full px-2 py-0.5 [background-color:#dbeafe] [color:#1e40af]">
                 Search: {searchTerm}
@@ -663,6 +812,8 @@ export default function EventsPage() {
                 setSearchTerm('')
                 setFilterStaff('all')
                 setFilterStatus('all')
+                setReportDateScope('all')
+                setCurrentPage(1)
               }}
             >
               Clear all
@@ -715,7 +866,7 @@ export default function EventsPage() {
                     <div className="text-gray-400 text-4xl mb-2">📅</div>
                     <p className="text-gray-500 dark:text-gray-300">No events found</p>
                     <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                      {searchTerm || filterStaff !== 'all' || filterStatus !== 'all' 
+                      {searchTerm || filterStaff !== 'all' || filterStatus !== 'all' || reportDateScope !== 'all'
                         ? 'Try clearing your filters' 
                         : 'Click "Add Event" to create your first event'}
                     </p>
@@ -731,25 +882,28 @@ export default function EventsPage() {
                         {rowsPerPage === 'all' ? index + 1 : (currentPage - 1) * itemsPerPage + index + 1}
                       </td>
                       <td className={tableCellClass}>
+                        <span className="block max-w-xs truncate font-semibold text-black" title={event.title}>
+                          {event.title}
+                        </span>
+                      </td>
+                      <td className={`${tableCellClass} text-black`}>
                         <div className="flex items-center gap-2">
                           <button
+                            type="button"
                             onClick={() => handleViewInCalendar(event.date_start)}
-                            className="event-list-title-button max-w-xs truncate text-left font-bold text-blue-900 hover:text-blue-900 hover:underline"
+                            className="font-bold ![color:#003fd1] underline ![text-decoration-color:#003fd1] underline-offset-2 hover:![color:#002a9e] dark:![color:#003fd1] dark:![text-decoration-color:#003fd1] dark:hover:![color:#002a9e]"
+                            title="Open in calendar month view"
                           >
-                            {event.title}
+                            {formatDate(event.date_start)}
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleViewInCalendar(event.date_start)}
-                            className="event-list-calendar-button text-blue-500 opacity-0 transition-opacity hover:text-blue-700 group-hover:opacity-100"
+                            className="text-blue-500 opacity-0 transition-opacity hover:text-blue-700 group-hover:opacity-100"
                             title="View in Calendar"
                           >
                             <CalendarIcon className="h-3 w-3" />
                           </button>
-                        </div>
-                      </td>
-                      <td className={`${tableCellClass} text-black`}>
-                        <div className="flex items-center">
-                          {formatDate(event.date_start)}
                         </div>
                       </td>
                       <td className={`${tableCellClass} text-black`}>

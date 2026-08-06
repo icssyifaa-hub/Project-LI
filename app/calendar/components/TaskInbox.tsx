@@ -1,5 +1,4 @@
 'use client'
-
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -57,7 +56,6 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS as DndCSS } from '@dnd-kit/utilities'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/use-toast'
-// PDFs removed per request: use job order number/final report number instead
 import { getDotClass } from '@/lib/colors'
 import {
   Client,
@@ -122,9 +120,6 @@ interface Staff {
   color?: string
   is_active?: boolean
 }
-
-// PDF viewer removed — using job order number/final report number fields instead
-
 const normalizeText = (value?: string | null) => String(value || '').trim().toLowerCase()
 
 const toTextList = (value?: string | string[] | null): string[] => {
@@ -198,8 +193,6 @@ function SortableTaskItem({
     zIndex: isSortableDragging ? 999 : 'auto',
   }
 
-  // PDFs removed; no preview state needed
-
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation()
     onRequestDelete?.(task)
@@ -245,9 +238,7 @@ function SortableTaskItem({
               >
                 <MapPin className="mt-0.5 h-3 w-3 flex-shrink-0" />
                 <span className="min-w-0 break-words">{task.location}</span>
-              </div>
-            )}
-            
+              </div> )}     
             <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
               {task.jobTask && <span className="mr-1 inline-block max-w-full break-words rounded bg-gray-100 px-1 font-mono dark:bg-gray-800 dark:text-gray-200">{task.jobTask}</span>}
             </p>
@@ -266,7 +257,6 @@ function SortableTaskItem({
           </div>
 
           <div className="flex items-center gap-1 flex-shrink-0">
-            {/* No PDF preview button when using job order number/final report number */}
             <button
               onClick={handleEdit}
               className="p-1 hover:bg-gray-100 rounded transition-colors dark:hover:bg-gray-800"
@@ -288,8 +278,6 @@ function SortableTaskItem({
           </div>
         </div>
       </div>
-
-      {/* No PDF viewer — using job order number/final report number instead */}
     </>
   )
 }
@@ -391,8 +379,6 @@ function AddTaskModal({
     return () => clearTimeout(timer)
   }, [formData.jobOrderNumber])
 
-  // No file inputs: using jobOrderNumber instead
-
   const validateField = (field: string, value: string): string => {
     switch (field) {
       case 'clientName':
@@ -426,8 +412,7 @@ function AddTaskModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    // Validate all fields
+
     const newErrors: {[key: string]: string} = {}
     const clientNameError = validateField('clientName', formData.clientName)
     if (clientNameError) newErrors.clientName = clientNameError
@@ -644,7 +629,6 @@ function AddTaskModal({
             <ErrorMessage field="location" />
           </div>
 
-          {/* Job Task - SEARCHABLE COMBOBOX */}
           <div className="space-y-2">
             <Label className="text-gray-700 font-medium">
               Job Task <span className="text-red-500">*</span>
@@ -713,8 +697,7 @@ function AddTaskModal({
             <Button 
               type="submit" 
               disabled={saving}
-              className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
-            >
+              className="flex-1 bg-blue-600 text-white hover:bg-blue-700">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Create Task
             </Button>
@@ -862,11 +845,8 @@ function EditTaskModal({
     setErrors(prev => ({ ...prev, [field]: error }))
   }
 
-  // No file inputs for edit modal; using number fields instead
-
   const checkJobOrderNumberExists = async (jobOrderNumber: string): Promise<boolean> => {
     if (!jobOrderNumber || !task?.id) return false
-
     try {
       const { data, error } = await supabase
         .from('tasks')
@@ -918,7 +898,6 @@ function EditTaskModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Validate all fields
     const newErrors: {[key: string]: string} = {}
     const clientNameError = validateField('clientName', formData.clientName)
     if (clientNameError) newErrors.clientName = clientNameError
@@ -1116,8 +1095,7 @@ function EditTaskModal({
               placeholder="Select client"
               emptyMessage="No clients found."
               disabled={saving}
-              className={touched.clientName && errors.clientName ? 'border-red-500' : ''}
-            />
+              className={touched.clientName && errors.clientName ? 'border-red-500' : ''}/>
             <ErrorMessage field="clientName" />
           </div>
 
@@ -1584,9 +1562,6 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
       }
 
       if (!savedTask) throw new Error('Failed to save task')
-
-      // No PDF upload handling
-
       return savedTask
     } catch (error: any) {
       console.error('saveTaskToDatabase error:', error)
@@ -1911,9 +1886,8 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
         onAdd={handleAddTask}
         staffList={staffList}
         jobTasks={jobTasks}
-        clients={clients}
-      />
-
+        clients={clients}  />
+        
       <EditTaskModal
         key={editingTask?.id || 'edit-task-modal'}
         task={editingTask}

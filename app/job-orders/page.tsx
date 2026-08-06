@@ -83,6 +83,7 @@ interface JobOrder {
 }
 
 type JobOrderSortField = keyof JobOrder | 'reminder' | 'support_staff'
+type ReportDateScope = 'all' | 'month' | 'year'
 
 interface JobOrderGroup {
   key: string
@@ -214,6 +215,20 @@ const activePaginationButtonClass = 'bg-blue-600 text-white hover:bg-blue-700 da
 const documentCheckboxClass = '![border-color:#94a3b8] ![background-color:#f8fafc] ![color:#ffffff] shadow-sm data-[state=checked]:![border-color:#2563eb] data-[state=checked]:![background-color:#2563eb] data-[state=checked]:![color:#ffffff] dark:![border-color:#94a3b8] dark:![background-color:#f8fafc] dark:![color:#ffffff] dark:data-[state=checked]:![border-color:#2563eb] dark:data-[state=checked]:![background-color:#2563eb] dark:data-[state=checked]:![color:#ffffff]'
 const rowsPerPageOptions = ['10', '25', '50', '100', 'all']
 const GROUP_FOCUS_HIGHLIGHT_DURATION_MS = 5000
+const reportMonthOptions = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
 
 const getUniqueStaffEntries = (entries: { name?: string | null; color?: string | null }[]) => {
   const staffMap = new Map<string, { name: string; color?: string }>()
@@ -297,6 +312,64 @@ const getDateTimeValue = (date?: string | null) => {
   const parsedDate = new Date(date)
   if (Number.isNaN(parsedDate.getTime())) return null
   return parsedDate.getTime()
+}
+
+const toDateKey = (date?: string | null) => {
+  if (!date) return null
+
+  const rawDate = date.split('T')[0]
+  if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) return rawDate
+
+  const parsedDate = new Date(date)
+  if (Number.isNaN(parsedDate.getTime())) return null
+
+  const year = parsedDate.getFullYear()
+  const month = String(parsedDate.getMonth() + 1).padStart(2, '0')
+  const day = String(parsedDate.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const makeDateKey = (year: number, monthIndex: number, day: number) =>
+  `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+
+const getReportDatePeriod = (scope: ReportDateScope, yearValue: string, monthValue: string) => {
+  if (scope === 'all') return null
+
+  const year = Number(yearValue)
+  const month = Number(monthValue)
+  if (!Number.isFinite(year)) return null
+
+  if (scope === 'year') {
+    return {
+      start: makeDateKey(year, 0, 1),
+      end: makeDateKey(year, 11, 31),
+      label: `${year}`,
+      filenamePart: `${year}`,
+    }
+  }
+
+  if (!Number.isFinite(month)) return null
+
+  const lastDay = new Date(year, month + 1, 0).getDate()
+  const monthName = reportMonthOptions[month] || 'Month'
+  return {
+    start: makeDateKey(year, month, 1),
+    end: makeDateKey(year, month, lastDay),
+    label: `${monthName} ${year}`,
+    filenamePart: `${monthName.toLowerCase()}-${year}`,
+  }
+}
+
+const jobOverlapsReportPeriod = (job: JobOrder, period: { start: string; end: string } | null) => {
+  if (!period) return true
+
+  const startDate = toDateKey(job.date_start)
+  const endDate = toDateKey(job.date_stop) || startDate
+  if (!startDate && !endDate) return false
+
+  const rangeStart = startDate || endDate
+  const rangeEnd = endDate || startDate
+  return !!rangeStart && !!rangeEnd && rangeStart <= period.end && rangeEnd >= period.start
 }
 
 const getTaskGroupKey = (job: JobOrder) => getTaskJobGroupId({
@@ -427,6 +500,7 @@ const buildJobOrderGroups = (jobs: JobOrder[]): JobOrderGroup[] => {
 }
 
 export default function JobOrdersPage() {
+  const today = new Date()
   const [user, setUser] = useState<any>(null)
   const [jobOrders, setJobOrders] = useState<JobOrder[]>([])
   const [loading, setLoading] = useState(true)
@@ -443,6 +517,9 @@ export default function JobOrdersPage() {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
   const [focusedGroupKey, setFocusedGroupKey] = useState<string | null>(null)
   const [rowsPerPage, setRowsPerPage] = useState('10')
+  const [reportDateScope, setReportDateScope] = useState<ReportDateScope>('all')
+  const [reportMonth, setReportMonth] = useState(String(today.getMonth()))
+  const [reportYear, setReportYear] = useState(String(today.getFullYear()))
   const handledFocusedGroupRef = useRef('')
   const router = useRouter()
   const { toast } = useToast()
@@ -716,6 +793,9 @@ export default function JobOrdersPage() {
     return job.task_pic_name === filterStaffValue
   }
 
+  const reportDatePeriod = getReportDatePeriod(reportDateScope, reportYear, reportMonth)
+  const reportDateLabel = reportDatePeriod?.label || 'All dates'
+
   const filteredAndSortedJobs = jobOrders
     .filter(job => {
       const matchesSearch = 
@@ -727,7 +807,8 @@ export default function JobOrdersPage() {
         (job.final_report_number?.toLowerCase() || '').includes(searchTerm.toLowerCase())
       const matchesStaff = matchesStaffFilter(job, filterStaff)
       const matchesStatus = filterStatus === 'all' || job.job_status === filterStatus
-      return matchesSearch && matchesStaff && matchesStatus
+      const matchesReportDate = jobOverlapsReportPeriod(job, reportDatePeriod)
+      return matchesSearch && matchesStaff && matchesStatus && matchesReportDate
     })
     .sort((a, b) => {
       const aValue = getJobOrderSortValue(a, sortField)
@@ -867,30 +948,41 @@ export default function JobOrdersPage() {
 
   const activeStaffCount = Array.from(staffStatusMap.values()).filter(isActive => isActive === true).length
   const inactiveStaffCount = staffList.length - activeStaffCount
-  const reportHeaders = ['No', 'Client Name', 'Location', 'Job Task', 'Start Date', 'End Date', 'Job Order Number', 'Final Report Number', 'Delivery Order', 'Invoice', 'Status', 'Additional Remark', 'PIC', 'Support Staff']
-  const reportRows = filteredAndSortedJobs.map((job, index) => [
-    index + 1,
-    job.client_name,
-    job.location || '',
-    job.job_task,
-    formatListDate(job.date_start),
-    formatListDate(job.date_stop),
-    job.job_order_number || '',
-    job.final_report_number || '',
-    job.delivery_order ? 'Yes' : 'No',
-    job.invoice ? 'Yes' : 'No',
-    getStatusText(job.job_status),
-    job.additional_remark || '',
-    job.task_pic_name || '',
-    job.task_support_name || '',
-  ])
+  const reportYearOptions = Array.from(new Set([
+    new Date().getFullYear(),
+    Number(reportYear),
+    ...jobOrders.flatMap((job) => [toDateKey(job.date_start), toDateKey(job.date_stop)])
+      .filter((dateKey): dateKey is string => !!dateKey)
+      .map((dateKey) => Number(dateKey.slice(0, 4)))
+      .filter((year) => Number.isFinite(year)),
+  ])).sort((a, b) => b - a)
+  const reportHeaders = ['No', 'Task Type', 'Client Name', 'Location', 'Job Task', 'Start Date', 'End Date', 'Job Order Number', 'Final Report Number', 'Delivery Order', 'Invoice', 'Status', 'Additional Remark', 'PIC', 'Support Staff']
+  const reportRows = filteredAndSortedGroups.flatMap((group, groupIndex) =>
+    group.tasks.map((task, taskIndex) => [
+      taskIndex === 0 ? String(groupIndex + 1) : `${groupIndex + 1}.${taskIndex}`,
+      taskIndex === 0 ? 'Main' : 'Follow-up',
+      task.client_name,
+      task.location || '',
+      task.job_task,
+      formatListDate(task.date_start),
+      formatListDate(task.date_stop),
+      task.job_order_number || '',
+      task.final_report_number || '',
+      task.delivery_order ? 'Yes' : 'No',
+      task.invoice ? 'Yes' : 'No',
+      getStatusText(getTaskRowStatus(task, taskIndex, group)),
+      task.additional_remark || '',
+      task.task_pic_name || '',
+      task.task_support_names_array?.join(', ') || task.task_support_name || '',
+    ])
+  )
   const reportDate = new Date().toISOString().split('T')[0]
   const exportReport = (format: 'pdf' | 'excel') => {
     const options = {
-      title: 'Job Task Order List',
+      title: reportDateScope === 'all' ? 'Job Task Order List' : `Job Task Order List (${reportDateLabel})`,
       headers: reportHeaders,
       rows: reportRows,
-      filename: `job-task-order-list-${reportDate}`,
+      filename: `job-task-order-list-${reportDatePeriod?.filenamePart || 'all-dates'}-${reportDate}`,
     }
 
     if (format === 'pdf') {
@@ -899,7 +991,10 @@ export default function JobOrdersPage() {
       downloadExcelReport(options)
     }
 
-    toast({ title: `Report exported as ${format === 'pdf' ? 'PDF' : 'Excel'}` })
+    toast({
+      title: `Report exported as ${format === 'pdf' ? 'PDF' : 'Excel'}`,
+      description: `${reportDateLabel} | ${reportRows.length} task rows`,
+    })
   }
 
   return (
@@ -942,6 +1037,58 @@ export default function JobOrdersPage() {
             >
               {loading ? 'Loading...' : 'Refresh'}
             </Button>
+            <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-flow-col sm:grid-cols-none">
+              <Select
+                value={reportDateScope}
+                onValueChange={(value) => {
+                  setReportDateScope(value as ReportDateScope)
+                  setCurrentPage(1)
+                }}
+              >
+                <SelectTrigger className="min-w-[128px] border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-900">
+                  <SelectValue placeholder="Report date" />
+                </SelectTrigger>
+                <SelectContent className="border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                  <SelectItem value="all">All dates</SelectItem>
+                  <SelectItem value="month">By month</SelectItem>
+                  <SelectItem value="year">By year</SelectItem>
+                </SelectContent>
+              </Select>
+              {reportDateScope === 'month' && (
+                <Select value={reportMonth} onValueChange={(value) => {
+                  setReportMonth(value)
+                  setCurrentPage(1)
+                }}>
+                  <SelectTrigger className="min-w-[132px] border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-900">
+                    <SelectValue placeholder="Month" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-80 border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                    {reportMonthOptions.map((month, index) => (
+                      <SelectItem key={month} value={String(index)}>
+                        {month}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {reportDateScope !== 'all' && (
+                <Select value={reportYear} onValueChange={(value) => {
+                  setReportYear(value)
+                  setCurrentPage(1)
+                }}>
+                  <SelectTrigger className="min-w-[104px] border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-900">
+                    <SelectValue placeholder="Year" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-80 border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                    {reportYearOptions.map((year) => (
+                      <SelectItem key={year} value={String(year)}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -1010,9 +1157,10 @@ export default function JobOrdersPage() {
         </div>
 
         {/* Active Filters Summary */}
-        {(searchTerm || filterStaff !== 'all' || filterStatus !== 'all') && (
+        {(searchTerm || filterStaff !== 'all' || filterStatus !== 'all' || reportDateScope !== 'all') && (
           <div className="flex shrink-0 flex-wrap items-center gap-2 text-sm">
             <span className="text-gray-500 dark:text-gray-400">Filters active:</span>
+            {reportDateScope !== 'all' && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-800 dark:bg-amber-950/60 dark:text-amber-200">Date: {reportDateLabel}</span>}
             {searchTerm && <span className="rounded-full bg-blue-100 px-2 py-0.5 text-blue-800 dark:bg-blue-950/60 dark:text-blue-200">Search: {searchTerm}</span>}
             {filterStaff !== 'all' && (
               <span className="rounded-full bg-purple-100 px-2 py-0.5 text-purple-800 dark:bg-purple-950/60 dark:text-purple-200">
@@ -1020,7 +1168,7 @@ export default function JobOrdersPage() {
               </span>
             )}
             {filterStatus !== 'all' && <span className="rounded-full bg-green-100 px-2 py-0.5 text-green-800 dark:bg-green-950/60 dark:text-green-200">Status: {filterStatus}</span>}
-            <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setSearchTerm(''); setFilterStaff('all'); setFilterStatus('all') }}>
+            <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setSearchTerm(''); setFilterStaff('all'); setFilterStatus('all'); setReportDateScope('all'); setCurrentPage(1) }}>
               Clear all
             </Button>
           </div>
@@ -1093,7 +1241,7 @@ export default function JobOrdersPage() {
                     <div className="text-gray-400 text-4xl mb-2">📋</div>
                     <p className="text-gray-500 dark:text-gray-300">No job orders found</p>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                      {searchTerm || filterStaff !== 'all' || filterStatus !== 'all' 
+                      {searchTerm || filterStaff !== 'all' || filterStatus !== 'all' || reportDateScope !== 'all'
                         ? 'Try clearing your filters' 
                         : 'Add tasks in calendar to see them here'}
                     </p>

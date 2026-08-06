@@ -31,7 +31,6 @@ const computeTaskStatus = (data: {
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-
   const startDate = new Date(data.dateStart)
   startDate.setHours(0, 0, 0, 0)
   const dueDate = data.dateStop ? new Date(data.dateStop) : new Date(data.dateStart)

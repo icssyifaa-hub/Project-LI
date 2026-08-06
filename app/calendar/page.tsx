@@ -96,8 +96,7 @@ function ResponsiveCalendarPanel({
   return (
     <div
       className="fixed inset-x-0 bottom-0 top-16 z-40 bg-black/40 p-2 sm:p-4 lg:static lg:z-auto lg:flex lg:bg-transparent lg:p-0"
-      onClick={onClose}
-    >
+      onClick={onClose}>
       <div
         className={`calendar-panel-surface mx-auto flex h-full min-h-0 w-full max-w-xl flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100 lg:mx-0 lg:max-w-none lg:rounded-lg lg:shadow-none ${className}`}
         onClick={(event) => event.stopPropagation()}

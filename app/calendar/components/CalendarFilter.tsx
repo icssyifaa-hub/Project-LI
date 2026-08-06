@@ -59,7 +59,6 @@ export default function CalendarFilter({
     const isPaletteColor = colorKey in colorClasses
     const customColorStyle = isPaletteColor ? undefined : { color: colorKey }
     const customDotStyle = isPaletteColor ? undefined : { backgroundColor: colorKey }
-
     return {
       bg: isPaletteColor ? getDotClass(colorKey as ColorKey) : 'bg-gray-400',
       dotStyle: customDotStyle,
@@ -91,13 +90,11 @@ export default function CalendarFilter({
           tasks: value,
           events: current.events
         }
-
         if (nextFilter.tasks && nextFilter.events) {
           delete newFilters[staffId]
         } else {
           newFilters[staffId] = nextFilter
         }
-
         return newFilters
       })
     }
@@ -114,13 +111,11 @@ export default function CalendarFilter({
           tasks: current.tasks,
           events: value
         }
-
         if (nextFilter.tasks && nextFilter.events) {
           delete newFilters[staffId]
         } else {
           newFilters[staffId] = nextFilter
         }
-
         return newFilters
       })
     }
@@ -128,7 +123,6 @@ export default function CalendarFilter({
   
   const handleToggleAllTasks = () => {
     if (filteredStaff.length === 0) return
-    
     const allTasksChecked = filteredStaff.every(staff => 
       getStaffTasksChecked(staff.id)
     )
@@ -193,9 +187,7 @@ export default function CalendarFilter({
               </label>
             </div>
           </div>
-
           <Separator />
-
           {/* Staff Section */}
           <div className="space-y-3">
                 {/* Staff Header */}
@@ -210,7 +202,6 @@ export default function CalendarFilter({
                     {totalActiveSelections} visible
                   </Badge>
                 </div>
-
                 {/* Search Input */}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -218,10 +209,8 @@ export default function CalendarFilter({
                     placeholder="Search people..."
                     value={staffSearch}
                     onChange={(e) => setStaffSearch(e.target.value)}
-                    className="pl-9 h-9 text-sm"
-                  />
+                    className="pl-9 h-9 text-sm"/>
                 </div>
-
                 {/* Column Headers with Toggle All Buttons */}
                 <div className="grid grid-cols-12 gap-2 rounded-md bg-muted/30 px-2 py-1">
                   <div className="col-span-6">
@@ -232,8 +221,7 @@ export default function CalendarFilter({
                       variant="ghost"
                       size="sm"
                       onClick={handleToggleAllTasks}
-                      className="h-auto gap-1 p-0 text-xs font-medium text-muted-foreground hover:text-blue-600"
-                    >
+                      className="h-auto gap-1 p-0 text-xs font-medium text-muted-foreground hover:text-blue-600">
                       <CheckSquare className="h-3 w-3" />
                       Task
                       {allTasksSelected && filteredStaff.length > 0 && (
@@ -246,8 +234,7 @@ export default function CalendarFilter({
                       variant="ghost"
                       size="sm"
                       onClick={handleToggleAllEvents}
-                      className="h-auto gap-1 p-0 text-xs font-medium text-muted-foreground hover:text-purple-600"
-                    >
+                      className="h-auto gap-1 p-0 text-xs font-medium text-muted-foreground hover:text-purple-600">
                       <CalendarDays className="h-3 w-3" />
                       Events
                       {allEventsSelected && filteredStaff.length > 0 && (
@@ -256,7 +243,6 @@ export default function CalendarFilter({
                     </Button>
                   </div>
                 </div>
-
                 {/* Staff List */}
                 <div className="space-y-1 pr-1">
                   {filteredStaff.map((staff) => {
@@ -264,7 +250,6 @@ export default function CalendarFilter({
                     const staffId = staff.id
                     const showStaffTasks = getStaffTasksChecked(staffId)
                     const showStaffEvents = getStaffEventsChecked(staffId)
-                    
                     return (
                       <div 
                         key={staff.id} 

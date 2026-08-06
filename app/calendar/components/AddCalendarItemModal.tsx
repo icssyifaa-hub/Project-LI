@@ -43,7 +43,7 @@ import { useCallback, useEffect, useState, useRef } from 'react'
 // PDF upload/delete removed - using job order number/final report number instead
 import { Combobox } from '@/components/ui/combobox'
 import { getDotClass } from '@/lib/colors'
-import { createJobGroupId, isSameJobOrderFollowUp } from '@/lib/job-groups'
+import { createJobGroupId } from '@/lib/job-groups'
 import {
   Client,
   fetchClients,
@@ -263,40 +263,6 @@ export default function AddCalendarItemModal({
       finalReportNumber: taskData.finalReportNumber || null,
     })
   }, [taskData.dateStart, taskData.dateStop, taskData.jobOrderNumber, taskData.finalReportNumber])
-
-  const checkTaskNumberExists = useCallback(async (
-    column: 'job_order_number' | 'final_report_number',
-    value: string,
-    currentTaskId?: string
-  ): Promise<boolean> => {
-    if (!value || value.trim() === '') return false
-    
-    try {
-      const { data, error } = await supabase
-        .from('tasks')
-        .select('id, job_group_id')
-        .eq(column, value.trim())
-        .limit(10)
-      
-      if (error) throw error
-
-      const matchingTasks = data || []
-      
-      if (column === 'job_order_number') {
-        const allowedGroupId = taskData.jobGroupId || selectedItem?.jobGroupId
-        return matchingTasks.some((task) => {
-          if (currentTaskId && task.id === currentTaskId) return false
-          if (allowedGroupId && task.job_group_id === allowedGroupId) return false
-          return true
-        })
-      }
-      
-      return matchingTasks.some((task) => !currentTaskId || task.id !== currentTaskId)
-    } catch (error) {
-      console.error(`Error checking ${column}:`, error)
-      return false
-    }
-  }, [selectedItem?.jobGroupId, supabase, taskData.jobGroupId])
 
   // ========== NOTIFICATION FUNCTIONS ==========
   const sendTaskNotifications = useCallback(async (data: any, taskId: string, action: 'created' | 'updated' = 'created') => {
@@ -730,52 +696,6 @@ export default function AddCalendarItemModal({
 
   useEffect(() => {
     if (!isOpen || activeTab !== 'task') return
-
-    const jobOrderNumber = normalizeJobOrderNumber(taskData.jobOrderNumber)
-    const finalReportNumber = normalizeFinalReportNumber(taskData.finalReportNumber)
-    if (!jobOrderNumber && !finalReportNumber) return
-
-    const timer = setTimeout(async () => {
-      const currentTaskId = selectedItem?.id
-      const duplicateErrors: {[key: string]: string} = {}
-
-      if (
-        jobOrderNumber &&
-        validateJobOrderNumberFormat(jobOrderNumber) &&
-        !isSameJobOrderFollowUp(jobOrderNumber, effectivePrefilledData?.jobOrderNumber)
-      ) {
-        const exists = await checkTaskNumberExists('job_order_number', jobOrderNumber, currentTaskId)
-        if (exists) {
-          duplicateErrors.jobOrderNumber = `Job Order Number "${jobOrderNumber}" already exists. Please use a different number.`
-        }
-      }
-
-      setTouched(prev => ({
-        ...prev,
-        ...(jobOrderNumber ? { jobOrderNumber: true } : {}),
-        ...(finalReportNumber ? { finalReportNumber: true } : {}),
-      }))
-      setErrors(prev => {
-        const next = { ...prev }
-        if (next.jobOrderNumber?.includes('already exists')) delete next.jobOrderNumber
-        return { ...next, ...duplicateErrors }
-      })
-    }, 800)
-
-    return () => clearTimeout(timer)
-  }, [
-    isOpen,
-    activeTab,
-    selectedItem,
-    effectivePrefilledData?.jobOrderNumber,
-    taskData.jobOrderNumber,
-    taskData.finalReportNumber,
-    taskData.jobTask,
-    checkTaskNumberExists
-  ])
-
-  useEffect(() => {
-    if (!isOpen || activeTab !== 'task') return
     if (!taskData.clientName || taskData.clientId || taskData.location) return
 
     const locations = getLocationsForClient(clients, taskData.clientName)
@@ -1185,30 +1105,6 @@ export default function AddCalendarItemModal({
         toast({ title: "Validation Error", description: firstError, variant: "destructive" })
       }
       return
-    }
-
-    if (activeTab === 'task') {
-      const currentTaskId = selectedItem?.id
-      const jobOrderNumber = normalizeJobOrderNumber(taskData.jobOrderNumber)
-      const duplicateErrors: {[key: string]: string} = {}
-
-      const jobOrderExists = jobOrderNumber && !isSameJobOrderFollowUp(jobOrderNumber, effectivePrefilledData?.jobOrderNumber)
-        ? await checkTaskNumberExists('job_order_number', jobOrderNumber, currentTaskId)
-        : false
-
-      if (jobOrderExists) {
-        duplicateErrors.jobOrderNumber = `Job Order Number "${jobOrderNumber}" already exists. Please use a different number.`
-      }
-
-      if (Object.keys(duplicateErrors).length > 0) {
-        setErrors(prev => ({ ...prev, ...duplicateErrors }))
-        toast({
-          title: "Validation Error",
-          description: Object.values(duplicateErrors)[0],
-          variant: "destructive"
-        })
-        return
-      }
     }
 
     const saveFunction = async () => {

@@ -310,29 +310,7 @@ function AddTaskModal({
   const [errors, setErrors] = useState<{[key: string]: string}>({})
   const [touched, setTouched] = useState<{[key: string]: boolean}>({})
   const { toast } = useToast()
-  const supabase = createClient()
   const activeStaffList = staffList.filter((staff) => staff.is_active !== false)
-
-  const checkTaskNumberExists = async (
-    column: 'job_order_number',
-    value: string
-  ): Promise<boolean> => {
-    if (!value || value.trim() === '') return false
-    
-    try {
-      const { data, error } = await supabase
-        .from('tasks')
-        .select('id')
-        .eq(column, value.trim())
-        .limit(1)
-      
-      if (error) throw error
-      return (data || []).length > 0
-    } catch (error) {
-      console.error(`Error checking ${column}:`, error)
-      return false
-    }
-  }
 
   useEffect(() => {
     if (isOpen) {
@@ -349,35 +327,6 @@ function AddTaskModal({
       setTouched({})
     }
   }, [isOpen])
-
-  useEffect(() => {
-    const jobOrderNumber = normalizeJobOrderNumber(formData.jobOrderNumber)
-    if (!jobOrderNumber) {
-      setErrors(prev => {
-        if (!prev.jobOrderNumber?.includes('already exists')) return prev
-        const next = { ...prev }
-        delete next.jobOrderNumber
-        return next
-      })
-      return
-    }
-    if (!validateJobOrderNumberFormat(jobOrderNumber)) return
-
-    const timer = setTimeout(async () => {
-      const exists = await checkTaskNumberExists('job_order_number', jobOrderNumber)
-      setTouched(prev => ({ ...prev, jobOrderNumber: true }))
-      setErrors(prev => {
-        const next = { ...prev }
-        if (next.jobOrderNumber?.includes('already exists')) delete next.jobOrderNumber
-        if (exists) {
-          next.jobOrderNumber = `Job Order Number "${jobOrderNumber}" already exists. Please use a different number.`
-        }
-        return next
-      })
-    }, 800)
-
-    return () => clearTimeout(timer)
-  }, [formData.jobOrderNumber])
 
   const validateField = (field: string, value: string): string => {
     switch (field) {
@@ -426,12 +375,6 @@ function AddTaskModal({
     if (jobOrderNumberError) newErrors.jobOrderNumber = jobOrderNumberError
     
     const normalizedJobOrderNumber = normalizeJobOrderNumber(formData.jobOrderNumber)
-    if (normalizedJobOrderNumber && !jobOrderNumberError) {
-      const exists = await checkTaskNumberExists('job_order_number', normalizedJobOrderNumber)
-      if (exists) {
-        newErrors.jobOrderNumber = `Job Order Number "${normalizedJobOrderNumber}" already exists. Please use a different number.`
-      }
-    }
 
     setErrors(newErrors)
     
@@ -739,7 +682,6 @@ function EditTaskModal({
   const [errors, setErrors] = useState<{[key: string]: string}>({})
   const [touched, setTouched] = useState<{[key: string]: boolean}>({})
   const { toast } = useToast()
-  const supabase = createClient()
 
   useEffect(() => {
     if (task && isOpen) {
@@ -845,56 +787,6 @@ function EditTaskModal({
     setErrors(prev => ({ ...prev, [field]: error }))
   }
 
-  const checkJobOrderNumberExists = async (jobOrderNumber: string): Promise<boolean> => {
-    if (!jobOrderNumber || !task?.id) return false
-    try {
-      const { data, error } = await supabase
-        .from('tasks')
-        .select('id, job_group_id')
-        .eq('job_order_number', jobOrderNumber)
-        .limit(10)
-
-      if (error) throw error
-      return (data || []).some((matchingTask) => {
-        if (matchingTask.id === task.id) return false
-        if (task.jobGroupId && matchingTask.job_group_id === task.jobGroupId) return false
-        return true
-      })
-    } catch (error) {
-      console.error('Error checking job order number:', error)
-      return false
-    }
-  }
-
-  useEffect(() => {
-    const jobOrderNumber = normalizeJobOrderNumber(formData.jobOrderNumber)
-    if (!jobOrderNumber) {
-      setErrors(prev => {
-        if (!prev.jobOrderNumber?.includes('already exists')) return prev
-        const next = { ...prev }
-        delete next.jobOrderNumber
-        return next
-      })
-      return
-    }
-    if (!validateJobOrderNumberFormat(jobOrderNumber)) return
-
-    const timer = setTimeout(async () => {
-      const exists = await checkJobOrderNumberExists(jobOrderNumber)
-      setTouched(prev => ({ ...prev, jobOrderNumber: true }))
-      setErrors(prev => {
-        const next = { ...prev }
-        if (next.jobOrderNumber?.includes('already exists')) delete next.jobOrderNumber
-        if (exists) {
-          next.jobOrderNumber = `Job Order Number "${jobOrderNumber}" already exists. Please use a different number.`
-        }
-        return next
-      })
-    }, 800)
-
-    return () => clearTimeout(timer)
-  }, [formData.jobOrderNumber, task?.id])
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -911,12 +803,6 @@ function EditTaskModal({
     if (jobOrderNumberError) newErrors.jobOrderNumber = jobOrderNumberError
 
     const normalizedJobOrderNumber = normalizeJobOrderNumber(formData.jobOrderNumber)
-    if (normalizedJobOrderNumber && !jobOrderNumberError) {
-      const exists = await checkJobOrderNumberExists(normalizedJobOrderNumber)
-      if (exists) {
-        newErrors.jobOrderNumber = `Job Order Number "${normalizedJobOrderNumber}" already exists. Please use a different number.`
-      }
-    }
     
     setErrors(newErrors)
     
@@ -1575,16 +1461,6 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
     try {
       const normalizedJobOrderNumber = normalizeJobOrderNumber(newTask.jobOrderNumber || '')
       if (normalizedJobOrderNumber) {
-        const { data: existingJobOrder } = await supabase
-          .from('tasks')
-          .select('id')
-          .eq('job_order_number', normalizedJobOrderNumber)
-          .maybeSingle()
-
-        if (existingJobOrder) {
-          throw new Error(`Job Order Number "${normalizedJobOrderNumber}" already exists. Please use a different number.`)
-        }
-
         newTask.jobOrderNumber = normalizedJobOrderNumber
       }
 
@@ -1633,16 +1509,6 @@ export default function TaskInbox({ onDragStart, onDragEnd, onTaskClick, onTaskS
     try {
       const normalizedJobOrderNumber = normalizeJobOrderNumber(updatedTask.jobOrderNumber || '')
       if (normalizedJobOrderNumber) {
-        const { data: existingJobOrder } = await supabase
-          .from('tasks')
-          .select('id')
-          .eq('job_order_number', normalizedJobOrderNumber)
-          .maybeSingle()
-
-        if (existingJobOrder && existingJobOrder.id !== updatedTask.id) {
-          throw new Error(`Job Order Number "${normalizedJobOrderNumber}" already exists. Please use a different number.`)
-        }
-
         updatedTask.jobOrderNumber = normalizedJobOrderNumber
       }
 

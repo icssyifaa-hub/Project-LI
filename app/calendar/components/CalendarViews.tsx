@@ -27,7 +27,7 @@ const getItemStyle = (item: any) => {
   return getItemStyleClasses(colorKey)
 }
 
-const holidayStyle = 'bg-emerald-600 text-white cursor-pointer hover:bg-emerald-700 transition-colors dark:bg-emerald-500 dark:text-black dark:hover:bg-emerald-400'
+const holidayStyle = 'calendar-holiday-blink bg-emerald-600 text-white cursor-pointer hover:bg-emerald-700 transition-colors dark:bg-emerald-500 dark:text-black dark:hover:bg-emerald-400'
 
 const shouldDisableTouchRangeDrag = () =>
   typeof window !== 'undefined' &&
@@ -1497,7 +1497,7 @@ export const CalendarViews: React.FC<CalendarViewsProps> = ({
                               <div
                                 key={`holiday-${holiday.id}`}
                                 data-month-cell-action
-                                className={`calendar-view-item-text absolute left-1 right-1 z-20 h-[16px] truncate rounded px-1 text-[12px] leading-[16px] sm:px-1.5 ${holidayStyle}`}
+                                className={`calendar-view-item-text absolute left-1 right-1 z-20 h-[20px] truncate rounded px-2 text-[12px] leading-[20px] ${holidayStyle}`}
                                 style={{
                                   top: `${MONTH_CELL_CONTENT_TOP + (visibleRangeCount + visibleHolidays.indexOf(holiday)) * MONTH_RANGE_LANE_HEIGHT}px`,
                                 }}

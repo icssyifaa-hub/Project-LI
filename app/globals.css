@@ -432,6 +432,27 @@
     color: rgb(17 24 39) !important;
   }
 
+  .calendar-holiday-blink {
+    animation: calendar-holiday-blink 1.2s ease-in-out infinite;
+  }
+
+  @keyframes calendar-holiday-blink {
+    0%, 100% {
+      filter: brightness(1);
+      box-shadow: 0 0 0 rgb(16 185 129 / 0);
+    }
+    50% {
+      filter: brightness(1.18);
+      box-shadow: 0 0 10px rgb(16 185 129 / 0.65);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .calendar-holiday-blink {
+      animation: none;
+    }
+  }
+
   .event-list-title-button,
   .event-list-title-button :where(:not(svg):not(svg *)),
   .dark .event-list-title-button,

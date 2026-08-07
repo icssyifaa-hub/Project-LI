@@ -1,13 +1,17 @@
-export const JOB_ORDER_NUMBER_EXAMPLE = 'QE26/001 or QS26/001'
+export const JOB_ORDER_NUMBER_EXAMPLE = 'QE26/001, QE26/001 R1, QS26/001, or QS26/001 R1'
 export const FINAL_REPORT_NUMBER_EXAMPLE = 'ICS/26-001'
 export const AUD_FINAL_REPORT_NUMBER_EXAMPLE = 'AUD/26/001/01'
 
-const JOB_ORDER_NUMBER_PATTERN = /^(QE|QS)\d{2}\/\d{3}$/
+const JOB_ORDER_NUMBER_PATTERN = /^(QE|QS)\d{2}\/\d{3}(?:\s*R\d+)?$/
 const FINAL_REPORT_NUMBER_PATTERN = /^ICS\/\d{2}-\d{3}$/
 const AUD_FINAL_REPORT_NUMBER_PATTERN = /^AUD\/\d{2}\/\d{3}\/\d{2}$/
 
 export const normalizeJobOrderNumber = (value: string) =>
-  value.trim().toUpperCase().replace(/\s*\/\s*/g, '/')
+  value
+    .trim()
+    .toUpperCase()
+    .replace(/\s*\/\s*/g, '/')
+    .replace(/\s*R(\d+)$/g, ' R$1')
 
 export const normalizeFinalReportNumber = (value: string) =>
   value.trim().toUpperCase().replace(/\s*\/\s*/g, '/').replace(/\s*-\s*/g, '-')

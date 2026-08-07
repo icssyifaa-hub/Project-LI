@@ -4,13 +4,14 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Users, Calendar, Hash, Briefcase, UserCog, Settings as SettingsIcon, Building2 } from 'lucide-react'
+import { Users, Calendar, Hash, Briefcase, UserCog, Settings as SettingsIcon, Building2, FileText } from 'lucide-react'
 import { UsersTab } from './components/UsersTab'
 import { HolidaysTab } from './components/HolidaysTab'
 import { NumberFileTab } from './components/NumberFileTab'
 import { JobTasksTab } from './components/JobTasksTab'
 import { StaffTab } from './components/StaffTab'
 import { ClientsTab } from './components/ClientsTab'
+import { UserManualPanel } from './components/UserManualPanel'
 import type { AppUser } from '@/lib/auth/client'
 
 const tabTriggerClass =
@@ -54,7 +55,7 @@ export default function SettingsPage() {
   // Get tab from URL hash or default to users
   useEffect(() => {
     const hash = window.location.hash.replace('#', '')
-    if (hash && ['users', 'client-lists', 'holidays', 'number-file', 'number-fields', 'job-tasks', 'staff'].includes(hash)) {
+    if (hash && ['users', 'client-lists', 'holidays', 'number-file', 'number-fields', 'job-tasks', 'staff', 'user-manual'].includes(hash)) {
       setActiveTab(hash === 'number-fields' ? 'number-file' : hash)
     }
   }, [])
@@ -156,6 +157,13 @@ export default function SettingsPage() {
               <UserCog className="h-4 w-4 mr-2" />
               ICS Staff
             </TabsTrigger>
+            <TabsTrigger
+              value="user-manual"
+              className={tabTriggerClass}
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              User Manual
+            </TabsTrigger>
           </TabsList>
 
           {/* Tab Content */}
@@ -181,6 +189,10 @@ export default function SettingsPage() {
 
           <TabsContent value="staff" className="mt-6">
             <StaffTab />
+          </TabsContent>
+
+          <TabsContent value="user-manual" className="mt-6">
+            <UserManualPanel canManage />
           </TabsContent>
         </Tabs>
       </div>

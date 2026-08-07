@@ -35,6 +35,8 @@ interface TomorrowReminder {
   message: string
   dateStart: string
   dateStop: string | null
+  reminderDate: string
+  reminderLabel: string
   timeStart: string | null
 }
 
@@ -75,16 +77,15 @@ const formatDateLabel = (dateKey: string | null) => {
   })
 }
 
-const getDismissedReminderStorageKey = (userId?: string | null) => {
-  return `dismissed_upcoming_reminders:${userId || 'guest'}`
-}
+const formatReminderDateRange = (dateStart: string | null, dateStop: string | null) => {
+  if (!dateStart) return 'Date not set'
 
-const getDismissedReminderIds = (userId?: string | null): string[] => {
-  try {
-    return JSON.parse(localStorage.getItem(getDismissedReminderStorageKey(userId)) || '[]')
-  } catch {
-    return []
-  }
+  const startDateKey = String(dateStart).split('T')[0]
+  const stopDateKey = dateStop ? String(dateStop).split('T')[0] : ''
+
+  if (!stopDateKey || stopDateKey === startDateKey) return formatDateLabel(startDateKey)
+
+  return `${formatDateLabel(startDateKey)} - ${formatDateLabel(stopDateKey)}`
 }
 
 const isAdminUser = (user: any) => {
@@ -96,7 +97,6 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [filteredNotifications, setFilteredNotifications] = useState<Notification[]>([])
   const [tomorrowReminders, setTomorrowReminders] = useState<TomorrowReminder[]>([])
-  const [dismissedReminderIds, setDismissedReminderIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [markingAll, setMarkingAll] = useState(false)
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -139,11 +139,6 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
     getUser()
   }, [supabase])
 
-  useEffect(() => {
-    if (!currentUser?.id) return
-    setDismissedReminderIds(getDismissedReminderIds(currentUser.id))
-  }, [currentUser?.id])
-
   // Filter notifications based on category
   useEffect(() => {
     let filtered = [...notifications]
@@ -162,7 +157,6 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
   }, [notifications, category])
 
   const filteredTomorrowReminders = tomorrowReminders.filter((reminder) => {
-    if (dismissedReminderIds.includes(reminder.id)) return false
     if (category === 'all') return true
     return reminder.type === category
   })
@@ -198,7 +192,7 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
     fetchNotifications()
   }, [currentUser, supabase])
 
-  // Fetch task/event reminders that are due tomorrow
+  // Fetch task/event reminders for tomorrow plus active tasks for today
   useEffect(() => {
     const isAssignedToCurrentUser = (item: any, itemType: 'task' | 'event') => {
       if (isAdminUser(currentUser)) return true
@@ -223,13 +217,14 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
         return
       }
 
+      const todayKey = getLocalDateKey(new Date())
       const tomorrowKey = getTomorrowDateKey()
 
       try {
         let tasksResult: any = await supabase
             .from('tasks')
             .select('id, client_name, client_id, job_task, date_start, date_stop, time_start, task_pic_id, task_pic_name, task_support_ids, task_support_names, job_status, client:client!tasks_client_id_fkey(id, client_name, location, address)')
-            .eq('date_start', tomorrowKey)
+            .lte('date_start', tomorrowKey)
             .order('time_start', { ascending: true, nullsFirst: false })
 
         const eventsResult = await supabase
@@ -242,7 +237,7 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
           tasksResult = await supabase
             .from('tasks')
             .select('id, client_name, job_task, date_start, date_stop, time_start, task_pic_id, task_pic_name, task_support_ids, task_support_names, job_status')
-            .eq('date_start', tomorrowKey)
+            .lte('date_start', tomorrowKey)
             .order('time_start', { ascending: true, nullsFirst: false })
         }
 
@@ -250,20 +245,35 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
         if (eventsResult.error) throw eventsResult.error
 
         const taskReminders: TomorrowReminder[] = (tasksResult.data || [])
-          .filter((task: any) => task.date_start && task.job_status !== 'completed')
+          .filter((task: any) => {
+            if (!task.date_start || String(task.job_status || '').toLowerCase() === 'completed') return false
+
+            const startDateKey = String(task.date_start).split('T')[0]
+            const endDateKey = String(task.date_stop || task.date_start).split('T')[0]
+            const isOneDayBeforeTask = startDateKey === tomorrowKey
+            const isTaskActiveToday = startDateKey <= todayKey && endDateKey >= todayKey
+
+            return isOneDayBeforeTask || isTaskActiveToday
+          })
           .filter((task: any) => isAssignedToCurrentUser(task, 'task'))
           .map((task: any) => {
             const picName = task.task_pic_name || 'Unassigned'
             const client = getTaskClient(task)
+            const startDateKey = String(task.date_start).split('T')[0]
+            const isOneDayBeforeTask = startDateKey === tomorrowKey
+            const reminderLabel = isOneDayBeforeTask ? '1 day before task' : 'Today'
+            const dateLabel = formatReminderDateRange(task.date_start, task.date_stop)
 
             return {
               id: `task-${task.id}`,
               sourceId: task.id,
               type: 'task',
               title: `Reminder: ${task.job_task || 'Untitled Task'}`,
-              message: `${client.client_name || 'No client'}\n${formatDateLabel(task.date_start)} (${picName})`,
+              message: `${client.client_name || 'No client'}\n${dateLabel} (${picName})`,
               dateStart: task.date_start,
               dateStop: task.date_stop,
+              reminderDate: isOneDayBeforeTask ? startDateKey : todayKey,
+              reminderLabel,
               timeStart: task.time_start,
             }
           })
@@ -282,6 +292,8 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
               message: `${formatDateLabel(event.date_start)} (${picName})`,
               dateStart: event.date_start,
               dateStop: event.date_stop,
+              reminderDate: String(event.date_start).split('T')[0],
+              reminderLabel: '1 day before event',
               timeStart: event.time_start,
             }
           })
@@ -459,14 +471,8 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
   }
 
   const handleReminderClick = (reminder: TomorrowReminder) => {
-    const formattedDate = reminder.dateStart.split('T')[0]
+    const formattedDate = reminder.reminderDate.split('T')[0]
     router.push(`/calendar?date=${formattedDate}&view=month&focus=${formattedDate}`)
-  }
-
-  const dismissReminder = (id: string) => {
-    const updatedIds = Array.from(new Set([...dismissedReminderIds, id]))
-    setDismissedReminderIds(updatedIds)
-    localStorage.setItem(getDismissedReminderStorageKey(currentUser?.id), JSON.stringify(updatedIds))
   }
 
   const getTimeAgo = (date: string) => {
@@ -525,10 +531,10 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
 
   const getReminderIcon = (type: 'task' | 'event') => {
     if (type === 'task') {
-      return <Briefcase className="h-4 w-4 text-blue-600" />
+      return <Briefcase className="h-4 w-4 text-red-600" />
     }
 
-    return <Calendar className="h-4 w-4 text-purple-600" />
+    return <Calendar className="h-4 w-4 text-red-600" />
   }
 
   if (loading) {
@@ -617,7 +623,7 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
           <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2 px-1">
               <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-                Upcoming Reminders
+                Reminders
               </p>
               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
                 {filteredTomorrowReminders.length}
@@ -627,38 +633,14 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
             {filteredTomorrowReminders.map((reminder) => (
               <div
                 key={reminder.id}
-                className={`relative cursor-pointer overflow-hidden rounded-lg border bg-white shadow-sm transition-all duration-200 hover:-translate-y-px hover:shadow-md dark:bg-gray-900 ${
-                  reminder.type === 'task'
-                    ? 'border-blue-200 dark:border-blue-900/70'
-                    : 'border-purple-200 dark:border-purple-900/70'
-                }`}
+                className="relative cursor-pointer overflow-hidden rounded-lg border border-red-300 bg-red-50 shadow-sm transition-all duration-200 hover:-translate-y-px hover:shadow-md dark:border-red-900/70 dark:bg-red-950/30"
                 onClick={() => handleReminderClick(reminder)}
               >
-                <div
-                  className={`absolute inset-y-0 left-0 w-1 ${
-                    reminder.type === 'task' ? 'bg-blue-500' : 'bg-purple-500'
-                  }`}
-                />
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    dismissReminder(reminder.id)
-                  }}
-                  className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-                  aria-label="Dismiss reminder"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
+                <div className="absolute inset-y-0 left-0 w-1 bg-red-600" />
 
                 <div className="p-3 pl-4">
-                  <div className="flex items-start gap-3 pr-7">
-                    <span
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
-                        reminder.type === 'task'
-                          ? 'bg-blue-50 dark:bg-blue-950/60'
-                          : 'bg-purple-50 dark:bg-purple-950/60'
-                      }`}
-                    >
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-red-100 dark:bg-red-950/70">
                       {getReminderIcon(reminder.type)}
                     </span>
                     <div className="min-w-0 flex-1">
@@ -671,9 +653,9 @@ export default function NotificationsPanel({ onUnreadCountChange }: Notification
                     </div>
                   </div>
 
-                  <div className="mt-3 flex items-center border-t border-gray-100 pt-2 text-xs font-medium text-amber-700 dark:border-gray-800 dark:text-amber-300">
+                  <div className="mt-3 flex items-center border-t border-red-200 pt-2 text-xs font-medium text-red-700 dark:border-red-900/70 dark:text-red-300">
                     <Clock className="mr-1.5 h-3.5 w-3.5" />
-                    <span>1 day before</span>
+                    <span>{reminder.reminderLabel}</span>
                   </div>
                 </div>
               </div>

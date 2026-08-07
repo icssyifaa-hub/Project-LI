@@ -16,7 +16,8 @@ import {
   User,
   ListChecks,
   Building2,
-  ChevronDown
+  ChevronDown,
+  FileText
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { getCurrentAppUser, storeAppUser, type AppUser } from '@/lib/auth/client'
@@ -146,7 +147,7 @@ export default function ClientLayout({
   }
 
   useEffect(() => {
-    if (pathname === '/settings-staff/job-tasks' || pathname === '/settings-staff/client' || pathname === '/settings-staff/holidays' || pathname === '/settings-admin') {
+    if (pathname === '/settings-staff/job-tasks' || pathname === '/settings-staff/client' || pathname === '/settings-staff/holidays' || pathname === '/settings-staff/user-manual' || pathname === '/settings-admin') {
       setSettingsSectionOpen(true)
     }
   }, [pathname])
@@ -191,7 +192,7 @@ export default function ClientLayout({
   const isAdmin = user?.role === 'admin'
   const isCalendarPage = pathname === '/calendar'
   const isSettingsPage = pathname === '/settings-admin'
-  const isListPage = pathname === '/job-orders' || pathname === '/event-lists' || pathname === '/settings-staff/job-tasks' || pathname === '/settings-staff/client' || pathname === '/settings-staff/holidays' || pathname === '/profile'
+  const isListPage = pathname === '/job-orders' || pathname === '/event-lists' || pathname === '/settings-staff/job-tasks' || pathname === '/settings-staff/client' || pathname === '/settings-staff/holidays' || pathname === '/settings-staff/user-manual' || pathname === '/profile'
   const getNavClass = (path: string) => {
     const isActive = pathname === path
     return [
@@ -476,6 +477,14 @@ export default function ClientLayout({
                             <CalendarDays className="mr-2 h-3.5 w-3.5" />
                             Holidays
                           </button>
+                          <button
+                            type="button"
+                            className={getSubNavClass('/settings-staff/user-manual')}
+                            onClick={() => handleNavigation('/settings-staff/user-manual')}
+                          >
+                            <FileText className="mr-2 h-3.5 w-3.5" />
+                            User Manual
+                          </button>
                         </div>
                       )}
                     </>
@@ -599,6 +608,14 @@ export default function ClientLayout({
                             >
                               <CalendarDays className="mr-2 h-3.5 w-3.5" />
                               Holidays
+                            </button>
+                            <button
+                              type="button"
+                              className={getMobileSubNavClass('/settings-staff/user-manual')}
+                              onClick={() => handleNavigation('/settings-staff/user-manual')}
+                            >
+                              <FileText className="mr-2 h-3.5 w-3.5" />
+                              User Manual
                             </button>
                           </div>
                         )}
